@@ -1,0 +1,80 @@
+# CyberEpi Application Services Values
+
+global:
+  namespace: cyberepi-dev
+  imageRegistry: cyberepi
+  imageTag: latest
+
+base:
+  enabled: false  # Set to true if deploying base infra alongside services
+
+services:
+  userService:
+    name: user-service
+    replicas: 2
+    port: 8001
+    image: user-service
+    env:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: cyberepi
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 256Mi
+        cpu: 500m
+
+  symptomService:
+    name: symptom-service
+    replicas: 2
+    port: 8002
+    image: symptom-service
+    env:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 256Mi
+        cpu: 500m
+
+  prescriptionService:
+    name: prescription-service
+    replicas: 2
+    port: 8003
+    image: prescription-service
+    env:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      OPENFDA_API_URL: https://api.fda.gov
+      RXNORM_API_URL: https://rxnav.nlm.nih.gov/REST
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 256Mi
+        cpu: 500m
+
+  notificationService:
+    name: notification-service
+    replicas: 2
+    port: 8004
+    image: notification-service
+    env:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 256Mi
+        cpu: 500m

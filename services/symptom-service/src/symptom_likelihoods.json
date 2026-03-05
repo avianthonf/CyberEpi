@@ -1,0 +1,60 @@
+{
+    "influenza": {
+        "fever": {
+            "p_given_infected": 0.89,
+            "p_given_not_infected": 0.10
+        },
+        "cough": {
+            "p_given_infected": 0.82,
+            "p_given_not_infected": 0.25
+        },
+        "dyspnoea": {
+            "p_given_infected": 0.45,
+            "p_given_not_infected": 0.05
+        },
+        "fatigue": {
+            "p_given_infected": 0.77,
+            "p_given_not_infected": 0.30
+        },
+        "spo2_low": {
+            "p_given_infected": 0.20,
+            "p_given_not_infected": 0.02
+        },
+        "anosmia": {
+            "p_given_infected": 0.65,
+            "p_given_not_infected": 0.01
+        },
+        "headache": {
+            "p_given_infected": 0.70,
+            "p_given_not_infected": 0.20
+        },
+        "myalgia": {
+            "p_given_infected": 0.68,
+            "p_given_not_infected": 0.15
+        },
+        "sore_throat": {
+            "p_given_infected": 0.60,
+            "p_given_not_infected": 0.20
+        },
+        "rhinorrhea": {
+            "p_given_infected": 0.55,
+            "p_given_not_infected": 0.30
+        },
+        "nausea": {
+            "p_given_infected": 0.30,
+            "p_given_not_infected": 0.08
+        },
+        "diarrhea": {
+            "p_given_infected": 0.25,
+            "p_given_not_infected": 0.07
+        },
+        "chills": {
+            "p_given_infected": 0.75,
+            "p_given_not_infected": 0.10
+        },
+        "chest_pain": {
+            "p_given_infected": 0.15,
+            "p_given_not_infected": 0.03
+        }
+    }
+}

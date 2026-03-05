@@ -1,0 +1,58 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Build and push images
+        env:
+          REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
+        run: |
+          for svc in user-service symptom-service prescription-service notification-service; do
+            docker build -t $REGISTRY/cyberepi/$svc:${{ github.sha }} services/$svc
+            docker push $REGISTRY/cyberepi/$svc:${{ github.sha }}
+          done
+
+      - name: Deploy base infrastructure
+        run: |
+          helm upgrade --install cyberepi-base infra/helm/cyberepi-base \
+            --namespace cyberepi-staging \
+            --create-namespace \
+            --set global.namespace=cyberepi-staging \
+            --wait --timeout 5m
+
+      - name: Deploy services
+        env:
+          REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
+        run: |
+          helm upgrade --install cyberepi-services infra/helm/cyberepi-services \
+            --namespace cyberepi-staging \
+            --set global.namespace=cyberepi-staging \
+            --set global.imageRegistry=$REGISTRY/cyberepi \
+            --set global.imageTag=${{ github.sha }} \
+            --wait --timeout 5m
+
+      - name: Verify deployment
+        run: |
+          kubectl -n cyberepi-staging rollout status deployment/user-service --timeout=120s
+          kubectl -n cyberepi-staging rollout status deployment/symptom-service --timeout=120s
+          kubectl -n cyberepi-staging rollout status deployment/prescription-service --timeout=120s
+          kubectl -n cyberepi-staging rollout status deployment/notification-service --timeout=120s

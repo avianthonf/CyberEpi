@@ -1,0 +1,53 @@
+{
+  "type": "record",
+  "name": "PatientEvent",
+  "namespace": "com.cyberepi.events",
+  "doc": "Event emitted when a patient reports symptoms, updates vitals, scans medication, or receives an exposure alert.",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique event identifier (UUID v4)"
+    },
+    {
+      "name": "patient_id",
+      "type": "string",
+      "doc": "Patient UUID"
+    },
+    {
+      "name": "event_type",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": ["SYMPTOM_REPORT", "VITAL_UPDATE", "MED_SCAN", "EXPOSURE_ALERT"]
+      },
+      "doc": "Category of patient event"
+    },
+    {
+      "name": "timestamp_ms",
+      "type": "long",
+      "doc": "Event timestamp in epoch milliseconds"
+    },
+    {
+      "name": "region_id",
+      "type": "string",
+      "doc": "Geographic region identifier"
+    },
+    {
+      "name": "patch_id",
+      "type": "string",
+      "doc": "Sub-region patch identifier"
+    },
+    {
+      "name": "payload",
+      "type": "string",
+      "doc": "JSON-encoded event payload"
+    },
+    {
+      "name": "schema_ver",
+      "type": "string",
+      "default": "1.0",
+      "doc": "Schema version for forward compatibility"
+    }
+  ]
+}

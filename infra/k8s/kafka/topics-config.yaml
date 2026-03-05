@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-init
+  namespace: cyberepi-dev
+  labels:
+    app: kafka-init
+    component: messaging
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-topics-init
+          image: confluentinc/cp-kafka:7.6.0
+          command:
+            - bash
+            - -c
+            - |
+              echo "Waiting for Kafka broker..."
+              cub kafka-ready -b kafka:9092 1 120
+              echo "Creating topics..."
+              kafka-topics --create --topic patient.events \
+                --partitions 6 --replication-factor 1 \
+                --bootstrap-server kafka:9092 --if-not-exists
+              kafka-topics --create --topic epi.updates \
+                --partitions 3 --replication-factor 1 \
+                --bootstrap-server kafka:9092 --if-not-exists
+              kafka-topics --create --topic alerts.push \
+                --partitions 3 --replication-factor 1 \
+                --bootstrap-server kafka:9092 --if-not-exists
+              echo "All topics created successfully."
