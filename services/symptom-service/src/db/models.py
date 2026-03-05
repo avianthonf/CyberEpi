@@ -41,6 +41,4 @@ class Patient(Base):
     region_id: Mapped[str | None] = mapped_column(String(50))
     patch_id: Mapped[str | None] = mapped_column(String(20))
     risk_tier: Mapped[str] = mapped_column(String(20), default="low")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

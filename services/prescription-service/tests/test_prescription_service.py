@@ -8,25 +8,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import _make_jwt
-
 
 @pytest.fixture
 def client(mock_db, mock_redis):
-    import src.main
     with (
         patch("src.db.session.engine") as mock_engine,
         patch("src.main.engine") as mock_main_engine,
     ):
         mock_conn = AsyncMock()
-        mock_engine.begin = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_conn), __aexit__=AsyncMock()
-        ))
+        mock_engine.begin = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_conn), __aexit__=AsyncMock()))
         mock_engine.dispose = AsyncMock()
         mock_main_engine.begin = mock_engine.begin
         mock_main_engine.dispose = mock_engine.dispose
 
         from src.main import app
+
         app.state.redis = mock_redis
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
@@ -42,11 +38,14 @@ class TestHealthEndpoint:
 
 class TestAuthRequired:
     def test_create_prescription_without_auth_returns_401(self, client):
-        resp = client.post("/api/v1/prescriptions", json={
-            "patient_id": str(uuid.uuid4()),
-            "drug_name": "Amoxicillin",
-            "start_date": "2024-01-01",
-        })
+        resp = client.post(
+            "/api/v1/prescriptions",
+            json={
+                "patient_id": str(uuid.uuid4()),
+                "drug_name": "Amoxicillin",
+                "start_date": "2024-01-01",
+            },
+        )
         assert resp.status_code in (401, 403)
 
     def test_get_prescription_without_auth_returns_401(self, client):

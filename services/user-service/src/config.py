@@ -29,17 +29,11 @@ class Settings(BaseSettings):
 
     @property
     def keycloak_jwks_url(self) -> str:
-        return (
-            f"{self.keycloak_url}/realms/{self.keycloak_realm}"
-            f"/protocol/openid-connect/certs"
-        )
+        return f"{self.keycloak_url}/realms/{self.keycloak_realm}/protocol/openid-connect/certs"
 
     @property
     def keycloak_token_url(self) -> str:
-        return (
-            f"{self.keycloak_url}/realms/{self.keycloak_realm}"
-            f"/protocol/openid-connect/token"
-        )
+        return f"{self.keycloak_url}/realms/{self.keycloak_realm}/protocol/openid-connect/token"
 
     @property
     def keycloak_admin_url(self) -> str:

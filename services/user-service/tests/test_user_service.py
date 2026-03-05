@@ -8,14 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import _make_jwt
-
 
 # ── Create app with mocked dependencies ──
 @pytest.fixture
 def client(mock_db, mock_redis):
     """TestClient with mocked DB and Redis."""
-    import src.main
     with (
         patch("src.db.session.engine") as mock_engine,
         patch("src.main.engine") as mock_main_engine,

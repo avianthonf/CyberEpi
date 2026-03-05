@@ -155,16 +155,16 @@ async def _check_interactions(
                         for group in pairs:
                             for itype in group.get("fullInteractionType", []):
                                 for pair in itype.get("interactionPair", []):
-                                    found.append({
-                                        "severity": pair.get("severity", "unknown"),
-                                        "description": pair.get("description", ""),
-                                        "drug_a": rxnorm_id,
-                                        "drug_b": rx.rxnorm_id,
-                                        "drug_b_name": rx.drug_name,
-                                    })
-                        await redis_client.setex(
-                            cache_key, settings.fda_cache_ttl, json.dumps(found)
-                        )
+                                    found.append(
+                                        {
+                                            "severity": pair.get("severity", "unknown"),
+                                            "description": pair.get("description", ""),
+                                            "drug_a": rxnorm_id,
+                                            "drug_b": rx.rxnorm_id,
+                                            "drug_b_name": rx.drug_name,
+                                        }
+                                    )
+                        await redis_client.setex(cache_key, settings.fda_cache_ttl, json.dumps(found))
                         interactions.extend(found)
             except httpx.HTTPError:
                 pass
@@ -291,6 +291,7 @@ async def scan_medication(
 
     # Try to find NDC pattern in text (XXXXX-XXXX-XX)
     import re
+
     ndc_match = re.search(r"\d{4,5}-\d{3,4}-\d{1,2}", body.ocr_text)
     if ndc_match:
         ndc_code = ndc_match.group()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -111,7 +111,7 @@ async def ingest_symptom(
     _user: dict[str, Any] = Depends(get_current_user),
 ) -> SymptomResponse:
     """Ingest a symptom report, compute risk score, store, and publish to Kafka."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Verify patient exists and get region info
     result = await db.execute(select(Patient).where(Patient.id == body.patient_id))
@@ -123,9 +123,7 @@ async def ingest_symptom(
     patch_id = body.patch_id or patient.patch_id or "unknown"
 
     # Count existing reports for this patient
-    count_result = await db.execute(
-        select(func.count()).select_from(VitalsTS).where(VitalsTS.patient_id == body.patient_id)
-    )
+    count_result = await db.execute(select(func.count()).select_from(VitalsTS).where(VitalsTS.patient_id == body.patient_id))
     report_count = (count_result.scalar() or 0) + 1  # +1 for current report
 
     # Compute risk score (null if < 3 total reports)
@@ -185,16 +183,18 @@ async def ingest_symptom(
             "timestamp_ms": int(now.timestamp() * 1000),
             "region_id": region_id,
             "patch_id": patch_id,
-            "payload": json.dumps({
-                "symptoms": body.symptoms,
-                "risk_score": risk_score,
-                "risk_tier": risk_tier,
-                "vitals": {
-                    "heart_rate": body.heart_rate,
-                    "spo2": body.spo2,
-                    "temperature": body.temperature,
-                },
-            }),
+            "payload": json.dumps(
+                {
+                    "symptoms": body.symptoms,
+                    "risk_score": risk_score,
+                    "risk_tier": risk_tier,
+                    "vitals": {
+                        "heart_rate": body.heart_rate,
+                        "spo2": body.spo2,
+                        "temperature": body.temperature,
+                    },
+                }
+            ),
             "schema_ver": "1.0",
         }
         await kafka_producer.send_and_wait(
@@ -204,6 +204,7 @@ async def ingest_symptom(
     except Exception:
         # Log but don't fail the request if Kafka is unavailable
         import structlog
+
         structlog.get_logger().warning("Failed to publish to Kafka", patient_id=str(body.patient_id))
 
     return SymptomResponse(
@@ -221,11 +222,6 @@ async def get_symptom_history(
     _user: dict[str, Any] = Depends(get_current_user),
 ) -> list[HistoryItem]:
     """Get last 30 symptom reports for a patient."""
-    result = await db.execute(
-        select(VitalsTS)
-        .where(VitalsTS.patient_id == patient_id)
-        .order_by(VitalsTS.time.desc())
-        .limit(30)
-    )
+    result = await db.execute(select(VitalsTS).where(VitalsTS.patient_id == patient_id).order_by(VitalsTS.time.desc()).limit(30))
     rows = result.scalars().all()
     return [HistoryItem.model_validate(r) for r in rows]

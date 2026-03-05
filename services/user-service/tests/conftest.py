@@ -9,7 +9,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
 
 
 def _make_jwt(payload: dict[str, Any]) -> str:
@@ -22,29 +21,35 @@ def _make_jwt(payload: dict[str, Any]) -> str:
 
 @pytest.fixture
 def valid_token() -> str:
-    return _make_jwt({
-        "sub": "test-user-id",
-        "exp": time.time() + 3600,
-        "realm_access": {"roles": ["patient"]},
-    })
+    return _make_jwt(
+        {
+            "sub": "test-user-id",
+            "exp": time.time() + 3600,
+            "realm_access": {"roles": ["patient"]},
+        }
+    )
 
 
 @pytest.fixture
 def physician_token() -> str:
-    return _make_jwt({
-        "sub": "test-physician-id",
-        "exp": time.time() + 3600,
-        "realm_access": {"roles": ["physician"]},
-    })
+    return _make_jwt(
+        {
+            "sub": "test-physician-id",
+            "exp": time.time() + 3600,
+            "realm_access": {"roles": ["physician"]},
+        }
+    )
 
 
 @pytest.fixture
 def expired_token() -> str:
-    return _make_jwt({
-        "sub": "test-user-id",
-        "exp": time.time() - 3600,
-        "realm_access": {"roles": ["patient"]},
-    })
+    return _make_jwt(
+        {
+            "sub": "test-user-id",
+            "exp": time.time() - 3600,
+            "realm_access": {"roles": ["patient"]},
+        }
+    )
 
 
 @pytest.fixture

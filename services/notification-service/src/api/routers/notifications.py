@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from typing import Any
 
@@ -90,9 +89,7 @@ async def send_notification(
     _user: dict[str, Any] = Depends(get_current_user),
 ) -> SendNotificationResponse:
     """Send push notification to a patient's registered devices."""
-    result = await db.execute(
-        select(PushToken).where(PushToken.patient_id == body.patient_id)
-    )
+    result = await db.execute(select(PushToken).where(PushToken.patient_id == body.patient_id))
     tokens = result.scalars().all()
     if not tokens:
         raise HTTPException(status_code=404, detail="No push tokens registered for patient")
@@ -135,9 +132,7 @@ async def physician_alert_stream(
                 if await request.is_disconnected():
                     break
 
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=1.0
-                )
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message and message["type"] == "message":
                     data = message["data"]
                     if isinstance(data, bytes):

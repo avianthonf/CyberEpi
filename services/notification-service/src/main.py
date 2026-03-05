@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
 import structlog
@@ -87,10 +87,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Shutdown
     consumer_task.cancel()
-    try:
+    import contextlib
+    with contextlib.suppress(asyncio.CancelledError):
         await consumer_task
-    except asyncio.CancelledError:
-        pass
     await r.aclose()
     await engine.dispose()
     logger.info("Notification-service shutdown complete")

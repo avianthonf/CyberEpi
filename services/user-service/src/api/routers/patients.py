@@ -107,9 +107,7 @@ async def register_patient(
                         "firstName": body.first_name,
                         "lastName": body.last_name,
                         "enabled": True,
-                        "credentials": [
-                            {"type": "password", "value": body.password, "temporary": False}
-                        ],
+                        "credentials": [{"type": "password", "value": body.password, "temporary": False}],
                     },
                     headers={"Authorization": f"Bearer {admin_token}"},
                 )
@@ -224,10 +222,7 @@ async def get_patient_risk(
     from sqlalchemy import text
 
     result = await db.execute(
-        text(
-            "SELECT risk_score, risk_tier FROM vitals_ts "
-            "WHERE patient_id = :pid ORDER BY time DESC LIMIT 1"
-        ),
+        text("SELECT risk_score, risk_tier FROM vitals_ts WHERE patient_id = :pid ORDER BY time DESC LIMIT 1"),
         {"pid": str(patient_id)},
     )
     row = result.first()

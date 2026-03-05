@@ -21,10 +21,7 @@ class Settings(BaseSettings):
 
     @property
     def keycloak_jwks_url(self) -> str:
-        return (
-            f"{self.keycloak_url}/realms/{self.keycloak_realm}"
-            f"/protocol/openid-connect/certs"
-        )
+        return f"{self.keycloak_url}/realms/{self.keycloak_realm}/protocol/openid-connect/certs"
 
 
 settings = Settings()
