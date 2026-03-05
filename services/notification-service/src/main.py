@@ -88,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Shutdown
     consumer_task.cancel()
     import contextlib
+
     with contextlib.suppress(asyncio.CancelledError):
         await consumer_task
     await r.aclose()
