@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epi-engine"
+version = "0.1.0"
+description = "Disease Dynamics Engine Service for CyberEpi"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "aioredis>=2.0.1",
+    "aiokafka>=0.10.0",
+    "pydantic[email]>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    "celery[redis]>=5.3.6",
+    "structlog>=24.1.0",
+    "prometheus-fastapi-instrumentator>=6.1.0",
+    "prometheus-client",
+    "alembic>=1.13.1",
+    "h3>=3.7.6",
+    "pandas>=2.2.0",
+    "python-multipart>=0.0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

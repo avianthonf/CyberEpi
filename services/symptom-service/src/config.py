@@ -12,12 +12,13 @@ class Settings(BaseSettings):
     service_port: int = 8002
     debug: bool = False
 
-    database_url: str = "postgresql+asyncpg://cyberepi:devpassword@localhost:5432/cyberepi"
+    database_url: str
     redis_url: str = "redis://localhost:6379/0"
     kafka_bootstrap_servers: str = "localhost:9092"
 
     keycloak_url: str = "http://localhost:8080"
     keycloak_realm: str = "cyberepi"
+    keycloak_client_id: str = "cyberepi-api"
 
     @property
     def keycloak_jwks_url(self) -> str:

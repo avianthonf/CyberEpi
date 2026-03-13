@@ -5,53 +5,52 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+import asyncio
+import time
+import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.config import settings
 
+from jose import jwt, JWTError
+
+logger = structlog.get_logger()
 _bearer = HTTPBearer()
 
 _jwks_cache: dict[str, Any] = {}
+_jwks_last_fetch = 0
+_JWKS_TTL = 3600  # 1 hour
 
 
 async def _get_jwks() -> dict[str, Any]:
-    """Fetch and cache the Keycloak JWKS."""
-    if not _jwks_cache:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(settings.keycloak_jwks_url)
-            resp.raise_for_status()
-            _jwks_cache.update(resp.json())
+    """Fetch and cache the Keycloak JWKS with TTL and retries."""
+    global _jwks_last_fetch
+    now = time.time()
+    
+    if not _jwks_cache or (now - _jwks_last_fetch) > _JWKS_TTL:
+        logger.info("Fetching Keycloak JWKS", url=settings.keycloak_jwks_url)
+        for i in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(settings.keycloak_jwks_url)
+                    resp.raise_for_status()
+                    _jwks_cache.clear()
+                    _jwks_cache.update(resp.json())
+                    _jwks_last_fetch = now
+                    logger.info("JWKS updated successfully")
+                    return _jwks_cache
+            except Exception as e:
+                if i == 2:
+                    if _jwks_cache:
+                        logger.warning("JWKS fetch failed, using stale cache", error=str(e))
+                        return _jwks_cache
+                    logger.error("JWKS fetch failed persistently, no cache available", error=str(e))
+                    raise
+                wait = 2 ** i
+                logger.warning("JWKS fetch failed, retrying...", error=str(e), attempt=i+1, wait=wait)
+                await asyncio.sleep(wait)
     return _jwks_cache
-
-
-def _decode_token_payload(token: str) -> dict[str, Any]:
-    """Decode JWT payload without full verification (for dev/test).
-
-    In production, use python-jose with JWKS keys for full verification.
-    """
-    import base64
-    import json
-
-    parts = token.split(".")
-    if len(parts) != 3:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Malformed token",
-        )
-    # Decode payload
-    payload_b64 = parts[1]
-    padding = 4 - len(payload_b64) % 4
-    payload_b64 += "=" * padding
-    try:
-        payload_bytes = base64.urlsafe_b64decode(payload_b64)
-        payload: dict[str, Any] = json.loads(payload_bytes)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token encoding",
-        ) from exc
-    return payload
 
 
 async def get_current_user(
@@ -60,24 +59,24 @@ async def get_current_user(
     """Extract and validate the current user from the JWT bearer token."""
     token = credentials.credentials
     try:
-        payload = _decode_token_payload(token)
-    except HTTPException:
-        raise
+        jwks = await _get_jwks()
+        payload = jwt.decode(
+            token,
+            jwks,
+            algorithms=["RS256"],
+            audience=settings.keycloak_client_id,
+            options={"verify_aud": False}, # Often client_id != aud in Keycloak defaults without config
+        )
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not validate credentials: {str(exc)}",
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Error validating token",
         ) from exc
-
-    # Check expiration
-    import time
-
-    exp = payload.get("exp")
-    if exp is not None and float(exp) < time.time():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-        )
 
     return payload
 

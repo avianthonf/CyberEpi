@@ -132,6 +132,7 @@ async def register_patient(
     )
     db.add(patient)
     await db.flush()
+    await db.commit()
 
     return RegisterResponse(id=patient.id, keycloak_id=keycloak_id)
 
@@ -148,6 +149,18 @@ async def get_patient(
     patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Ownership / RBAC check
+    current_keycloak_id = _user.get("sub")
+    roles = _user.get("realm_access", {}).get("roles", [])
+    is_staff = any(r in ["physician", "admin"] for r in roles)
+
+    if not is_staff and patient.keycloak_id != current_keycloak_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this profile",
+        )
+
     return PatientResponse.model_validate(patient)
 
 
@@ -164,11 +177,23 @@ async def update_patient(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
+    # Ownership / RBAC check
+    current_keycloak_id = _user.get("sub")
+    roles = _user.get("realm_access", {}).get("roles", [])
+    is_staff = any(r in ["physician", "admin"] for r in roles)
+
+    if not is_staff and patient.keycloak_id != current_keycloak_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to update this profile",
+        )
+
     update_data = body.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(patient, field, value)
 
     await db.flush()
+    await db.commit()
     return PatientResponse.model_validate(patient)
 
 
@@ -208,6 +233,7 @@ async def register_push_token(
             )
         )
     await db.flush()
+    await db.commit()
     return {"message": "Push token registered"}
 
 

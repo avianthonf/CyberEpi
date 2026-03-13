@@ -21,11 +21,13 @@ def client(mock_db, mock_redis):
         mock_main_engine.begin = mock_engine.begin
         mock_main_engine.dispose = mock_engine.dispose
 
-        from src.main import app
+        with patch("src.main.aioredis.from_url") as mock_from_url:
+            mock_from_url.return_value = mock_redis
+            from src.main import app
 
-        app.state.redis = mock_redis
-        with TestClient(app, raise_server_exceptions=False) as c:
-            yield c
+            app.state.redis = mock_redis
+            with TestClient(app, raise_server_exceptions=False) as c:
+                yield c
 
 
 class TestHealthEndpoint:

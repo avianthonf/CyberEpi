@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     service_port: int = 8001
     debug: bool = False
 
-    # Database
-    database_url: str = "postgresql+asyncpg://cyberepi:devpassword@localhost:5432/cyberepi"
+    # Database (Value required in environment, no default for security)
+    database_url: str
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"

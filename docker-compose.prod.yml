@@ -1,0 +1,207 @@
+version: "3.9"
+
+# Production-like Docker Compose for local testing
+# This is a simplified version without monitoring stack
+
+services:
+  # ─────────────── DATA LAYER ───────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: cyberepi-postgres-prod
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: cyberepi
+      POSTGRES_USER: cyberepi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyberepi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberepi-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: cyberepi-redis-prod
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberepi-net
+
+  # ─────────────── MICROSERVICES ───────────────
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: cyberepi-user-service-prod
+    ports:
+      - "8011:8001"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_REALM: cyberepi
+      SERVICE_PORT: 8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+  symptom-service:
+    build:
+      context: ./services/symptom-service
+      dockerfile: Dockerfile
+    container_name: cyberepi-symptom-service-prod
+    ports:
+      - "8012:8002"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_PORT: 8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+  prescription-service:
+    build:
+      context: ./services/prescription-service
+      dockerfile: Dockerfile
+    container_name: cyberepi-prescription-service-prod
+    ports:
+      - "8013:8003"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      OPENFDA_API_URL: https://api.fda.gov
+      RXNORM_API_URL: https://rxnav.nlm.nih.gov/REST
+      SERVICE_PORT: 8003
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: cyberepi-notification-service-prod
+    ports:
+      - "8014:8004"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_PORT: 8004
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+  epi-engine:
+    build:
+      context: ./services/epi-engine
+      dockerfile: Dockerfile
+    container_name: cyberepi-epi-engine-prod
+    ports:
+      - "8015:8005"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_PORT: 8005
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+  privacy-service:
+    build:
+      context: ./services/privacy-service
+      dockerfile: Dockerfile
+    container_name: cyberepi-privacy-service-prod
+    ports:
+      - "8016:8006"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      SERVICE_PORT: 8006
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+  # ─────────────── API GATEWAY ───────────────
+  kong:
+    image: kong:3-alpine
+    container_name: cyberepi-kong-prod
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    volumes:
+      - ./infra/kong/kong.yml:/kong/kong.yml:ro
+    depends_on:
+      - user-service
+      - symptom-service
+      - prescription-service
+      - notification-service
+      - epi-engine
+      - privacy-service
+    networks:
+      - cyberepi-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  cyberepi-net:
+    driver: bridge
+    name: cyberepi-net

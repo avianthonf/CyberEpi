@@ -1,0 +1,177 @@
+version: "3.9"
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ─────────────── DATA LAYER ───────────────
+  postgres:
+    <<: *common
+    image: timescale/timescaledb:latest-pg16
+    container_name: cyberepi-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: cyberepi
+      POSTGRES_USER: cyberepi
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyberepi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberepi-net
+
+  redis:
+    <<: *common
+    image: redis:7-alpine
+    container_name: cyberepi-redis
+    ports:
+      - "6379:6379"  # SECURE: Internal only
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberepi-net
+
+  # ─────────────── MESSAGING ───────────────
+  zookeeper:
+    <<: *common
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: cyberepi-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo ruok | nc 127.0.0.1 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberepi-net
+
+  kafka:
+    <<: *common
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cyberepi-kafka
+    ports:
+      - "9092:9092"  # SECURE: Internal only
+#      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - cyberepi-net
+
+  schema-registry:
+    <<: *common
+    image: confluentinc/cp-schema-registry:7.6.0
+    container_name: cyberepi-schema-registry
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberepi-net
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cyberepi-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka to be fully ready...' &&
+        cub kafka-ready -b kafka:9092 1 120 &&
+        echo 'Creating topics...' &&
+        kafka-topics --create --topic patient.events --partitions 6 --replication-factor 1 --bootstrap-server kafka:9092 --if-not-exists &&
+        kafka-topics --create --topic epi.updates --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092 --if-not-exists &&
+        kafka-topics --create --topic alerts.push --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092 --if-not-exists &&
+        echo 'Topics created successfully!'
+      "
+    networks:
+      - cyberepi-net
+
+  # ─────────────── IDENTITY ───────────────
+  keycloak:
+    <<: *common
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: cyberepi-keycloak
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: cyberepi
+      KC_DB_PASSWORD: devpassword
+    command: start-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q 200"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - cyberepi-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  zookeeper_data:
+  zookeeper_log:
+
+networks:
+  cyberepi-net:
+    driver: bridge
+    name: cyberepi-net

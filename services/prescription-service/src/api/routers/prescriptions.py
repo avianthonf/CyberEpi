@@ -68,108 +68,12 @@ class MedicationScanResponse(BaseModel):
     interactions: list[dict[str, Any]]
 
 
-# ─── OpenFDA / RxNorm helpers ────────────────────────────────────
-async def _cached_fda_lookup(
-    redis_client: aioredis.Redis,
-    ndc_code: str,
-) -> dict[str, Any] | None:
-    """Lookup drug by NDC via OpenFDA, with Redis cache."""
-    cache_key = f"fda:ndc:{ndc_code}"
-    cached = await redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
+from src.services.interactions import (
+    cached_fda_lookup,
+    rxnorm_lookup,
+    check_interactions,
+)
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{settings.openfda_api_url}/drug/ndc.json",
-                params={"search": f"product_ndc:{ndc_code}"},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                result = data.get("results", [{}])[0] if data.get("results") else None
-                if result:
-                    await redis_client.setex(cache_key, settings.fda_cache_ttl, json.dumps(result))
-                return result
-    except httpx.HTTPError:
-        pass
-    return None
-
-
-async def _rxnorm_lookup(drug_name: str) -> str | None:
-    """Get RxNorm ID for a drug name."""
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{settings.rxnorm_api_url}/rxcui.json",
-                params={"name": drug_name},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                id_group = data.get("idGroup", {})
-                rxnorm_ids = id_group.get("rxnormId", [])
-                return rxnorm_ids[0] if rxnorm_ids else None
-    except httpx.HTTPError:
-        pass
-    return None
-
-
-async def _check_interactions(
-    redis_client: aioredis.Redis,
-    rxnorm_id: str,
-    patient_id: uuid.UUID,
-    db: AsyncSession,
-) -> list[dict[str, Any]]:
-    """Check drug interactions against patient's active prescriptions."""
-    interactions: list[dict[str, Any]] = []
-
-    # Get patient's active prescriptions
-    result = await db.execute(
-        select(Prescription).where(
-            Prescription.patient_id == patient_id,
-            Prescription.status == "active",
-        )
-    )
-    active_rxs = result.scalars().all()
-
-    for rx in active_rxs:
-        if rx.rxnorm_id and rx.rxnorm_id != rxnorm_id:
-            cache_key = f"fda:interaction:{min(rxnorm_id, rx.rxnorm_id)}:{max(rxnorm_id, rx.rxnorm_id)}"
-            cached = await redis_client.get(cache_key)
-            if cached:
-                cached_data = json.loads(cached)
-                if cached_data:
-                    interactions.extend(cached_data)
-                continue
-
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.get(
-                        f"{settings.rxnorm_api_url}/interaction/list.json",
-                        params={"rxcuis": f"{rxnorm_id}+{rx.rxnorm_id}"},
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        pairs = data.get("fullInteractionTypeGroup", [])
-                        found: list[dict[str, Any]] = []
-                        for group in pairs:
-                            for itype in group.get("fullInteractionType", []):
-                                for pair in itype.get("interactionPair", []):
-                                    found.append(
-                                        {
-                                            "severity": pair.get("severity", "unknown"),
-                                            "description": pair.get("description", ""),
-                                            "drug_a": rxnorm_id,
-                                            "drug_b": rx.rxnorm_id,
-                                            "drug_b_name": rx.drug_name,
-                                        }
-                                    )
-                        await redis_client.setex(cache_key, settings.fda_cache_ttl, json.dumps(found))
-                        interactions.extend(found)
-            except httpx.HTTPError:
-                pass
-
-    return interactions
 
 
 # ─── Endpoints ────────────────────────────────────────────────────
@@ -182,9 +86,18 @@ async def create_prescription(
     body: PrescriptionCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> PrescriptionResponse:
     """Create a prescription and check for drug interactions."""
+    # Authorization: Patient can only create for themselves.
+    user_id = user.get("sub")
+    roles = user.get("realm_access", {}).get("roles", [])
+    if "physician" not in roles and "admin" not in roles:
+        if str(body.patient_id) != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only create prescriptions for themselves."
+            )
     # Verify patient exists
     patient = await db.execute(select(Patient).where(Patient.id == body.patient_id))
     if not patient.scalar_one_or_none():
@@ -219,6 +132,7 @@ async def create_prescription(
     )
     db.add(rx)
     await db.flush()
+    await db.commit()
 
     resp = PrescriptionResponse.model_validate(rx)
     resp.interactions = interactions
@@ -229,12 +143,23 @@ async def create_prescription(
 async def get_prescription(
     rx_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> PrescriptionResponse:
     result = await db.execute(select(Prescription).where(Prescription.id == rx_id))
     rx = result.scalar_one_or_none()
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Authorization
+    user_id = user.get("sub")
+    roles = user.get("realm_access", {}).get("roles", [])
+    if "physician" not in roles and "admin" not in roles:
+        if str(rx.patient_id) != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only view their own prescriptions."
+            )
+
     return PrescriptionResponse.model_validate(rx)
 
 
@@ -242,8 +167,17 @@ async def get_prescription(
 async def list_prescriptions(
     patient_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> list[PrescriptionResponse]:
+    # Authorization
+    user_id = user.get("sub")
+    roles = user.get("realm_access", {}).get("roles", [])
+    if "physician" not in roles and "admin" not in roles:
+        if str(patient_id) != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only list their own prescriptions."
+            )
     result = await db.execute(
         select(Prescription).where(
             Prescription.patient_id == patient_id,
@@ -258,14 +192,25 @@ async def update_prescription_status(
     rx_id: uuid.UUID,
     body: StatusUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> PrescriptionResponse:
     result = await db.execute(select(Prescription).where(Prescription.id == rx_id))
     rx = result.scalar_one_or_none()
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Authorization
+    user_id = user.get("sub")
+    roles = user.get("realm_access", {}).get("roles", [])
+    if "physician" not in roles and "admin" not in roles:
+        if str(rx.patient_id) != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only update their own prescriptions."
+            )
     rx.status = body.status
     await db.flush()
+    await db.commit()
     return PrescriptionResponse.model_validate(rx)
 
 

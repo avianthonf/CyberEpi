@@ -86,9 +86,16 @@ async def _send_apns(token: str, title: str, body: str, data: dict[str, Any] | N
 async def send_notification(
     body: SendNotificationRequest,
     db: AsyncSession = Depends(get_db),
-    _user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> SendNotificationResponse:
     """Send push notification to a patient's registered devices."""
+    # Authorization: Only Physician or Admin can send notifications.
+    roles = user.get("realm_access", {}).get("roles", [])
+    if "physician" not in roles and "admin" not in roles:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: Only physicians or admins can send notifications."
+        )
     result = await db.execute(select(PushToken).where(PushToken.patient_id == body.patient_id))
     tokens = result.scalars().all()
     if not tokens:
@@ -114,12 +121,21 @@ async def send_notification(
 async def physician_alert_stream(
     physician_id: uuid.UUID,
     request: Request,
-    _user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> EventSourceResponse:
     """SSE stream of patient alerts for a physician.
 
-    Uses Redis pub/sub channel alerts:{physician_id}.
-    """
+     Uses Redis pub/sub channel alerts:{physician_id}.
+     """
+    # Authorization: Physician can only listen to their own stream. Admin can listen to any.
+    user_id = user.get("sub")
+    roles = user.get("realm_access", {}).get("roles", [])
+    if "admin" not in roles:
+        if str(physician_id) != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Physicians can only access their own alert streams."
+            )
     redis_client: aioredis.Redis = request.app.state.redis
 
     async def event_generator():

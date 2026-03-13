@@ -7,7 +7,9 @@ from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+import sqlalchemy as sa
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
+
 
 
 class Base(DeclarativeBase):
@@ -18,7 +20,7 @@ class Prescription(Base):
     __tablename__ = "prescriptions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), sa.ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     physician_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     drug_name: Mapped[str] = mapped_column(String(200), nullable=False)
     ndc_code: Mapped[str | None] = mapped_column(String(50))
@@ -30,7 +32,22 @@ class Prescription(Base):
     end_date: Mapped[date | None] = mapped_column(Date)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    @validates("end_date")
+    def validate_end_date(self, key, value):
+        if value and self.start_date and value < self.start_date:
+            raise ValueError("End date must be after or equal to start date")
+        return value
+
+    @validates("status")
+    def validate_status(self, key, value):
+        valid_statuses = {"active", "paused", "completed", "cancelled"}
+        if value not in valid_statuses:
+            raise ValueError(f"Invalid status: {value}")
+        return value
+
+    def is_active(self) -> bool:
+        return self.status == "active" and (self.end_date is None or self.end_date >= date.today())
+
 
 
 class Patient(Base):

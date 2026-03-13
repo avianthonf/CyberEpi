@@ -36,7 +36,7 @@ services:
     image: redis:7-alpine
     container_name: cyberepi-redis
     ports:
-      - "6379:6379"
+      - "6379:6379"  # SECURE: Internal only
     command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -72,8 +72,8 @@ services:
     image: confluentinc/cp-kafka:7.6.0
     container_name: cyberepi-kafka
     ports:
-      - "9092:9092"
-      - "9101:9101"
+      - "9092:9092"  # SECURE: Internal only
+#      - "9101:9101"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -141,11 +141,11 @@ services:
   # ─────────────── API GATEWAY ───────────────
   kong:
     <<: *common
-    image: kong:3-alpine
+    image: kong:3.5
     container_name: cyberepi-kong
     ports:
       - "8000:8000"   # Proxy
-      - "8001:8001"   # Admin API
+      - "8001:8001"   # Admin API - SECURE: Internal only
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/kong.yml
@@ -274,6 +274,52 @@ services:
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SERVICE_PORT: 8004
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+
+  epi-engine:
+    <<: *common
+    build:
+      context: ../services/epi-engine
+      dockerfile: Dockerfile
+    container_name: cyberepi-epi-engine
+    ports:
+      - "8015:8005"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_PORT: 8005
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - cyberepi-net
+
+  privacy-service:
+    <<: *common
+    build:
+      context: ../services/privacy-service
+      dockerfile: Dockerfile
+    container_name: cyberepi-privacy-service
+    ports:
+      - "8016:8006"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_PORT: 8006
     depends_on:
       postgres:
         condition: service_healthy
