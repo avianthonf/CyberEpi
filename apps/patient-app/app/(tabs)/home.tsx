@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(true);
   
   const { user } = useAuthStore();
-  const { riskScore, riskTier, recommendations, lastUpdated, refreshRiskScore, getTimeSinceLastUpdate } = useRiskScore();
+  const { riskScore, riskTier, lastUpdated, refreshRiskScore, getTimeSinceLastUpdate } = useRiskScore();
   const { insufficientDataMessage } = useRiskStore();
   const { submitReport, isSubmitting } = useSymptomSubmit();
   
@@ -70,7 +70,7 @@ export default function HomeScreen() {
       {/* Offline Badge */}
       {!isOnline && (
         <View style={styles.offlineBanner}>
-          <Ionicons name="wifi-off" size={16} color="#ffffff" />
+          <Ionicons name="wifi-outline" size={16} color="#ffffff" />
           <Text style={styles.offlineText}>Offline - Data will sync when connected</Text>
         </View>
       )}
@@ -111,21 +111,6 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Recommendations */}
-      {recommendations && recommendations.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommendations</Text>
-          <View style={styles.recommendations}>
-            {recommendations.map((rec, index) => (
-              <View key={index} style={styles.recommendationItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                <Text style={styles.recommendationText}>{rec}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
       {/* Quick Actions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -146,7 +131,7 @@ export default function HomeScreen() {
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/medications')}
           >
-            <Ionicons name="pill-outline" size={24} color="#3b82f6" />
+            <Ionicons name="medkit-outline" size={24} color="#3b82f6" />
             <Text style={styles.actionTitle}>Medications</Text>
             <Text style={styles.actionDescription}>
               Manage your medications

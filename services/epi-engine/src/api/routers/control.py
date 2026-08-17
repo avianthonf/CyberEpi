@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
-from typing import List, Optional
-from pydantic import BaseModel, ConfigDict
-from uuid import UUID
 from datetime import datetime
+from typing import Any
+from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.auth import get_current_user
 from src.db.connection import get_db
-from src.db.models import ControlWeights, ControlRecommendation
+from src.db.models import ControlRecommendation, ControlWeights
 from src.tasks.control_tasks import solve_optimal_control
 
 router = APIRouter(prefix="/api/v1/control", tags=["control"])
@@ -21,7 +22,7 @@ class ControlWeightsIn(BaseModel):
     W_u2: float = 0.5
     W_u3: float = 0.8
     ethical_framework: str = "utilitarian"
-    notes: Optional[str] = None
+    notes: str | None = None
 
 class ControlWeightsOut(ControlWeightsIn):
     id: UUID
@@ -90,14 +91,21 @@ async def get_control_weights(region_id: str, db: AsyncSession = Depends(get_db)
     return weights
 
 @router.put("/weights/{region_id}", response_model=ControlWeightsOut)
-async def update_control_weights(region_id: str, weights_in: ControlWeightsIn, db: AsyncSession = Depends(get_db)):
+async def update_control_weights(
+    region_id: str,
+    weights_in: ControlWeightsIn,
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
+):
     result = await db.execute(select(ControlWeights).where(ControlWeights.region_id == region_id))
     weights = result.scalar_one_or_none()
-    
+    updated_by = UUID(user.get("sub"))
+
     if not weights:
-        weights = ControlWeights(region_id=region_id, updated_by=UUID("00000000-0000-0000-0000-000000000000"), **weights_in.model_dump())
+        weights = ControlWeights(region_id=region_id, updated_by=updated_by, **weights_in.model_dump())
         db.add(weights)
     else:
+        weights.updated_by = updated_by
         for field, value in weights_in.model_dump().items():
             setattr(weights, field, value)
             

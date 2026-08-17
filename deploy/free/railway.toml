@@ -9,15 +9,13 @@ restartPolicyMaxRetries = 10
 
 [[services]]
 name = "postgres"
-source = "."
-[services.config]
-ADDON = "POSTGRES"
+[services.addons]
+addon = "postgresql"
 
 [[services]]
 name = "redis"
-source = "."
-[services.config]
-ADDON = "REDIS"
+[services.addons]
+addon = "redis"
 
 [[services]]
 name = "user-service"

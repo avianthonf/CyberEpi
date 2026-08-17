@@ -1,28 +1,21 @@
 export interface MedicationScanRequest {
-  ndc_code?: string; // National Drug Code format: XXXXX-XXXX-XX
-  raw_text?: string; // OCR text if NDC not found
-  patient_id: string;
+  ocr_text: string; // OCR text from the medication label
+  patient_id?: string;
 }
 
 export interface MedicationScanResponse {
-  id: string; // UUID v4
-  drug_name: string;
-  generic_name?: string;
-  brand_name?: string;
-  dosage_form: string; // e.g., "tablet", "capsule", "liquid"
-  strength: string; // e.g., "10mg", "500mg"
-  ndc_code?: string;
+  drug_name: string | null;
+  ndc_code: string | null;
+  rxnorm_id: string | null;
   interactions: DrugInteraction[];
-  schedule: MedicationSchedule;
-  warnings: MedicationWarning[];
-  created_at: string; // ISO-8601 UTC
 }
 
 export interface DrugInteraction {
-  interacting_drug: string;
-  severity: 'moderate' | 'severe' | 'contraindicated';
+  severity: string; // e.g. 'high' | 'moderate' | 'low'
   description: string;
-  recommendation: string;
+  drug_a: string;
+  drug_b: string;
+  drug_b_name?: string;
 }
 
 export interface MedicationSchedule {
@@ -36,19 +29,13 @@ export interface MedicationSchedule {
   };
 }
 
-export interface MedicationWarning {
-  type: 'allergy' | 'contraindication' | 'precaution' | 'side_effect';
-  message: string;
-  severity: 'info' | 'warning' | 'error';
-}
-
 export interface Medication {
   id: string;
   patient_id: string;
   drug_name: string;
-  dosage_form: string;
-  strength: string;
-  schedule: MedicationSchedule;
+  dosage_form?: string;
+  strength?: string;
+  schedule?: MedicationSchedule;
   adherence_rate: number; // 0-100
   last_taken?: string; // ISO-8601 UTC
   next_dose?: string; // ISO-8601 UTC

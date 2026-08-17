@@ -7,9 +7,9 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
-import { Slider, SegmentedControl } from '@react-native-community/segmented-control';
-import { TextInput } from 'react-native-gesture-handler';
+import Slider from '@react-native-community/slider';
 import { SymptomReport } from '@/types';
 import { useWearable } from '@/hooks/useWearable';
 import { useSymptomSubmit } from '@/hooks/useSymptomSubmit';
@@ -21,6 +21,37 @@ interface SymptomFormProps {
 }
 
 type FormStep = 1 | 2 | 3 | 4;
+
+interface SegmentSelectorProps {
+  values: string[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+}
+
+// Simple segmented selector — replaces @react-native-community/segmented-control
+// (whose packaged types are incompatible with strict TS).
+function SegmentSelector({ values, selectedIndex, onSelect }: SegmentSelectorProps) {
+  return (
+    <View style={styles.segmentRow}>
+      {values.map((value, index) => (
+        <TouchableOpacity
+          key={value}
+          style={[styles.segmentOption, index === selectedIndex && styles.segmentOptionActive]}
+          onPress={() => onSelect(index)}
+        >
+          <Text
+            style={[
+              styles.segmentText,
+              index === selectedIndex && styles.segmentTextActive,
+            ]}
+          >
+            {value}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 interface FormData {
   fever_celsius: number | null;
@@ -126,25 +157,23 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
       return;
     }
 
-    // Create final report
+    // Build the symptom list from the form's boolean/severity controls
+    const symptoms: string[] = [];
+    if (formData.fever_celsius !== null) symptoms.push('fever');
+    if (formData.cough_severity > 0) symptoms.push('cough');
+    if (formData.dyspnoea) symptoms.push('dyspnoea');
+    if (formData.fatigue_severity > 0) symptoms.push('fatigue');
+    if (formData.sore_throat) symptoms.push('sore_throat');
+    if (formData.diarrhoea) symptoms.push('diarrhoea');
+    if (formData.anosmia) symptoms.push('anosmia');
+
+    // Create final report in the backend's expected shape
     const report: SymptomReport = {
       patient_id: user.id,
-      timestamp_utc: new Date().toISOString(),
-      reported_at_tz: new Intl.DateTimeFormat().resolvedOptions().timeZone,
-      fever_celsius: formData.fever_measured ? formData.fever_celsius : null,
-      cough_severity: formData.cough_severity,
-      dyspnoea: formData.dyspnoea,
-      fatigue_severity: formData.fatigue_severity,
-      spo2_pct: formData.spo2_measured ? formData.spo2_pct : null,
-      heart_rate_bpm: formData.heart_rate_measured ? formData.heart_rate_bpm : null,
-      sore_throat: formData.sore_throat,
-      diarrhoea: formData.diarrhoea,
-      anosmia: formData.anosmia,
-      hrv_rmssd_ms: wearableData?.hrv_rmssd_ms || null,
-      resting_hr_bpm: wearableData?.resting_hr_bpm || null,
-      sleep_hours: wearableData?.sleep_hours || null,
-      step_count: wearableData?.step_count || null,
-      schema_version: '1.0',
+      symptoms,
+      heart_rate: formData.heart_rate_measured ? formData.heart_rate_bpm : null,
+      spo2: formData.spo2_measured ? formData.spo2_pct : null,
+      temperature: formData.fever_measured ? formData.fever_celsius : null,
     };
 
     try {
@@ -291,7 +320,6 @@ function Step1({ formData, setFormData }: { formData: FormData; setFormData: (da
               onValueChange={(value) => setFormData({ ...formData, fever_celsius: value })}
               minimumTrackTintColor="#ef4444"
               maximumTrackTintColor="#e5e7eb"
-              thumbStyle={styles.sliderThumb}
             />
             <Text style={styles.sliderValue}>{formData.fever_celsius?.toFixed(1)}°C</Text>
           </>
@@ -344,14 +372,12 @@ function Step2({ formData, setFormData }: { formData: FormData; setFormData: (da
       {/* Cough Severity */}
       <View style={styles.fieldContainer}>
         <Text style={styles.fieldLabel}>Cough Severity</Text>
-        <SegmentedControl
+        <SegmentSelector
           values={['None', 'Mild', 'Moderate', 'Severe']}
           selectedIndex={formData.cough_severity}
-          onChange={(event) => {
-            setFormData({ ...formData, cough_severity: event.nativeEvent.selectedSegmentIndex as 0 | 1 | 2 | 3 });
-          }}
-          style={styles.segmentedControl}
-          tintColor="#3b82f6"
+          onSelect={(index) =>
+            setFormData({ ...formData, cough_severity: index as 0 | 1 | 2 | 3 })
+          }
         />
       </View>
 
@@ -381,14 +407,12 @@ function Step2({ formData, setFormData }: { formData: FormData; setFormData: (da
       {/* Fatigue Severity */}
       <View style={styles.fieldContainer}>
         <Text style={styles.fieldLabel}>Fatigue Level</Text>
-        <SegmentedControl
+        <SegmentSelector
           values={['None', 'Mild', 'Moderate', 'Severe']}
           selectedIndex={formData.fatigue_severity}
-          onChange={(event) => {
-            setFormData({ ...formData, fatigue_severity: event.nativeEvent.selectedSegmentIndex as 0 | 1 | 2 | 3 });
-          }}
-          style={styles.segmentedControl}
-          tintColor="#3b82f6"
+          onSelect={(index) =>
+            setFormData({ ...formData, fatigue_severity: index as 0 | 1 | 2 | 3 })
+          }
         />
       </View>
     </View>
@@ -697,8 +721,28 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginLeft: 8,
   },
-  segmentedControl: {
-    height: 44,
+  segmentRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    padding: 2,
+  },
+  segmentOption: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  segmentOptionActive: {
+    backgroundColor: '#3b82f6',
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  segmentTextActive: {
+    color: '#ffffff',
   },
   switchContainer: {
     flexDirection: 'row',

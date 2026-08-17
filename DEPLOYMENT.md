@@ -206,13 +206,10 @@ kubectl apply -f infra/k8s/kafka/
 kubectl apply -f infra/k8s/services/
 ```
 
-### Step 4: Configure Ingress
+### Step 4: Configure API Gateway
 ```bash
-# Install NGINX Ingress Controller
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
-
-# Apply ingress rules
-kubectl apply -f infra/k8s/ingress/
+# Deploy Kong gateway and route rules
+kubectl apply -f infra/k8s/kong/
 ```
 
 ## Environment Variables
@@ -221,7 +218,7 @@ Create a `.env.production` file:
 
 ```bash
 # Database
-DATABASE_URL=postgresql://cyberepi:PASSWORD@HOST:5432/cyberepi
+DATABASE_URL=postgresql+asyncpg://cyberepi:PASSWORD@HOST:5432/cyberepi
 
 # Redis
 REDIS_URL=redis://HOST:6379/0

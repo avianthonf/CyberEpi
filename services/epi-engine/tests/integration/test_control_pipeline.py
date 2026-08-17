@@ -6,6 +6,7 @@ from src.main import app
 from src.db.connection import get_db
 from src.db.models import EpiParams, ControlWeights, ControlRecommendation
 from src.tasks.control_tasks import solve_optimal_control
+from src.auth import get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
@@ -18,6 +19,11 @@ def db():
 @pytest.fixture
 def client(db):
     app.dependency_overrides[get_db] = lambda: db
+
+    async def override_auth():
+        return {"sub": str(uuid.uuid4()), "realm_access": {"roles": ["admin"]}}
+
+    app.dependency_overrides[get_current_user] = override_auth
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

@@ -1,8 +1,9 @@
 """Real-time Rt Estimation using the Cori et al. (2013) method."""
 
+
 import numpy as np
 from scipy.stats import gamma
-from typing import Dict
+
 
 def estimate_rt(
     case_series: np.ndarray,
@@ -11,7 +12,7 @@ def estimate_rt(
     window: int = 7,
     prior_a: float = 1.0,
     prior_b: float = 5.0
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """
     Estimate Rt from infectious case series.
     Cori et al. (2013): Bayesian estimation with Gamma prior.

@@ -91,13 +91,14 @@ $envVars = @{
 
 foreach ($service in $services) {
     Write-Host "Starting $service on port $($envVars[$service].port)..." -ForegroundColor Cyan
-    $envString = $envVars[$service].env -join " -e "
-    docker run -d `
-        --name cyberepi-$service `
-        --network cyberepi-net `
-        -p $($envVars[$service].port) `
-        $envVars[$service].env | ForEach-Object { "-e $_" } `
-        cyberepi/$service`:latest
+    # Build docker args: each env var as a separate "-e" pair (PowerShell < 7.3
+    # does not expand arrays into native command args automatically).
+    $dockerArgs = @("-d", "--name", "cyberepi-$service", "--network", "cyberepi-net", "-p", $envVars[$service].port)
+    foreach ($envVar in $envVars[$service].env) {
+        $dockerArgs += @("-e", $envVar)
+    }
+    $dockerArgs += "cyberepi/$service`:latest"
+    docker run @dockerArgs
 }
 
 # Check status

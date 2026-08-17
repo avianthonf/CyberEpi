@@ -12,6 +12,7 @@ import { MedCard } from '@/components/MedCard';
 import { MedicationScanner } from '@/components/MedicationScanner';
 import { useMedicationStore } from '@/store/medicationStore';
 import { calculateOverallAdherence } from '@/store/medicationStore';
+import { Medication } from '@/types';
 
 export default function MedicationsScreen() {
   const [showScanner, setShowScanner] = useState(false);
@@ -19,7 +20,7 @@ export default function MedicationsScreen() {
 
   const overallAdherence = calculateOverallAdherence(activeMedications);
 
-  const handleMedicationTaken = (medication: any) => {
+  const handleMedicationTaken = (medication: Medication) => {
     Alert.alert(
       'Medication Recorded',
       `${medication.drug_name} marked as taken.`,
@@ -28,7 +29,16 @@ export default function MedicationsScreen() {
   };
 
   const handleScanSuccess = () => {
-    // Refresh medications list
+    // Medication was added to the store by useMedScan's handleScanSuccess —
+    // the list re-renders automatically from the store.
+  };
+
+  const handleAddManually = () => {
+    Alert.alert(
+      'Add Medication Manually',
+      'Manual medication entry is not yet implemented. Use Scan Medication instead.',
+      [{ text: 'OK' }]
+    );
   };
 
   const getAdherenceColor = (rate: number): string => {
@@ -99,7 +109,7 @@ export default function MedicationsScreen() {
           <Text style={styles.primaryButtonText}>Scan Medication</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={handleAddManually}>
           <Ionicons name="add-outline" size={20} color="#3b82f6" />
           <Text style={styles.secondaryButtonText}>Add Manually</Text>
         </TouchableOpacity>

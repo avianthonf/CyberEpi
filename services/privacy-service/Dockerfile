@@ -11,8 +11,11 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-COPY . .
+COPY src/ src/
+COPY pyproject.toml .
 COPY healthcheck.py .
+# Shared library used by all services
+COPY ../libs/shared/ /app/libs/shared/
 
 # Create non-root user
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app

@@ -1,17 +1,14 @@
 """Population Intelligence API Router."""
 
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List, Dict, Any
-from datetime import datetime, timedelta
-import pandas as pd
 import io
+from datetime import datetime, timedelta
 
+import pandas as pd
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.connection import get_db
-from src.db.models import RtEstimate, SpatialState, MobilityMatrix
-from src.population.rt_estimator import estimate_rt
-from src.population.hotspot import detect_hotspots, apply_differential_privacy
+from src.db.models import MobilityMatrix, RtEstimate, SpatialState
 
 router = APIRouter(prefix="/api/v1", tags=["population"])
 

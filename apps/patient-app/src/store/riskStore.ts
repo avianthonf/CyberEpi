@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { MMKV } from 'react-native-mmkv';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { RiskTier } from '@/types';
+import { mmkvStorage } from '@/lib/storage';
 
 interface RiskState {
   riskScore: number | null;
@@ -13,24 +13,6 @@ interface RiskState {
   setInsufficientData: (message: string) => void;
   clearRiskData: () => void;
 }
-
-// Use MMKV for risk score persistence (fast access)
-const storage = new MMKV({
-  id: 'risk-storage',
-  encryptionKey: 'risk-encryption-key',
-});
-
-const mmkvStorage = {
-  getItem: (name: string): string | null => {
-    return storage.getString(name) ?? null;
-  },
-  setItem: (name: string, value: string): void => {
-    storage.set(name, value);
-  },
-  removeItem: (name: string): void => {
-    storage.delete(name);
-  },
-};
 
 export const useRiskStore = create<RiskState>()(
   persist(
@@ -75,7 +57,7 @@ export const useRiskStore = create<RiskState>()(
     }),
     {
       name: 'risk-storage',
-      storage: mmkvStorage,
+      storage: createJSONStorage(() => mmkvStorage),
     }
   )
 );

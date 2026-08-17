@@ -1,13 +1,17 @@
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any, Callable
+
 from .controlled_seir import seir_controlled
 
+
 def compute_jacobian_x(
-    f: Callable[[float, np.ndarray, np.ndarray, Dict[str, Any]], np.ndarray],
+    f: Callable[[float, np.ndarray, np.ndarray, dict[str, Any]], np.ndarray],
     t: float,
     x: np.ndarray,
     u: np.ndarray,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     eps: float = 1e-6
 ) -> np.ndarray:
     """Numerical Jacobian of f(t, x, u, params) wrt x."""
@@ -24,11 +28,11 @@ def compute_jacobian_x(
     return J
 
 def compute_jacobian_u(
-    f: Callable[[float, np.ndarray, np.ndarray, Dict[str, Any]], np.ndarray],
+    f: Callable[[float, np.ndarray, np.ndarray, dict[str, Any]], np.ndarray],
     t: float,
     x: np.ndarray,
     u: np.ndarray,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     eps: float = 1e-6
 ) -> np.ndarray:
     """Numerical Jacobian of f(t, x, u, params) wrt u."""
@@ -51,7 +55,7 @@ def compute_dH_dx(
     u: np.ndarray,
     C1: float,
     C2: float,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     t: float = 0.0
 ) -> np.ndarray:
     """
@@ -80,7 +84,7 @@ def compute_dH_du(
     u: np.ndarray,
     C3: float,
     W: np.ndarray,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     t: float = 0.0
 ) -> np.ndarray:
     """

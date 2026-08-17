@@ -4,13 +4,16 @@ import { apiClient } from '@/services/api';
 import { MMKV } from 'react-native-mmkv';
 import { useAuthStore } from '@/store/authStore';
 import { useRiskStore } from '@/store/riskStore';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
+import { randomUUID } from 'expo-crypto';
 
 // Offline queue storage
 const offlineStorage = new MMKV({
   id: 'offline-queue',
   encryptionKey: 'offline-encryption-key',
 });
+
+const CRISIS_LINE = 'tel:911'; // Local crisis line placeholder
 
 interface SymptomSubmitVariables {
   report: SymptomReport;
@@ -27,7 +30,7 @@ export function useSymptomSubmit() {
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
-      
+
       const reportWithPatient = {
         ...report,
         patient_id: user.id,
@@ -48,8 +51,8 @@ export function useSymptomSubmit() {
     onSuccess: (data) => {
       if (data.risk_score !== null && data.risk_tier) {
         // Update risk store with new score
-        setRiskScore(data.risk_score, data.risk_tier, data.recommendations);
-        
+        setRiskScore(data.risk_score, data.risk_tier);
+
         // Show urgent alert if needed
         if (data.risk_tier === 'urgent') {
           Alert.alert(
@@ -82,14 +85,14 @@ export function useSymptomSubmit() {
     try {
       const existingQueue = offlineStorage.getString('offline_queue');
       const queue = existingQueue ? JSON.parse(existingQueue) : [];
-      
+
       // Add timestamp and unique ID
       const queuedReport = {
         ...report,
         id: generateId(),
         queued_at: new Date().toISOString(),
       };
-      
+
       queue.push(queuedReport);
       offlineStorage.set('offline_queue', JSON.stringify(queue));
     } catch (error) {
@@ -105,12 +108,12 @@ export function useSymptomSubmit() {
 
       const queue = JSON.parse(existingQueue);
       const syncedReports: string[] = [];
-      
+
       for (const queuedReport of queue) {
         try {
           // Remove queue-specific fields before sending
           const { id, queued_at, ...report } = queuedReport;
-          
+
           await apiClient.post<SymptomResponse>('/symptoms', report);
           syncedReports.push(queuedReport.id);
         } catch (error) {
@@ -118,11 +121,11 @@ export function useSymptomSubmit() {
           // Continue with next report
         }
       }
-      
+
       // Remove synced reports from queue
       const remainingQueue = queue.filter((r: any) => !syncedReports.includes(r.id));
       offlineStorage.set('offline_queue', JSON.stringify(remainingQueue));
-      
+
       return syncedReports.length;
     } catch (error) {
       console.error('Failed to sync queued reports:', error);
@@ -135,7 +138,7 @@ export function useSymptomSubmit() {
     try {
       const existingQueue = offlineStorage.getString('offline_queue');
       if (!existingQueue) return 0;
-      
+
       const queue = JSON.parse(existingQueue);
       return queue.length;
     } catch (error) {
@@ -155,14 +158,18 @@ export function useSymptomSubmit() {
   };
 }
 
-// Helper function to generate a simple ID
+// Helper function to generate a unique ID
 function generateId(): string {
-  return Math.random().toString(36).substr(2, 9);
+  try {
+    return randomUUID();
+  } catch {
+    return Math.random().toString(36).slice(2, 11);
+  }
 }
 
 // Helper function to make emergency call
 function makeEmergencyCall() {
-  // In a real app, you would use Linking to open the phone dialer
-  // with the actual crisis number
-  console.log('Making emergency call...');
+  Linking.openURL(CRISIS_LINE).catch((err) => {
+    console.error('Failed to open crisis line:', err);
+  });
 }

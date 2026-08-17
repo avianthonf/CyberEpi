@@ -1,16 +1,17 @@
 import json
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Any
+
 import numpy as np
 import redis.asyncio as aioredis
-from typing import Optional, Dict, Any, Tuple
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
+import structlog
 from aiokafka import AIOKafkaProducer
+from seir_core import SEIRParams
+
+from ..config import settings
 from .ekf import SEIR_EKF
 from .particle_filter import ParticleFilter
-from .bias_correction import poststratify
-from seir_core import SEIRParams
-from ..config import settings
-import structlog
 
 logger = structlog.get_logger()
 
@@ -19,46 +20,16 @@ class FilterResult:
     region_id: str
     timestamp: str
     filter_type: str  # 'ekf' | 'particle'
-    state: Dict[str, float]
-    variance: Dict[str, float]
-    obs_params: Dict[str, float]
+    state: dict[str, float]
+    variance: dict[str, float]
+    obs_params: dict[str, float]
     cusum_score: float
     model_alert: bool
-    innovation: Optional[list] = None
-
-class FilterOrchestrator:
-    def __init__(self, region_id: str, redis_client: redis.Redis, kafka_producer: AIOKafkaProducer):
-        self.region_id = region_id
-        self.redis = redis_client
-        self.producer = kafka_producer
-        self.ekf_threshold = 13.28
-        self.cusum_threshold = 5.0
-        self.failure_limit = 3
-
-    def _get_redis_key(self):
-        return f"filter_state:{self.region_id}"
-
-    async def load_state(self) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
-        data = await self.redis.get(self._get_redis_key())
-        if not data:
-            return None, None, {}
-        state_data = json.loads(data)
-        return (np.array(state_data['x']), 
-                np.array(state_data['P']), 
-                state_data.get('meta', {}))
-
-    async def save_state(self, x: np.ndarray, P: np.ndarray, meta: Dict[str, Any]):
-        state_data = {
-            'x': x.tolist(),
-            'P': P.tolist(),
-            'meta': meta,
-            'updated_at': datetime.now(timezone.utc).isoformat()
-        }
-        await self.redis.setex(self._get_redis_key(), 604800, json.dumps(state_data))
+    innovation: list | None = None
 
 class FilterService:
     @staticmethod
-    def initialize_state(params: SEIRParams) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    def initialize_state(params: SEIRParams) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
         x_est = np.zeros(12)
         x_est[:9] = [params.N_pop - 10, 10, 0, 0, 0, 0, 0, 0, 0]
         x_est[9:] = [0.12, 0.30, 0.001]  # papp, ptest, kappa
@@ -80,7 +51,7 @@ class FilterService:
         return H
 
     @staticmethod
-    def get_noise_matrices(x: np.ndarray, params: SEIRParams, y_obs: np.ndarray, meta: Dict[str, Any]):
+    def get_noise_matrices(x: np.ndarray, params: SEIRParams, y_obs: np.ndarray, meta: dict[str, Any]):
         Q = np.zeros((12, 12))
         sigmas = [0.01*params.N_pop, 0.01*params.N_pop, 0.005*params.N_pop, 0.005*params.N_pop, 
                   0.002*params.N_pop, 0.001*params.N_pop, 0.001*params.N_pop, 0.01*params.N_pop, 
@@ -107,7 +78,7 @@ class FilterService:
         return Q, R
 
 class FilterOrchestrator:
-    def __init__(self, region_id: str, redis_client: redis.Redis, kafka_producer: AIOKafkaProducer):
+    def __init__(self, region_id: str, redis_client: aioredis.Redis, kafka_producer: AIOKafkaProducer):
         self.region_id = region_id
         self.redis = redis_client
         self.producer = kafka_producer
@@ -119,7 +90,7 @@ class FilterOrchestrator:
     def _get_redis_key(self):
         return f"filter_state:{self.region_id}"
 
-    async def load_state(self) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    async def load_state(self) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
         data = await self.redis.get(self._get_redis_key())
         if not data:
             return None, None, {}
@@ -128,7 +99,7 @@ class FilterOrchestrator:
                 np.array(state_data['P']), 
                 state_data.get('meta', {}))
 
-    async def save_state(self, x: np.ndarray, P: np.ndarray, meta: Dict[str, Any]):
+    async def save_state(self, x: np.ndarray, P: np.ndarray, meta: dict[str, Any]):
         state_data = {
             'x': x.tolist(),
             'P': P.tolist(),
@@ -137,15 +108,16 @@ class FilterOrchestrator:
         }
         await self.redis.setex(self._get_redis_key(), 604800, json.dumps(state_data))
 
-    def _construct_obs_vector(self, observations: Dict[str, Any], meta: Dict[str, Any]) -> np.ndarray:
-        y = np.full(4, np.nan)
+    def _construct_obs_vector(self, observations: dict[str, Any], meta: dict[str, Any]) -> np.ndarray:
+        y = np.full(5, np.nan)
         y[0] = observations.get('app_reports', np.nan)
         y[1] = observations.get('confirmed_cases', np.nan)
         y[2] = observations.get('hospital_admissions', np.nan)
         y[3] = observations.get('pharmacy_proxy', np.nan)
+        y[4] = observations.get('wastewater', np.nan)
         return y
 
-    async def process_observation(self, params: SEIRParams, observations: Dict[str, Any]):
+    async def process_observation(self, params: SEIRParams, observations: dict[str, Any]):
         x_est, P, meta = await self.load_state()
         
         if x_est is None:

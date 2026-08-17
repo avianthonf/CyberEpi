@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { MMKV } from 'react-native-mmkv';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { Medication } from '@/types';
+import { mmkvStorage } from '@/lib/storage';
 
 interface MedicationState {
   medications: Medication[];
@@ -16,24 +16,6 @@ interface MedicationState {
   setError: (error: string | null) => void;
   clearMedications: () => void;
 }
-
-// Use MMKV for medication storage
-const storage = new MMKV({
-  id: 'medication-storage',
-  encryptionKey: 'medication-encryption-key',
-});
-
-const mmkvStorage = {
-  getItem: (name: string): string | null => {
-    return storage.getString(name) ?? null;
-  },
-  setItem: (name: string, value: string): void => {
-    storage.set(name, value);
-  },
-  removeItem: (name: string): void => {
-    storage.delete(name);
-  },
-};
 
 export const useMedicationStore = create<MedicationState>()(
   persist(
@@ -103,7 +85,7 @@ export const useMedicationStore = create<MedicationState>()(
     }),
     {
       name: 'medication-storage',
-      storage: mmkvStorage,
+      storage: createJSONStorage(() => mmkvStorage),
     }
   )
 );

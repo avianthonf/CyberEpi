@@ -2,11 +2,11 @@ app = "cyberepi"
 primary_region = "sjc"
 
 [build]
-  dockerfile = "../services/epi-engine/Dockerfile"
+  dockerfile = "../../services/epi-engine/Dockerfile"
 
 [env]
   PORT = "8005"
-  DATABASE_URL = "postgresql://cyberepi:${DATABASE_PASSWORD}@cyberepi-db.internal:5432/cyberepi"
+  DATABASE_URL = "postgresql+asyncpg://cyberepi:${DATABASE_PASSWORD}@cyberepi-db.internal:5432/cyberepi"
   REDIS_URL = "redis://cyberepi-redis.internal:6379/0"
 
 [[services]]

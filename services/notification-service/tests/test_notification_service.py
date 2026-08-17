@@ -8,28 +8,25 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+import src.main  # noqa: F401  (ensure module exists before patching)
+
 
 @pytest.fixture
 def client(mock_db, mock_redis):
     with (
-        patch("src.db.session.engine") as mock_engine,
         patch("src.main.engine") as mock_main_engine,
+        patch("src.main.connect_redis", return_value=mock_redis),
+        patch("src.main.disconnect_redis", new=AsyncMock()),
         patch("src.main.AIOKafkaConsumer"),
         patch("src.main._consume_alerts", new_callable=AsyncMock),
     ):
-        mock_conn = AsyncMock()
-        mock_engine.begin = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_conn), __aexit__=AsyncMock()))
-        mock_engine.dispose = AsyncMock()
-        mock_main_engine.begin = mock_engine.begin
-        mock_main_engine.dispose = mock_engine.dispose
+        mock_main_engine.dispose = AsyncMock()
 
-        with patch("src.main.aioredis.from_url") as mock_from_url:
-            mock_from_url.return_value = mock_redis
-            from src.main import app
+        from src.main import app
 
-            app.state.redis = mock_redis
-            with TestClient(app, raise_server_exceptions=False) as c:
-                yield c
+        app.state.redis = mock_redis
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c
 
 
 class TestHealthEndpoint:

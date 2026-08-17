@@ -1,11 +1,19 @@
-from typing import List, Optional
+import uuid
 from datetime import datetime
-from uuid import UUID
-from sqlalchemy import Column, String, Float, Integer, DateTime, BigInteger, Text, JSON, ForeignKey
+
 import sqlalchemy as sa
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import declarative_base, validates
-import uuid
 
 Base = declarative_base()
 

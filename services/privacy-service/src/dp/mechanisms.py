@@ -1,5 +1,6 @@
+
 import numpy as np
-from typing import Union, List
+
 
 def laplace_mechanism(value: float, sensitivity: float, epsilon: float) -> float:
     """
@@ -26,7 +27,7 @@ def gaussian_mechanism(
     return float(value + noise)
 
 def laplace_mechanism_array(
-    values: Union[np.ndarray, List[float]], 
+    values: np.ndarray | list[float], 
     sensitivity: float, 
     epsilon: float
 ) -> np.ndarray:

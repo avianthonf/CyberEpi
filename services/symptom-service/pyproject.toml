@@ -16,9 +16,15 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "prometheus-fastapi-instrumentator>=7.0.0",
     "structlog>=24.4.0",
+    "cyberepi-shared>=0.1.0",
 ]
 
 [project.optional-dependencies]
+ml = [
+    "lightgbm>=4.0.0",
+    "pandas>=2.2.0",
+    "shap>=0.44.0",
+]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",

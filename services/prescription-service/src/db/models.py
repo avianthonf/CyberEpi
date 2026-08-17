@@ -5,11 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+import sqlalchemy as sa
 from sqlalchemy import Date, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
-import sqlalchemy as sa
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
-
 
 
 class Base(DeclarativeBase):

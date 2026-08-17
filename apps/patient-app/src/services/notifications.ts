@@ -63,8 +63,13 @@ export class NotificationService {
         });
       }
 
+      const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
+      if (!projectId) {
+        throw new Error('EXPO_PUBLIC_PROJECT_ID is not configured');
+      }
+
       const token = (await Notifications.getExpoPushTokenAsync({
-        projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+        projectId,
       })).data;
       
       this.pushToken = token;
@@ -125,8 +130,13 @@ export class NotificationService {
     time: string,
     repeat: boolean = true
   ): Promise<string> {
-    const [hours, minutes] = time.split(':').map(Number);
-    
+    const parts = time.split(':');
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      throw new Error(`Invalid reminder time: ${time}`);
+    }
+
     const trigger: Notifications.NotificationTriggerInput = {
       hour: hours,
       minute: minutes,
@@ -169,12 +179,14 @@ export class NotificationService {
     }
   }
 
-  // Handle notification response
+  // Handle notification response — routes to the relevant screen based on the
+  // `type` key in the notification payload.
   handleNotificationResponse = (response: Notifications.NotificationResponse) => {
     const { notification } = response;
-    const data = notification.request.content.data as NotificationType;
+    const data = notification.request.content.data as Record<string, unknown> | undefined;
+    const type = data?.type;
 
-    switch (data) {
+    switch (type) {
       case 'RISK_CHANGE':
         // Navigate to home screen
         break;
@@ -185,7 +197,6 @@ export class NotificationService {
         // Navigate to home screen with alert
         break;
       default:
-        // Default navigation
         break;
     }
   };

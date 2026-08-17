@@ -49,7 +49,7 @@ export default function SymptomsScreen() {
       {/* Queued Reports Notice */}
       {queuedCount > 0 && (
         <View style={styles.queuedNotice}>
-          <Ionicons name="wifi-off" size={20} color="#f59e0b" />
+          <Ionicons name="wifi-outline" size={20} color="#f59e0b" />
           <View style={styles.queuedContent}>
             <Text style={styles.queuedTitle}>
               {queuedCount} report{queuedCount > 1 ? 's' : ''} queued

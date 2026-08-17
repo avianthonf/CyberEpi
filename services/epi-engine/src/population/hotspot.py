@@ -1,15 +1,15 @@
 """Hotspot Detection with Differential Privacy."""
 
+from typing import Any
+
 import numpy as np
-from typing import List, Dict, Optional, Any
-import httpx
-from src.config import settings
+
 
 def detect_hotspots(
-    patch_states: Dict[str, float],
-    patch_growth_rates: Dict[str, float],
-    particle_ensembles: Optional[Dict[str, np.ndarray]] = None
-) -> List[Dict[str, Any]]:
+    patch_states: dict[str, float],
+    patch_growth_rates: dict[str, float],
+    particle_ensembles: dict[str, np.ndarray] | None = None
+) -> list[dict[str, Any]]:
     """
     Detect hotspots based on spatial 2-sigma threshold and positive growth rate.
     patch_states: {patch_id: I_estimate}
@@ -53,38 +53,24 @@ def detect_hotspots(
         
     return results
 
-async def apply_differential_privacy(I_values: Dict[str, float], epsilon: float = 2.0) -> Dict[str, float]:
+async def apply_differential_privacy(I_values: dict[str, float], epsilon: float = 2.0) -> dict[str, float]:
     """
     Add Laplace noise to I estimates for privacy.
     I_noisy = I + Lap(0, sensitivity/epsilon)
     sensitivity = 1.0
-    """
-    # Attempt to call privacy-service if it exists, otherwise do it locally
-    # Contract says: Call privacy-service DP endpoint (Component 07)
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{settings.privacy_service_url}/api/v1/dp/laplace",
-                json={"values": I_values, "epsilon": epsilon, "sensitivity": 1.0},
-                timeout=2.0
-            )
-            if response.status_code == 200:
-                return response.json()["noisy_values"]
-    except Exception:
-        # Fallback to local implementation
-        sensitivity = 1.0
-        scale = sensitivity / epsilon
-        noisy_values = {}
-        for pid, val in I_values.items():
-            noise = np.random.laplace(0, scale)
-            noisy_values[pid] = max(0.0, float(val + noise))
-        return noisy_values
-    
-    # Redundant fallback if try block finishes without return
-    return I_values
 
-async def process_hotspot_states(states) -> List[Dict[str, Any]]:
+    Implemented locally (Laplace mechanism). A remote privacy-service call is
+    not made because the current privacy-service endpoint contract differs.
+    """
+    sensitivity = 1.0
+    scale = sensitivity / epsilon
+    noisy_values = {}
+    for pid, val in I_values.items():
+        noise = np.random.laplace(0, scale)
+        noisy_values[pid] = max(0.0, float(val + noise))
+    return noisy_values
+
+async def process_hotspot_states(states) -> list[dict[str, Any]]:
     # Filter to latest unique patch states
     latest_states = {}
     for s in states:

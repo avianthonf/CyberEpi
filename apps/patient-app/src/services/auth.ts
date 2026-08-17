@@ -73,7 +73,7 @@ export class AuthService {
       }),
       responseType: AuthSession.ResponseType.Code,
       codeChallenge: pkce.codeChallenge,
-      codeChallengeMethod: pkce.codeChallengeMethod,
+      codeChallengeMethod: pkce.codeChallengeMethod as AuthSession.CodeChallengeMethod,
       extraParams: {
         kc_idp_hint: 'keycloak', // Optional: specify identity provider
       },
@@ -83,6 +83,9 @@ export class AuthService {
 
     if (result.type === 'success') {
       const { code } = result.params;
+      if (!code) {
+        throw new Error('Authorization response missing code');
+      }
       return await this.exchangeCodeForTokens(code);
     } else {
       throw new Error('Authentication cancelled or failed');

@@ -8,6 +8,7 @@ import { useMedicationStore } from '@/store/medicationStore';
 interface UseMedScanOptions {
   onSuccess?: (medication: MedicationScanResponse) => void;
   onError?: (error: Error) => void;
+  onScanTextEntry?: () => void;
 }
 
 export function useMedScan(options: UseMedScanOptions = {}) {
@@ -21,19 +22,21 @@ export function useMedScan(options: UseMedScanOptions = {}) {
 
   const handleScanSuccess = (medication: MedicationScanResponse) => {
     setCurrentMedication(medication);
-    
+
     // Check for severe interactions
     if (medScannerService.hasSevereInteractions(medication)) {
       setShowInteractionModal(true);
     } else {
-      // Add medication to store
+      // Add medication to store (build a Medication from the scan response)
+      const now = new Date().toISOString();
       const medToAdd = {
-        ...medication,
+        id: medication.ndc_code || medication.rxnorm_id || now,
         patient_id: user?.id || '',
+        drug_name: medication.drug_name || 'Unknown medication',
         adherence_rate: 100,
         is_active: true,
-        last_taken: null,
-        next_dose: null,
+        created_at: now,
+        updated_at: now,
       };
       addMedication(medToAdd);
       options.onSuccess?.(medication);
@@ -61,8 +64,14 @@ export function useMedScan(options: UseMedScanOptions = {}) {
         return;
       }
 
-      const medication = await medScannerService.scanMedication(imageUri, user.id);
-      handleScanSuccess(medication);
+      // OCR (image → text) is not wired up yet; route to the manual entry
+      // flow so the user can type the label text, then scan.
+      Alert.alert(
+        'Enter medication text',
+        'Image captured. OCR is not yet available — enter the label text (drug name or NDC) to look it up.',
+        [{ text: 'OK' }]
+      );
+      options.onScanTextEntry?.();
     } catch (err) {
       console.error('Camera scan error:', err);
       handleScanError(err instanceof Error ? err : new Error('Scan failed'));
@@ -87,8 +96,12 @@ export function useMedScan(options: UseMedScanOptions = {}) {
         return;
       }
 
-      const medication = await medScannerService.scanMedication(imageUri, user.id);
-      handleScanSuccess(medication);
+      Alert.alert(
+        'Enter medication text',
+        'Image selected. OCR is not yet available — enter the label text (drug name or NDC) to look it up.',
+        [{ text: 'OK' }]
+      );
+      options.onScanTextEntry?.();
     } catch (err) {
       console.error('Gallery scan error:', err);
       handleScanError(err instanceof Error ? err : new Error('Scan failed'));
@@ -97,20 +110,42 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     }
   };
 
+  const scanFromText = async (ocrText: string) => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    setIsScanning(true);
+    setError(null);
+
+    try {
+      const medication = await medScannerService.scanMedication(ocrText, user.id);
+      handleScanSuccess(medication);
+    } catch (err) {
+      console.error('Text scan error:', err);
+      handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   const handleInteractionModalAccept = () => {
     if (currentMedication && user?.id) {
+      const now = new Date().toISOString();
       const medToAdd = {
-        ...currentMedication,
+        id: currentMedication.ndc_code || currentMedication.rxnorm_id || now,
         patient_id: user.id,
+        drug_name: currentMedication.drug_name || 'Unknown medication',
         adherence_rate: 100,
         is_active: true,
-        last_taken: null,
-        next_dose: null,
+        created_at: now,
+        updated_at: now,
       };
       addMedication(medToAdd);
       options.onSuccess?.(currentMedication);
     }
-    
+
     setShowInteractionModal(false);
     setCurrentMedication(null);
   };
@@ -140,6 +175,7 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     // Actions
     scanFromCamera,
     scanFromGallery,
+    scanFromText,
     clearError,
     
     // Modal handlers

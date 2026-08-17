@@ -8,32 +8,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+import src.main  # noqa: F401  (ensure module exists before patching)
+
 
 @pytest.fixture
 def client(mock_db, mock_redis, mock_kafka_producer):
     with (
-        patch("src.db.session.engine") as mock_engine,
         patch("src.main.engine") as mock_main_engine,
+        patch("src.main.connect_redis", return_value=mock_redis),
+        patch("src.main.connect_kafka", return_value=mock_kafka_producer),
+        patch("src.main.disconnect_redis", new=AsyncMock()),
+        patch("src.main.disconnect_kafka", new=AsyncMock()),
     ):
-        mock_conn = AsyncMock()
-        mock_engine.begin = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_conn), __aexit__=AsyncMock()))
-        mock_engine.dispose = AsyncMock()
-        mock_main_engine.begin = mock_engine.begin
-        mock_main_engine.dispose = mock_engine.dispose
+        mock_main_engine.dispose = AsyncMock()
 
-        with (
-            patch("src.main.AIOKafkaProducer") as mock_producer_class,
-            patch("src.main.aioredis.from_url") as mock_redis_from_url,
-        ):
-            mock_producer_class.return_value = mock_kafka_producer
-            mock_redis_from_url.return_value = mock_redis
-            
-            from src.main import app
+        from src.main import app
 
-            app.state.redis = mock_redis
-            app.state.kafka_producer = mock_kafka_producer
-            with TestClient(app, raise_server_exceptions=False) as c:
-                yield c
+        app.state.redis = mock_redis
+        app.state.kafka_producer = mock_kafka_producer
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c
 
 
 class TestHealthEndpoint:
@@ -68,7 +62,7 @@ class TestBayesianRiskScore:
 
     def test_risk_score_computation_known_symptoms(self):
         """Verify Bayes formula with known symptom set."""
-        from src.api.routers.symptoms import compute_bayesian_risk
+        from src.services.risk import compute_bayesian_risk
 
         # With fever + cough + fatigue at default prior (0.01)
         score = compute_bayesian_risk(["fever", "cough", "fatigue"], prior=0.01)
@@ -80,7 +74,7 @@ class TestBayesianRiskScore:
 
     def test_risk_score_high_with_multiple_strong_symptoms(self):
         """Multiple strong symptoms should give high score."""
-        from src.api.routers.symptoms import compute_bayesian_risk
+        from src.services.risk import compute_bayesian_risk
 
         score = compute_bayesian_risk(
             ["fever", "cough", "dyspnoea", "anosmia", "fatigue"],
@@ -90,14 +84,14 @@ class TestBayesianRiskScore:
 
     def test_risk_score_low_with_weak_symptoms(self):
         """Weak/non-specific symptoms should give low score."""
-        from src.api.routers.symptoms import compute_bayesian_risk
+        from src.services.risk import compute_bayesian_risk
 
         score = compute_bayesian_risk(["nausea"], prior=0.01)
         assert score < 0.3
 
     def test_risk_score_empty_symptoms(self):
         """No matching symptoms: falls back to prior."""
-        from src.api.routers.symptoms import compute_bayesian_risk
+        from src.services.risk import compute_bayesian_risk
 
         score = compute_bayesian_risk(["unknown_symptom"], prior=0.01)
         # Unknown symptoms don't change the prior
@@ -105,7 +99,7 @@ class TestBayesianRiskScore:
 
     def test_risk_score_with_high_prior(self):
         """High regional prevalence should increase posterior."""
-        from src.api.routers.symptoms import compute_bayesian_risk
+        from src.services.risk import compute_bayesian_risk
 
         low_prior = compute_bayesian_risk(["fever"], prior=0.01)
         high_prior = compute_bayesian_risk(["fever"], prior=0.20)
@@ -114,31 +108,31 @@ class TestBayesianRiskScore:
 
 class TestRiskTierThresholds:
     def test_tier_low(self):
-        from src.api.routers.symptoms import compute_risk_tier
+        from src.services.risk import compute_risk_tier
 
         assert compute_risk_tier(0.1) == "low"
 
     def test_tier_moderate(self):
-        from src.api.routers.symptoms import compute_risk_tier
+        from src.services.risk import compute_risk_tier
 
         assert compute_risk_tier(0.3) == "moderate"
 
     def test_tier_consult(self):
-        from src.api.routers.symptoms import compute_risk_tier
+        from src.services.risk import compute_risk_tier
 
         assert compute_risk_tier(0.6) == "consult"
 
     def test_tier_urgent(self):
-        from src.api.routers.symptoms import compute_risk_tier
+        from src.services.risk import compute_risk_tier
 
         assert compute_risk_tier(0.8) == "urgent"
 
     def test_tier_boundary_low(self):
-        from src.api.routers.symptoms import compute_risk_tier
+        from src.services.risk import compute_risk_tier
 
         assert compute_risk_tier(0.29) == "low"
 
     def test_tier_boundary_urgent(self):
-        from src.api.routers.symptoms import compute_risk_tier
+        from src.services.risk import compute_risk_tier
 
         assert compute_risk_tier(0.99) == "urgent"

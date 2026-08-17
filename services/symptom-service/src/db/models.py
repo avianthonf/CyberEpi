@@ -5,11 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import sqlalchemy as sa
 from sqlalchemy import DateTime, Float, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
-import sqlalchemy as sa
-
 
 
 class Base(DeclarativeBase):
@@ -31,7 +30,7 @@ class VitalsTS(Base):
     symptoms: Mapped[dict | None] = mapped_column(JSONB)
     risk_score: Mapped[float | None] = mapped_column(Float)
     risk_tier: Mapped[str | None] = mapped_column(String(20))
-    
+
     __table_args__ = (
         sa.CheckConstraint('risk_score >= 0 AND risk_score <= 1', name='chk_vitals_risk_score'),
     )

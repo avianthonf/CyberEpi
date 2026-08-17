@@ -14,10 +14,9 @@ const cacheStorage = new MMKV({
 });
 
 interface RiskScoreResponse {
+  patient_id: string;
   risk_score: number | null;
   risk_tier: 'low' | 'moderate' | 'consult' | 'urgent' | null;
-  updated_at: string;
-  recommendations: string[];
 }
 
 export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 minutes default
@@ -52,14 +51,14 @@ export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 min
   // Update store when query data changes
   useEffect(() => {
     if (query.data) {
-      const { risk_score, risk_tier, updated_at, recommendations } = query.data;
-      
+      const { risk_score, risk_tier } = query.data;
+
       if (risk_score !== null && risk_tier) {
-        setRiskScore(risk_score, risk_tier, recommendations);
+        setRiskScore(risk_score, risk_tier);
       } else {
         setInsufficientData('Insufficient data: Need at least 3 symptom reports');
       }
-      
+
       // Cache the response
       cacheStorage.set('last_risk_response', JSON.stringify(query.data));
     }
@@ -138,7 +137,7 @@ export function useRiskScoreHistory(days: number = 7) {
       }
 
       const response = await apiClient.get(
-        `/patients/${user.id}/risk/history?days=${days}`
+        `/patients/${user.id}/history?days=${days}`
       );
       return response.data;
     },
@@ -150,14 +149,13 @@ export function useRiskScoreHistory(days: number = 7) {
 // Hook to listen for network changes and sync
 export function useNetworkSync() {
   const queryClient = useQueryClient();
-  
+
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
       if (state.isConnected) {
         // When network is restored, refetch all queries
         queryClient.refetchQueries({ queryKey: ['risk-score'] });
-        queryClient.refetchQueries({ queryKey: ['medications'] });
-        queryClient.refetchQueries({ queryKey: ['symptom-history'] });
+        queryClient.refetchQueries({ queryKey: ['risk-score-history'] });
       }
     });
 

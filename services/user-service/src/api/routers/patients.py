@@ -83,7 +83,6 @@ async def register_patient(
     db: AsyncSession = Depends(get_db),
 ) -> RegisterResponse:
     """Register a new patient in Keycloak and patients table."""
-    # Create user in Keycloak
     keycloak_id = ""
     try:
         async with httpx.AsyncClient() as client:
@@ -114,11 +113,22 @@ async def register_patient(
                 if create_resp.status_code == 201:
                     location = create_resp.headers.get("Location", "")
                     keycloak_id = location.rsplit("/", 1)[-1] if location else ""
-    except httpx.HTTPError:
-        # In dev mode, proceed without Keycloak
+    except httpx.HTTPError as exc:
+        # Only fall back to a fake Keycloak ID in dev; in prod this must fail
+        # loudly rather than silently creating patients who can never log in.
+        if not settings.debug:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Keycloak registration failed",
+            ) from exc
         keycloak_id = str(uuid.uuid4())
 
     if not keycloak_id:
+        if not settings.debug:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Keycloak registration returned no user ID",
+            )
         keycloak_id = str(uuid.uuid4())
 
     # Create patient record

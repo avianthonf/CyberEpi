@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def standard_composition(epsilons: list[float]) -> float:
     """
     Basic composition theorem: total epsilon is the sum of epsilons.

@@ -113,7 +113,7 @@ export class MedScannerService {
         // Extract the first match and format it properly
         const cleanMatch = matches[0].replace(/[^\d-]/g, '');
         const digits = cleanMatch.replace(/-/g, '');
-        
+
         if (digits.length === 11) {
           // Format as XXXXX-XXXX-XX
           return `${digits.slice(0, 5)}-${digits.slice(5, 9)}-${digits.slice(9, 11)}`;
@@ -124,69 +124,17 @@ export class MedScannerService {
     return null;
   }
 
-  // Extract drug name from OCR text (basic implementation)
-  extractDrugName(text: string): string | null {
-    // Common drug name patterns
-    const drugPatterns = [
-      /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|units?))\b/g,
-      /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(tablet|capsule|liquid|solution|injection|spray)\b/gi,
-    ];
+  // Scan medication from OCR text and send to API.
+  // OCR itself (image → text) requires ML Kit, which is not wired up yet;
+  // the text comes from the manual-entry field on the scan screen.
+  async scanMedication(ocrText: string, patientId?: string): Promise<MedicationScanResponse> {
+    const scanRequest: MedicationScanRequest = {
+      ocr_text: ocrText,
+      ...(patientId ? { patient_id: patientId } : {}),
+    };
 
-    for (const pattern of drugPatterns) {
-      const matches = text.match(pattern);
-      if (matches && matches.length > 0) {
-        // Extract the drug name part (before the dosage or form)
-        const match = matches[0];
-        const drugNameMatch = match.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
-        if (drugNameMatch) {
-          return drugNameMatch[1];
-        }
-      }
-    }
-
-    return null;
-  }
-
-  // Simulate OCR processing (in a real app, this would use ML Kit)
-  async performOCR(imageUri: string): Promise<string> {
-    // This is a mock implementation
-    // In a real app, you would use Google ML Kit Text Recognition
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Mock OCR result with NDC code
-        const mockOCRTexts = [
-          'NDC: 12345-678-90\nLisinopril 10mg\nTablets\nTake one tablet daily',
-          'NDC 54321-098-76\nMetformin 500mg\nExtended Release\nTablets',
-          'NDC: 98765-432-10\nAtorvastatin Calcium 20mg\nTablets',
-          'No NDC code found\nAspirin 81mg\nEnteric Coated',
-        ];
-        resolve(mockOCRTexts[Math.floor(Math.random() * mockOCRTexts.length)]);
-      }, 1500); // Simulate processing time
-    });
-  }
-
-  // Scan medication and send to API
-  async scanMedication(imageUri: string, patientId: string): Promise<MedicationScanResponse | null> {
-    try {
-      // Perform OCR
-      const ocrText = await this.performOCR(imageUri);
-      
-      // Extract NDC code
-      const ndcCode = this.extractNDCCode(ocrText);
-      
-      // Prepare scan request
-      const scanRequest: MedicationScanRequest = {
-        patient_id: patientId,
-        ...(ndcCode ? { ndc_code: ndcCode } : { raw_text: ocrText }),
-      };
-
-      // Send to API
-      const response = await apiClient.post<MedicationScanResponse>('/medications/scan', scanRequest);
-      return response.data;
-    } catch (error) {
-      console.error('Medication scan failed:', error);
-      throw error;
-    }
+    const response = await apiClient.post<MedicationScanResponse>('/medications/scan', scanRequest);
+    return response.data;
   }
 
   // Check for severe interactions

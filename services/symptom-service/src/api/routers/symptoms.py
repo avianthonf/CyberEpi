@@ -5,13 +5,11 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user
@@ -68,7 +66,7 @@ async def ingest_symptom(
     # Authorization: Patient can only report for themselves. Physician/Admin can report for anyone.
     user_id = user.get("sub")
     roles = user.get("realm_access", {}).get("roles", [])
-    
+
     if "physician" not in roles and "admin" not in roles:
         if str(body.patient_id) != user_id:
             raise HTTPException(
@@ -103,7 +101,6 @@ async def ingest_symptom(
         symptoms={"reported": body.symptoms},
         risk_score=risk_score,
         risk_tier=risk_tier,
-        source="app",
     )
     db.add(vitals)
     await db.flush()

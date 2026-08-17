@@ -1,6 +1,7 @@
+
 import numpy as np
 from scipy.optimize import brentq
-from typing import Optional
+
 
 def nash_contact_rate(I: float, N: float, beta0: float, L: float) -> float:
     """

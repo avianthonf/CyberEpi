@@ -1,10 +1,11 @@
 """Simplified 4-compartment SEIR Metapopulation ODE."""
 
+
 import numpy as np
 from scipy.integrate import solve_ivp
-from typing import Dict, List, Tuple
 
-def metapop_rhs(t: float, y_flat: np.ndarray, params_list: List[Dict[str, float]], M: np.ndarray, n_patches: int) -> np.ndarray:
+
+def metapop_rhs(t: float, y_flat: np.ndarray, params_list: list[dict[str, float]], M: np.ndarray, n_patches: int) -> np.ndarray:
     """
     RHS for metapopulation SEIR model.
     y_flat: [S1, E1, I1, R1, S2, E2, I2, R2, ...]
@@ -32,9 +33,6 @@ def metapop_rhs(t: float, y_flat: np.ndarray, params_list: List[Dict[str, float]
     # People in patch i come from patch i (those who stayed) and from other patches j.
     
     # M_stay[i] = 1 - sum_{j!=i} M[i,j]
-    I_in_patch = np.zeros(n_patches)
-    N_in_patch = np.zeros(n_patches)
-    
     # For each patch i, who is there?
     # People from patch i who stayed: N[i] * (1 - sum_{j!=i} M[i,j])
     # People from patch j who are in patch i: N[j] * M[j,i]
@@ -71,13 +69,13 @@ def metapop_rhs(t: float, y_flat: np.ndarray, params_list: List[Dict[str, float]
     return dydt
 
 def run_metapop(
-    y0_dict: Dict[str, List[float]],
-    t_span: Tuple[float, float],
+    y0_dict: dict[str, list[float]],
+    t_span: tuple[float, float],
     t_eval: np.ndarray,
-    params_dict: Dict[str, Dict[str, float]],
+    params_dict: dict[str, dict[str, float]],
     M: np.ndarray,
-    patch_ids: List[str]
-) -> Dict[str, np.ndarray]:
+    patch_ids: list[str]
+) -> dict[str, np.ndarray]:
     """Orchestrate metapopulation ODE run."""
     n_patches = len(patch_ids)
     y0 = np.zeros(n_patches * 4)

@@ -1,8 +1,11 @@
+from typing import Any, NamedTuple
+
 import numpy as np
 from scipy.integrate import solve_ivp
-from typing import Dict, Any, List, Tuple, NamedTuple
+
 from .controlled_seir import seir_controlled
-from .hamiltonian import compute_dH_dx, compute_dH_du
+from .hamiltonian import compute_dH_du, compute_dH_dx
+
 
 class SweepResult(NamedTuple):
     t: np.ndarray
@@ -46,7 +49,7 @@ def compute_cost(
 def forward_backward_sweep(
     x0: np.ndarray,
     T: float,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     C1: float,
     C2: float,
     C3: float,

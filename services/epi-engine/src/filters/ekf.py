@@ -1,8 +1,9 @@
+
 import numpy as np
+from scipy.integrate import solve_ivp
 from scipy.linalg import inv
 from seir_core import SEIRParams, seir_extended
-from scipy.integrate import solve_ivp
-from typing import Tuple, Optional
+
 
 class SEIR_EKF:
     def __init__(self, params: SEIRParams, Q: np.ndarray, R_obs: np.ndarray, H_obs: np.ndarray):
@@ -58,7 +59,7 @@ class SEIR_EKF:
             
         return F
 
-    def predict(self, x_est: np.ndarray, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def predict(self, x_est: np.ndarray, P: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Predict step: x_pred = f(x_est); P_pred = F @ P @ F.T + Q
         """
@@ -67,7 +68,7 @@ class SEIR_EKF:
         P_pred = F @ P @ F.T + self.Q
         return x_pred, P_pred
 
-    def update(self, x_pred: np.ndarray, P_pred: np.ndarray, y_obs: np.ndarray, H_active: np.ndarray, R_active: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def update(self, x_pred: np.ndarray, P_pred: np.ndarray, y_obs: np.ndarray, H_active: np.ndarray, R_active: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Update step using Joseph form for numerical stability.
         P_upd = (I - KH)P_pred(I - KH).T + K R K.T
@@ -101,7 +102,7 @@ class SEIR_EKF:
         chi2 = innovation.T @ inv(S) @ innovation
         return chi2 <= threshold
 
-    def step(self, x_est: np.ndarray, P: np.ndarray, y_obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    def step(self, x_est: np.ndarray, P: np.ndarray, y_obs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
         """
         Single EKF step: Predict + Update + Test.
         Handles missing data (NaN in y_obs).

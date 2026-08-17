@@ -15,6 +15,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "prometheus-fastapi-instrumentator>=7.0.0",
     "structlog>=24.4.0",
+    "cyberepi-shared>=0.1.0",
 ]
 
 [project.optional-dependencies]

@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
-import Health, {
-  HealthKitPermissions,
-  HealthValue,
-  HealthUnit,
-} from 'react-native-health';
-import { connect, connectToSources, disconnect, initialize } from 'react-native-health-connect';
+import Health, { HealthKitPermissions, HealthValue } from 'react-native-health';
+import * as HealthConnect from 'react-native-health-connect';
 import { MMKV } from 'react-native-mmkv';
 import { WearableData } from '@/types';
 
@@ -20,12 +16,56 @@ interface UseWearableOptions {
   pollInterval?: number; // minutes
 }
 
+const EMPTY_DATA: WearableData = {
+  hrv_rmssd_ms: null,
+  resting_hr_bpm: null,
+  sleep_hours: null,
+  step_count: null,
+  spo2_pct: null,
+  heart_rate_bpm: null,
+  last_updated: new Date().toISOString(),
+};
+
 export function useWearable(options: UseWearableOptions = {}) {
   const { enabled = true, pollInterval = 30 } = options;
   const [wearableData, setWearableData] = useState<WearableData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
+
+  // Fetch data from HealthKit (iOS) — callback-based API.
+  const fetchHealthKitData = () => {
+    if (Platform.OS !== 'ios' || !isAuthorized) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const options = {
+      startDate: yesterday.toISOString(),
+      endDate: now.toISOString(),
+      includeManuallyAdded: false,
+    };
+
+    const data: WearableData = { ...EMPTY_DATA, last_updated: now.toISOString() };
+
+    // Each read is guarded; failures leave the field null rather than
+    // fabricating a value.
+    Health.getHeartRateSamples(options, (err, results) => {
+      if (!err && results.length > 0) {
+        const latest = results[results.length - 1];
+        if (latest) data.heart_rate_bpm = Math.round(latest.value);
+      }
+      finishFetch(data);
+    });
+  };
+
+  const finishFetch = (data: WearableData) => {
+    wearableStorage.set('latest_data', JSON.stringify(data));
+    setWearableData(data);
+    setIsLoading(false);
+  };
 
   // Initialize HealthKit (iOS)
   const initializeHealthKit = async () => {
@@ -46,12 +86,16 @@ export function useWearable(options: UseWearableOptions = {}) {
         },
       };
 
-      const isAuthorized = await Health.initHealthKit(permissions, null);
-      setIsAuthorized(isAuthorized);
-      
-      if (isAuthorized) {
-        await fetchHealthKitData();
-      }
+      Health.initHealthKit(permissions, (err) => {
+        if (err) {
+          console.error('HealthKit initialization error:', err);
+          setError('Failed to initialize HealthKit');
+          setIsAuthorized(false);
+          return;
+        }
+        setIsAuthorized(true);
+        fetchHealthKitData();
+      });
     } catch (err) {
       console.error('HealthKit initialization error:', err);
       setError('Failed to initialize HealthKit');
@@ -63,12 +107,17 @@ export function useWearable(options: UseWearableOptions = {}) {
     if (Platform.OS !== 'android') return;
 
     try {
-      const isInitialized = await initialize();
-      if (!isInitialized) {
-        throw new Error('Failed to initialize Health Connect');
+      // Health Connect requires the system app + user permission. If the SDK
+      // isn't available on the device, report unsupported rather than
+      // fabricating data.
+      const sdkStatus = await HealthConnect.getSdkStatus();
+      if (sdkStatus !== 2) {
+        setError('Health Connect is not available on this device');
+        setIsAuthorized(false);
+        return;
       }
 
-      // Check permissions
+      await HealthConnect.initialize();
       const hasPermissions = await checkHealthConnectPermissions();
       if (hasPermissions) {
         await fetchHealthConnectData();
@@ -76,6 +125,7 @@ export function useWearable(options: UseWearableOptions = {}) {
     } catch (err) {
       console.error('Health Connect initialization error:', err);
       setError('Failed to initialize Health Connect');
+      setIsAuthorized(false);
     }
   };
 
@@ -84,9 +134,9 @@ export function useWearable(options: UseWearableOptions = {}) {
     if (Platform.OS !== 'android') return false;
 
     try {
-      const result = await connect();
-      setIsAuthorized(result);
-      return result;
+      const granted = await HealthConnect.getGrantedPermissions();
+      setIsAuthorized(granted.length > 0);
+      return granted.length > 0;
     } catch (err) {
       console.error('Health Connect permission check:', err);
       return false;
@@ -98,20 +148,16 @@ export function useWearable(options: UseWearableOptions = {}) {
     if (Platform.OS !== 'android') return false;
 
     try {
-      const result = await connectToSources([
-        { dataType: 'HeartRate', accessType: 'read' },
-        { dataType: 'HeartRateVariability', accessType: 'read' },
-        { dataType: 'OxygenSaturation', accessType: 'read' },
-        { dataType: 'Sleep', accessType: 'read' },
-        { dataType: 'Steps', accessType: 'read' },
-        { dataType: 'RestingHeartRate', accessType: 'read' },
+      await HealthConnect.requestPermission([
+        { accessType: 'read', recordType: 'HeartRate' },
+        { accessType: 'read', recordType: 'OxygenSaturation' },
+        { accessType: 'read', recordType: 'SleepSession' },
+        { accessType: 'read', recordType: 'Steps' },
+        { accessType: 'read', recordType: 'RestingHeartRate' },
       ]);
-      
-      setIsAuthorized(result);
-      if (result) {
-        await fetchHealthConnectData();
-      }
-      return result;
+      setIsAuthorized(true);
+      await fetchHealthConnectData();
+      return true;
     } catch (err) {
       console.error('Health Connect permission request:', err);
       setError('Failed to request permissions');
@@ -119,179 +165,41 @@ export function useWearable(options: UseWearableOptions = {}) {
     }
   };
 
-  // Fetch data from HealthKit
-  const fetchHealthKitData = async () => {
-    if (Platform.OS !== 'ios' || !isAuthorized) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const now = new Date();
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-      const data: WearableData = {
-        hrv_rmssd_ms: null,
-        resting_hr_bpm: null,
-        sleep_hours: null,
-        step_count: null,
-        spo2_pct: null,
-        heart_rate_bpm: null,
-        last_updated: new Date().toISOString(),
-      };
-
-      // Fetch HRV
-      try {
-        const hrvResults: HealthValue[] = await Health.getHrvSamples(
-          yesterday.toISOString(),
-          now.toISOString(),
-          undefined,
-          HealthUnit.beatsPerMinute
-        );
-        
-        if (hrvResults.length > 0) {
-          // Get the latest HRV value
-          const latestHrv = hrvResults[hrvResults.length - 1];
-          data.hrv_rmssd_ms = latestHrv.value;
-        }
-      } catch (err) {
-        console.warn('Failed to fetch HRV:', err);
-      }
-
-      // Fetch Resting Heart Rate
-      try {
-        const restingHrResults: HealthValue[] = await Health.getRestingHeartRate(
-          yesterday.toISOString(),
-          now.toISOString(),
-          undefined,
-          HealthUnit.beatsPerMinute
-        );
-        
-        if (restingHrResults.length > 0) {
-          const latestRestingHr = restingHrResults[restingHrResults.length - 1];
-          data.resting_hr_bpm = Math.round(latestRestingHr.value);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch resting heart rate:', err);
-      }
-
-      // Fetch Sleep
-      try {
-        const sleepResults = await Health.getSleepSamples(
-          yesterday.toISOString(),
-          now.toISOString(),
-          undefined
-        );
-        
-        if (sleepResults.length > 0) {
-          // Calculate total sleep duration
-          const totalSleepMs = sleepResults.reduce((total, sample) => {
-            if (sample.value === Health.Constants.SleepAnalysis.Asleep) {
-              return total + (sample.endDate.getTime() - sample.startDate.getTime());
-            }
-            return total;
-          }, 0);
-          
-          data.sleep_hours = Math.round((totalSleepMs / (1000 * 60 * 60)) * 10) / 10;
-        }
-      } catch (err) {
-        console.warn('Failed to fetch sleep data:', err);
-      }
-
-      // Fetch Steps
-      try {
-        const stepResults = await Health.getDailyStepCountSamples(
-          yesterday.toISOString(),
-          now.toISOString(),
-          undefined
-        );
-        
-        if (stepResults.length > 0) {
-          data.step_count = stepResults.reduce((total, sample) => total + (sample.value || 0), 0);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch steps:', err);
-      }
-
-      // Fetch Oxygen Saturation
-      try {
-        const spo2Results: HealthValue[] = await Health.getOxygenSaturationSamples(
-          yesterday.toISOString(),
-          now.toISOString(),
-          undefined,
-          HealthUnit.percent
-        );
-        
-        if (spo2Results.length > 0) {
-          const latestSpo2 = spo2Results[spo2Results.length - 1];
-          data.spo2_pct = Math.round(latestSpo2.value);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch SpO2:', err);
-      }
-
-      // Fetch latest Heart Rate
-      try {
-        const hrResults: HealthValue[] = await Health.getHeartRateSamples(
-          yesterday.toISOString(),
-          now.toISOString(),
-          undefined,
-          HealthUnit.beatsPerMinute
-        );
-        
-        if (hrResults.length > 0) {
-          const latestHr = hrResults[hrResults.length - 1];
-          data.heart_rate_bpm = Math.round(latestHr.value);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch heart rate:', err);
-      }
-
-      // Cache the data
-      wearableStorage.set('latest_data', JSON.stringify(data));
-      setWearableData(data);
-    } catch (err) {
-      console.error('Error fetching HealthKit data:', err);
-      setError('Failed to fetch health data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch data from Health Connect
+  // Fetch data from Health Connect (Android)
   const fetchHealthConnectData = async () => {
     if (Platform.OS !== 'android' || !isAuthorized) return;
 
     setIsLoading(true);
     setError(null);
 
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const timeRangeFilter = {
+      operator: 'between' as const,
+      startTime: yesterday.toISOString(),
+      endTime: now.toISOString(),
+    };
+
+    const data: WearableData = { ...EMPTY_DATA, last_updated: now.toISOString() };
+
     try {
-      const now = new Date();
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-      const data: WearableData = {
-        hrv_rmssd_ms: null,
-        resting_hr_bpm: null,
-        sleep_hours: null,
-        step_count: null,
-        spo2_pct: null,
-        heart_rate_bpm: null,
-        last_updated: new Date().toISOString(),
-      };
-
-      // Note: Health Connect API implementation would go here
-      // This is a placeholder as the actual implementation depends on the specific library version
-      // and API endpoints available
-
-      // Cache the data
-      wearableStorage.set('latest_data', JSON.stringify(data));
-      setWearableData(data);
+      const steps = await HealthConnect.readRecords('Steps', { timeRangeFilter });
+      data.step_count = steps.reduce((total, r) => total + r.count, 0);
     } catch (err) {
-      console.error('Error fetching Health Connect data:', err);
-      setError('Failed to fetch health data');
-    } finally {
-      setIsLoading(false);
+      console.warn('Failed to fetch steps from Health Connect:', err);
     }
+
+    try {
+      const heartRates = await HealthConnect.readRecords('HeartRate', { timeRangeFilter });
+      const last = heartRates.at(-1)?.samples.at(-1)?.beatsPerMinute;
+      if (last) data.heart_rate_bpm = Math.round(last);
+    } catch (err) {
+      console.warn('Failed to fetch heart rate from Health Connect:', err);
+    }
+
+    wearableStorage.set('latest_data', JSON.stringify(data));
+    setWearableData(data);
+    setIsLoading(false);
   };
 
   // Load cached data on mount
@@ -336,7 +244,6 @@ export function useWearable(options: UseWearableOptions = {}) {
   // Request permissions function
   const requestPermissions = async () => {
     if (Platform.OS === 'ios') {
-      // HealthKit permissions are requested during initialization
       await initializeHealthKit();
     } else if (Platform.OS === 'android') {
       await requestHealthConnectPermissions();
@@ -347,10 +254,10 @@ export function useWearable(options: UseWearableOptions = {}) {
   const disconnectWearable = async () => {
     if (Platform.OS === 'android') {
       try {
-        await disconnect();
+        await HealthConnect.revokeAllPermissions();
         setIsAuthorized(false);
       } catch (err) {
-        console.error('Failed to disconnect Health Connect:', err);
+        console.error('Failed to revoke Health Connect permissions:', err);
       }
     }
   };

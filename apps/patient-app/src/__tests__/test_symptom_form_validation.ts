@@ -1,201 +1,92 @@
 import { SymptomReport } from '@/types/symptom';
+import { getRiskTierFromScore, getRiskTierColor, getRiskTierLabel } from '@/store/riskStore';
 
-describe('Symptom Form Validation', () => {
+describe('Symptom Report Contract', () => {
   const createValidReport = (): SymptomReport => ({
     patient_id: '123e4567-e89b-12d3-a456-426614174000',
-    timestamp_utc: '2024-03-11T10:00:00.000Z',
-    reported_at_tz: 'America/New_York',
-    fever_celsius: 37.5,
-    cough_severity: 1,
-    dyspnoea: false,
-    fatigue_severity: 2,
-    spo2_pct: 98,
-    heart_rate_bpm: 72,
-    sore_throat: false,
-    diarrhoea: false,
-    anosmia: false,
-    hrv_rmssd_ms: 45,
-    resting_hr_bpm: 60,
-    sleep_hours: 7.5,
-    step_count: 10000,
-    schema_version: '1.0',
+    symptoms: ['fever', 'cough'],
+    heart_rate: 72,
+    spo2: 98,
+    temperature: 37.5,
   });
 
-  describe('Temperature Validation', () => {
-    it('should accept valid temperature range', () => {
+  describe('Required Fields', () => {
+    it('has patient_id and a non-empty symptoms list', () => {
       const report = createValidReport();
-      
-      // Test boundary values
-      report.fever_celsius = 35.0;
-      expect(report.fever_celsius).toBeGreaterThanOrEqual(35.0);
-      
-      report.fever_celsius = 42.0;
-      expect(report.fever_celsius).toBeLessThanOrEqual(42.0);
-      
-      // Test middle values
-      report.fever_celsius = 37.0;
-      expect(report.fever_celsius).toBeGreaterThanOrEqual(35.0);
-      expect(report.fever_celsius).toBeLessThanOrEqual(42.0);
-    });
-
-    it('should reject temperature below minimum', () => {
-      const report = createValidReport();
-      report.fever_celsius = 34.9;
-      
-      expect(report.fever_celsius).toBeLessThan(35.0);
-    });
-
-    it('should reject temperature above maximum', () => {
-      const report = createValidReport();
-      report.fever_celsius = 42.1;
-      
-      expect(report.fever_celsius).toBeGreaterThan(42.0);
-    });
-
-    it('should accept null temperature when not measured', () => {
-      const report = createValidReport();
-      report.fever_celsius = null;
-      
-      expect(report.fever_celsius).toBeNull();
-    });
-  });
-
-  describe('SpO2 Validation', () => {
-    it('should accept valid SpO2 range', () => {
-      const report = createValidReport();
-      
-      // Test boundary values
-      report.spo2_pct = 85;
-      expect(report.spo2_pct).toBeGreaterThanOrEqual(85);
-      
-      report.spo2_pct = 100;
-      expect(report.spo2_pct).toBeLessThanOrEqual(100);
-      
-      // Test middle values
-      report.spo2_pct = 95;
-      expect(report.spo2_pct).toBeGreaterThanOrEqual(85);
-      expect(report.spo2_pct).toBeLessThanOrEqual(100);
-    });
-
-    it('should reject SpO2 below minimum', () => {
-      const report = createValidReport();
-      report.spo2_pct = 84;
-      
-      expect(report.spo2_pct).toBeLessThan(85);
-    });
-
-    it('should reject SpO2 above maximum', () => {
-      const report = createValidReport();
-      report.spo2_pct = 101;
-      
-      expect(report.spo2_pct).toBeGreaterThan(100);
-    });
-
-    it('should accept null SpO2 when not measured', () => {
-      const report = createValidReport();
-      report.spo2_pct = null;
-      
-      expect(report.spo2_pct).toBeNull();
-    });
-  });
-
-  describe('Cough Severity Validation', () => {
-    it('should accept valid cough severity values', () => {
-      const report = createValidReport();
-      
-      const validValues: [0, 1, 2, 3] = [0, 1, 2, 3];
-      
-      validValues.forEach((severity) => {
-        report.cough_severity = severity;
-        expect([0, 1, 2, 3]).toContain(report.cough_severity);
-      });
-    });
-
-    it('should reject invalid cough severity values', () => {
-      const report = createValidReport();
-      
-      // @ts-expect-error - Testing invalid value
-      report.cough_severity = 4;
-      expect([0, 1, 2, 3]).not.toContain(report.cough_severity);
-      
-      // @ts-expect-error - Testing negative value
-      report.cough_severity = -1;
-      expect([0, 1, 2, 3]).not.toContain(report.cough_severity);
-    });
-  });
-
-  describe('Fatigue Severity Validation', () => {
-    it('should accept valid fatigue severity values', () => {
-      const report = createValidReport();
-      
-      const validValues: [0, 1, 2, 3] = [0, 1, 2, 3];
-      
-      validValues.forEach((severity) => {
-        report.fatigue_severity = severity;
-        expect([0, 1, 2, 3]).toContain(report.fatigue_severity);
-      });
-    });
-
-    it('should reject invalid fatigue severity values', () => {
-      const report = createValidReport();
-      
-      // @ts-expect-error - Testing invalid value
-      report.fatigue_severity = 4;
-      expect([0, 1, 2, 3]).not.toContain(report.fatigue_severity);
-    });
-  });
-
-  describe('Schema Version Validation', () => {
-    it('should have correct schema version', () => {
-      const report = createValidReport();
-      expect(report.schema_version).toBe('1.0');
-    });
-  });
-
-  describe('Required Fields Validation', () => {
-    it('should have all required fields', () => {
-      const report = createValidReport();
-      
-      // Check required string fields
       expect(typeof report.patient_id).toBe('string');
       expect(report.patient_id).toBeTruthy();
-      
-      expect(typeof report.timestamp_utc).toBe('string');
-      expect(report.timestamp_utc).toBeTruthy();
-      
-      expect(typeof report.reported_at_tz).toBe('string');
-      expect(report.reported_at_tz).toBeTruthy();
-      
-      // Check required numeric fields
-      expect(typeof report.cough_severity).toBe('number');
-      expect([0, 1, 2, 3]).toContain(report.cough_severity);
-      
-      expect(typeof report.fatigue_severity).toBe('number');
-      expect([0, 1, 2, 3]).toContain(report.fatigue_severity);
-      
-      // Check required boolean fields
-      expect(typeof report.dyspnoea).toBe('boolean');
-      expect(typeof report.sore_throat).toBe('boolean');
-      expect(typeof report.diarrhoea).toBe('boolean');
-      expect(typeof report.anosmia).toBe('boolean');
+      expect(report.symptoms.length).toBeGreaterThan(0);
+    });
+
+    it('accepts an empty symptoms list (backend handles insufficient data)', () => {
+      const report: SymptomReport = {
+        patient_id: '123e4567-e89b-12d3-a456-426614174000',
+        symptoms: [],
+      };
+      expect(report.symptoms).toEqual([]);
     });
   });
 
-  describe('Timestamp Format Validation', () => {
-    it('should have valid ISO-8601 timestamp', () => {
+  describe('Vitals Ranges', () => {
+    it('keeps temperature within a plausible body range', () => {
       const report = createValidReport();
-      const timestamp = new Date(report.timestamp_utc);
-      
-      expect(timestamp.toISOString()).toBe(report.timestamp_utc);
+      expect(report.temperature).not.toBeNull();
+      if (report.temperature !== null && report.temperature !== undefined) {
+        expect(report.temperature).toBeGreaterThanOrEqual(30);
+        expect(report.temperature).toBeLessThanOrEqual(45);
+      }
+    });
+
+    it('keeps SpO2 within 0-100', () => {
+      const report = createValidReport();
+      expect(report.spo2).not.toBeNull();
+      if (report.spo2 !== null && report.spo2 !== undefined) {
+        expect(report.spo2).toBeGreaterThanOrEqual(0);
+        expect(report.spo2).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it('keeps heart rate within a plausible range', () => {
+      const report = createValidReport();
+      expect(report.heart_rate).not.toBeNull();
+      if (report.heart_rate !== null && report.heart_rate !== undefined) {
+        expect(report.heart_rate).toBeGreaterThanOrEqual(20);
+        expect(report.heart_rate).toBeLessThanOrEqual(250);
+      }
+    });
+
+    it('allows vitals to be null (not measured)', () => {
+      const report: SymptomReport = {
+        patient_id: '123e4567-e89b-12d3-a456-426614174000',
+        symptoms: ['fatigue'],
+        heart_rate: null,
+        spo2: null,
+        temperature: null,
+      };
+      expect(report.heart_rate).toBeNull();
+      expect(report.spo2).toBeNull();
+      expect(report.temperature).toBeNull();
     });
   });
 
-  describe('UUID Validation for Patient ID', () => {
-    it('should have valid UUID v4 format', () => {
-      const report = createValidReport();
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      
-      expect(uuidRegex.test(report.patient_id)).toBe(true);
+  describe('Risk Tier Mapping (riskStore)', () => {
+    it('maps scores to the documented thresholds', () => {
+      expect(getRiskTierFromScore(0.1)).toBe('low');
+      expect(getRiskTierFromScore(0.3)).toBe('moderate');
+      expect(getRiskTierFromScore(0.6)).toBe('consult');
+      expect(getRiskTierFromScore(0.9)).toBe('urgent');
+    });
+
+    it('returns a color for every tier', () => {
+      for (const tier of ['low', 'moderate', 'consult', 'urgent'] as const) {
+        expect(getRiskTierColor(tier)).toMatch(/^#[0-9a-f]{6}$/i);
+        expect(getRiskTierLabel(tier)).toBeTruthy();
+      }
+    });
+
+    it('handles null tier without crashing', () => {
+      expect(getRiskTierColor(null)).toBeTruthy();
+      expect(getRiskTierLabel(null)).toBeTruthy();
     });
   });
 });

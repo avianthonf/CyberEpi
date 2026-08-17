@@ -8,10 +8,9 @@ from .seir import SEIRParams, seir_extended
 class SolverResult:
     t: np.ndarray
     y: np.ndarray
-    success: bool
     message: str
 
-from prometheus_client import Histogram, Counter
+from prometheus_client import Histogram
 import time
 
 ODE_SOLVE_DURATION = Histogram(
@@ -53,19 +52,16 @@ def run_seir(
     # Clip all compartments to >= 0 post-integration
     y_clipped = np.maximum(sol.y, 0)
 
-    # Enforce population conservation: sum(y) = N
-    # We normalize each time step to N_pop
+    # Enforce population conservation: sum(y) = N per time step.
+    # Guard against complete die-off (sum == 0) which would otherwise
+    # produce silent NaN/Inf.
     N = params.N_pop
     sums = y_clipped.sum(axis=0)
-    y_final = (y_clipped / sums) * N
-
-    # Check conservation assertion (1e-4 tolerance as per task)
-    # Actually, we already enforced it above, but let's check the original error if needed.
-    # In production, we'll just return the normalized values.
+    safe_sums = np.where(sums > 0, sums, 1.0)
+    y_final = (y_clipped / safe_sums) * N
 
     return SolverResult(
         t=sol.t,
         y=y_final,
-        success=sol.success,
         message=sol.message
     )

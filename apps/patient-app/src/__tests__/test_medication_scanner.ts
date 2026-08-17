@@ -80,26 +80,17 @@ describe('Medication Scanner', () => {
   describe('Severe Interaction Detection', () => {
     it('should detect severe interactions', () => {
       const medication = {
-        id: '1',
         drug_name: 'TestDrug',
-        dosage_form: 'tablet',
-        strength: '10mg',
+        ndc_code: '12345-6789-01',
+        rxnorm_id: '123',
         interactions: [
           {
-            interacting_drug: 'DrugB',
+            drug_a: '123',
+            drug_b: '456',
             severity: 'severe' as const,
             description: 'Severe interaction detected',
-            recommendation: 'Do not combine',
           },
         ],
-        schedule: {
-          frequency: 'once daily',
-          timing: ['morning'],
-          with_food: false,
-          reminders: { enabled: true, times: ['08:00'], sound: 'default' },
-        },
-        warnings: [],
-        created_at: new Date().toISOString(),
       };
 
       expect(scanner.hasSevereInteractions(medication)).toBe(true);
@@ -107,26 +98,17 @@ describe('Medication Scanner', () => {
 
     it('should detect contraindicated interactions', () => {
       const medication = {
-        id: '2',
         drug_name: 'TestDrug',
-        dosage_form: 'capsule',
-        strength: '20mg',
+        ndc_code: '12345-6789-01',
+        rxnorm_id: '123',
         interactions: [
           {
-            interacting_drug: 'DrugC',
+            drug_a: '123',
+            drug_b: '456',
             severity: 'contraindicated' as const,
             description: 'Contraindicated combination',
-            recommendation: 'Do not use together',
           },
         ],
-        schedule: {
-          frequency: 'twice daily',
-          timing: ['morning', 'evening'],
-          with_food: true,
-          reminders: { enabled: false, times: [], sound: 'default' },
-        },
-        warnings: [],
-        created_at: new Date().toISOString(),
       };
 
       expect(scanner.hasSevereInteractions(medication)).toBe(true);
@@ -134,26 +116,17 @@ describe('Medication Scanner', () => {
 
     it('should return false for moderate-only interactions', () => {
       const medication = {
-        id: '3',
         drug_name: 'TestDrug',
-        dosage_form: 'tablet',
-        strength: '5mg',
+        ndc_code: '12345-6789-01',
+        rxnorm_id: '123',
         interactions: [
           {
-            interacting_drug: 'DrugD',
+            drug_a: '123',
+            drug_b: '456',
             severity: 'moderate' as const,
             description: 'Moderate interaction',
-            recommendation: 'Monitor closely',
           },
         ],
-        schedule: {
-          frequency: 'once daily',
-          timing: ['evening'],
-          with_food: false,
-          reminders: { enabled: true, times: ['20:00'], sound: 'default' },
-        },
-        warnings: [],
-        created_at: new Date().toISOString(),
       };
 
       expect(scanner.hasSevereInteractions(medication)).toBe(false);
@@ -161,19 +134,10 @@ describe('Medication Scanner', () => {
 
     it('should return false for no interactions', () => {
       const medication = {
-        id: '4',
         drug_name: 'TestDrug',
-        dosage_form: 'tablet',
-        strength: '10mg',
+        ndc_code: '12345-6789-01',
+        rxnorm_id: '123',
         interactions: [],
-        schedule: {
-          frequency: 'once daily',
-          timing: ['morning'],
-          with_food: false,
-          reminders: { enabled: false, times: [], sound: 'default' },
-        },
-        warnings: [],
-        created_at: new Date().toISOString(),
       };
 
       expect(scanner.hasSevereInteractions(medication)).toBe(false);

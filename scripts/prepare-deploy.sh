@@ -34,7 +34,7 @@ ENCRYPTION_KEY=$(openssl rand -hex 32)
 echo "📝 Creating .env.production template..."
 cat > .env.production << EOF
 # Database Configuration
-DATABASE_URL=postgresql://cyberepi:${POSTGRES_PASSWORD}@HOST:5432/cyberepi
+DATABASE_URL=postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@HOST:5432/cyberepi
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # Redis Configuration

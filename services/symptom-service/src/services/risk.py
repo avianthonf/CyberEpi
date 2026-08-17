@@ -1,10 +1,13 @@
-import uuid
-from datetime import datetime, UTC
-from sqlalchemy import select, func, text
 import json
-import redis.asyncio as aioredis
-from src.db.models import VitalsTS, Patient
 from pathlib import Path
+
+import redis.asyncio as aioredis
+import structlog
+from sqlalchemy import func, select, text
+
+from src.db.models import VitalsTS
+
+logger = structlog.get_logger()
 
 _LIKELIHOODS_PATH = Path(__file__).resolve().parent.parent / "symptom_likelihoods.json"
 with open(_LIKELIHOODS_PATH) as f:
@@ -58,8 +61,10 @@ async def calculate_and_update_risk(db, request, body, region_id):
             if cached_state:
                 state_data = json.loads(cached_state)
                 prior = float(state_data.get("prevalence", 0.01))
-        except Exception:
-            pass  # Use default prior
+            else:
+                logger.warning("no_filter_state_in_redis", region_id=region_id)
+        except Exception as e:  # noqa: BLE001 - Redis outage should not block risk scoring
+            logger.warning("risk_prior_fallback_to_default", error=str(e))
 
         symptoms = list(body.symptoms)
         if body.spo2 is not None and body.spo2 < 95:

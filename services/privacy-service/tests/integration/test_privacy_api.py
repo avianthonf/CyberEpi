@@ -12,21 +12,22 @@ from src.dp.budget import BudgetTracker
 def auth_client():
     async def override_get_current_user():
         return {"sub": "123", "realm_access": {"roles": ["patient", "admin", "physician"]}}
-    
+
     app.dependency_overrides[get_current_user] = override_get_current_user
-    
+
     # Mock Redis and BudgetTracker
     mock_redis = AsyncMock()
-    mock_redis.eval.return_value = 1 # Success for budget consumption
-    mock_redis.get.return_value = "1.0" # Budget remaining
-    
+    mock_redis.eval.return_value = 1  # Success for budget consumption
+    mock_redis.get.return_value = "1.0"  # Budget remaining
+
     app.state.redis = mock_redis
     app.state.budget_tracker = BudgetTracker(mock_redis, max_budget=1.0)
-    
-    with patch("src.main.redis.from_url", return_value=mock_redis):
+
+    # Prevent the lifespan from connecting to a real Redis.
+    with patch("src.main.connect_redis", return_value=mock_redis):
         with TestClient(app) as c:
             yield c
-    
+
     app.dependency_overrides.clear()
 
 def test_dp_publish_endpoint(auth_client):

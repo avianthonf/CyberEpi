@@ -10,11 +10,6 @@ services:
       - name: postgres-data
         mountPath: /var/lib/postgresql/data
         sizeGB: 1
-    healthCheck:
-      path: /healthz
-      port: 8080
-      initialDelaySeconds: 10
-      periodSeconds: 10
 
   # Redis Cache
   redis:
@@ -114,4 +109,3 @@ envVarGroups:
     description: PostgreSQL connection string
   - name: POSTGRES_PASSWORD
     description: PostgreSQL password (generate a strong one)
-    description: Database password

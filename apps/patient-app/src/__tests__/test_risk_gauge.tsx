@@ -1,6 +1,14 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import { RiskGauge } from '@/components/RiskGauge';
+
+// The urgent call button shows a confirm Alert before invoking onCallPress.
+// Auto-confirm it so the press test exercises the real flow.
+jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+  const callNow = buttons?.find((b) => b.text === 'Call Now');
+  callNow?.onPress?.();
+});
 
 describe('RiskGauge Component', () => {
   it('renders green for low risk score', () => {

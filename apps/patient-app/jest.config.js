@@ -11,7 +11,7 @@ module.exports = {
     '!src/__tests__/**/*',
     '!src/**/*.stories.{ts,tsx}',
   ],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@/components/(.*)$': '<rootDir>/src/components/$1',
     '^@/hooks/(.*)$': '<rootDir>/src/hooks/$1',

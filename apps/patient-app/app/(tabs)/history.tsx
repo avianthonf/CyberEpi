@@ -9,75 +9,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRiskScoreHistory } from '@/hooks/useRiskScore';
+import { getRiskTierColor } from '@/store/riskStore';
 import { Svg, Line, Path, Circle } from 'react-native-svg';
+import { RiskTier } from '@/types';
 
 interface HistoryItem {
-  id: string;
-  date: string;
-  riskScore: number;
-  riskTier: string;
-  symptoms: string[];
+  time: string;
+  risk_score: number | null;
+  risk_tier: RiskTier | null;
+  symptoms: Record<string, unknown> | null;
 }
 
 export default function HistoryScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<'7' | '30' | '90'>('7');
   const { data: historyData, isLoading, refetch } = useRiskScoreHistory(parseInt(selectedPeriod));
 
-  // Mock data for demonstration
-  const mockHistory: HistoryItem[] = [
-    {
-      id: '1',
-      date: '2024-03-11',
-      riskScore: 0.15,
-      riskTier: 'low',
-      symptoms: ['Mild cough', 'No fever'],
-    },
-    {
-      id: '2',
-      date: '2024-03-10',
-      riskScore: 0.25,
-      riskTier: 'moderate',
-      symptoms: ['Moderate cough', 'Fatigue', 'Temperature: 37.8°C'],
-    },
-    {
-      id: '3',
-      date: '2024-03-09',
-      riskScore: 0.45,
-      riskTier: 'moderate',
-      symptoms: ['Severe cough', 'Fatigue', 'Shortness of breath'],
-    },
-    {
-      id: '4',
-      date: '2024-03-08',
-      riskScore: 0.35,
-      riskTier: 'moderate',
-      symptoms: ['Mild cough', 'Sore throat'],
-    },
-    {
-      id: '5',
-      date: '2024-03-07',
-      riskScore: 0.10,
-      riskTier: 'low',
-      symptoms: ['No symptoms'],
-    },
-  ];
-
-  const history = mockHistory; // Use mock data for now
-
-  const getRiskTierColor = (tier: string): string => {
-    switch (tier) {
-      case 'low':
-        return '#10b981';
-      case 'moderate':
-        return '#f59e0b';
-      case 'consult':
-        return '#f97316';
-      case 'urgent':
-        return '#ef4444';
-      default:
-        return '#9ca3af';
-    }
-  };
+  const history: HistoryItem[] = Array.isArray(historyData) ? historyData : [];
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -89,7 +36,11 @@ export default function HistoryScreen() {
   };
 
   const renderChart = () => {
-    if (history.length === 0) return null;
+    const chartItems = history.filter(
+      (item): item is HistoryItem & { risk_score: number } =>
+        item.risk_score !== null && item.risk_score !== undefined
+    );
+    if (chartItems.length === 0) return null;
 
     const width = 320;
     const height = 200;
@@ -98,10 +49,10 @@ export default function HistoryScreen() {
     const chartHeight = height - padding * 2;
 
     // Generate points for the line chart
-    const points = history.map((item, index) => {
-      const x = padding + (index / (history.length - 1)) * chartWidth;
-      const y = padding + chartHeight - item.riskScore * chartHeight;
-      return { x, y, score: item.riskScore };
+    const points = chartItems.map((item, index) => {
+      const x = padding + (index / (chartItems.length - 1)) * chartWidth;
+      const y = padding + chartHeight - item.risk_score * chartHeight;
+      return { x, y, score: item.risk_score, tier: item.risk_tier };
     });
 
     // Create path for the line
@@ -143,7 +94,7 @@ export default function HistoryScreen() {
               cx={point.x}
               cy={point.y}
               r="4"
-              fill={getRiskTierColor(history[index].riskTier)}
+              fill={getRiskTierColor(point.tier)}
             />
           ))}
         </Svg>
@@ -223,29 +174,35 @@ export default function HistoryScreen() {
             </Text>
           </View>
         ) : (
-          history.map((item) => (
-            <View key={item.id} style={styles.historyItem}>
+          history.map((item, index) => (
+            <View key={index} style={styles.historyItem}>
               <View style={styles.historyHeader}>
-                <Text style={styles.historyDate}>{formatDate(item.date)}</Text>
+                <Text style={styles.historyDate}>{formatDate(item.time)}</Text>
                 <View
                   style={[
                     styles.riskBadge,
-                    { backgroundColor: getRiskTierColor(item.riskTier) },
+                    { backgroundColor: getRiskTierColor(item.risk_tier) },
                   ]}
                 >
                   <Text style={styles.riskText}>
-                    {Math.round(item.riskScore * 100)}% - {item.riskTier}
+                    {item.risk_score !== null
+                      ? `${Math.round(item.risk_score * 100)}% - ${item.risk_tier}`
+                      : 'Insufficient data'}
                   </Text>
                 </View>
               </View>
-              <View style={styles.symptomsContainer}>
-                {item.symptoms.map((symptom, index) => (
-                  <View key={index} style={styles.symptomItem}>
-                    <Ionicons name="chevron-forward" size={12} color="#6b7280" />
-                    <Text style={styles.symptomText}>{symptom}</Text>
-                  </View>
-                ))}
-              </View>
+              {item.symptoms && (
+                <View style={styles.symptomsContainer}>
+                  {Object.entries(item.symptoms).map(([key, value], i) => (
+                    <View key={i} style={styles.symptomItem}>
+                      <Ionicons name="chevron-forward" size={12} color="#6b7280" />
+                      <Text style={styles.symptomText}>
+                        {key}: {String(value)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           ))
         )}

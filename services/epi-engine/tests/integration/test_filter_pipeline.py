@@ -10,10 +10,15 @@ from seir_core import SEIRParams
 def mock_redis():
     r = MagicMock(spec=redis.Redis)
     storage = {}
-    def get(key): return storage.get(key)
-    def set_val(key, val): storage[key] = val
+
+    async def get(key):
+        return storage.get(key)
+
+    async def setex(name, time, value):
+        storage[name] = value
+
     r.get.side_effect = get
-    r.set.side_effect = set_val
+    r.setex.side_effect = setex
     return r
 
 @pytest.fixture
@@ -37,10 +42,10 @@ async def test_filter_pipeline_persistence(mock_redis, mock_kafka):
     
     assert result.region_id == "region_1"
     assert "S" in result.state
-    assert mock_redis.set.called
+    assert mock_redis.setex.called
     
     # Check if state was saved in Redis
-    saved_data = json.loads(mock_redis.get("filter_state:region_1"))
+    saved_data = json.loads(await mock_redis.get("filter_state:region_1"))
     assert 'x' in saved_data
     
     # Process second observation (should load from Redis)
@@ -71,5 +76,5 @@ async def test_ekf_to_pf_fallback(mock_redis, mock_kafka):
     # After 3 failures, it should stay in EKF but the NEXT one might switch if handled correctly in the loop
     # In my implementation, it switches on the 3rd fail.
     # Let's verify status in Redis
-    state_data = json.loads(mock_redis.get("filter_state:region_2"))
+    state_data = json.loads(await mock_redis.get("filter_state:region_2"))
     assert state_data['meta']['mode'] in ['ekf', 'particle'] # Depending on exact thresholding

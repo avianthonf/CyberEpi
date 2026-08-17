@@ -1,14 +1,15 @@
 """Prescription drug interactions service."""
 
-import json
-import httpx
 import asyncio
+import json
+import uuid
+from typing import Any
+
+import httpx
 import redis.asyncio as aioredis
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
-from typing import Any
 
 from src.config import settings
 from src.db.models import Prescription
@@ -22,7 +23,7 @@ async def _retry_get(client, url, params=None, max_retries=3):
             resp = await client.get(url, params=params)
             resp.raise_for_status()
             return resp
-        except (httpx.HTTPError, asyncio.TimeoutError) as e:
+        except (TimeoutError, httpx.HTTPError) as e:
             if i == max_retries - 1:
                 logger.error("External API call failed after retries", url=url, error=str(e))
                 raise
@@ -99,7 +100,7 @@ async def check_interactions(
 
     # Batch Redis lookup
     cached_responses = await redis_client.mget(*cache_keys)
-    
+
     interactions: list[dict[str, Any]] = []
     missing_pairs = []
 

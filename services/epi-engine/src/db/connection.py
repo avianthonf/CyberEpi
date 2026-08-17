@@ -1,25 +1,21 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker
-import os
+"""Async database connection for epi-engine — shared via libs/shared."""
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost/cyberepi")
+from __future__ import annotations
 
-engine = create_async_engine(DATABASE_URL, echo=True)
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+from collections.abc import AsyncGenerator
 
-import asyncio
-from typing import AsyncGenerator
+from shared.db import create_session_factory
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.config import settings
+
+engine, AsyncSessionLocal = create_session_factory(settings)
+
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency yielding an async session."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()

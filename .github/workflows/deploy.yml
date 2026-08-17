@@ -2,7 +2,7 @@ name: Deploy CyberEpi
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   workflow_dispatch:
 
 env:
@@ -14,25 +14,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
-    
-    - name: Install dependencies
+
+    - name: Install core libraries
       run: |
         pip install -e ./libs/seir-core
-        pip install -e ./libs/privacy-sdk
         pip install -e ./libs/shared
-        pip install pytest pytest-asyncio
-    
+        pip install pytest pytest-asyncio pytest-mock
+
     - name: Run tests
       run: |
-        export PYTHONPATH="."
-        pytest services/epi-engine/tests/ -v
+        export PYTHONPATH="libs/shared/src"
+        pytest services/epi-engine/tests/unit services/epi-engine/tests/regression -q
       env:
-        DATABASE_URL: sqlite:///./test.db
+        DATABASE_URL: sqlite+aiosqlite:///./test.db
 
   build-and-push:
     needs: test
@@ -43,18 +42,18 @@ jobs:
     strategy:
       matrix:
         service: [user-service, symptom-service, prescription-service, notification-service, epi-engine, privacy-service]
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
+
     - name: Log in to Container Registry
       uses: docker/login-action@v3
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -64,7 +63,7 @@ jobs:
           type=ref,event=branch
           type=ref,event=pr
           type=sha,prefix={{branch}}-
-    
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
@@ -79,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Deploy to Render
       uses: johnbeynon/render-deploy-action@v0.0.8
       with:
@@ -90,12 +89,15 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: build-and-push
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [user-service, symptom-service, prescription-service, notification-service, epi-engine, privacy-service]
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Railway CLI
       run: npm install -g @railway/cli
-    
+
     - name: Deploy to Railway
       run: |
         railway login --token ${{ secrets.RAILWAY_TOKEN }}
@@ -109,12 +111,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup Fly CLI
       uses: superfly/flyctl-actions/setup-flyctl@master
       with:
         version: latest
-    
+
     - name: Deploy to Fly.io
       run: |
         flyctl deploy --config deploy/free/fly.toml

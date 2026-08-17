@@ -1,14 +1,13 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.auth import get_current_user, require_role
 from src.db.connection import get_db
 from src.db.models import EpiParams
-from src.models.parameters import RegionParams, ForecastRequest, ForecastResponse
+from src.models.parameters import RegionParams
 from src.tasks.celery_app import run_forecast_async
-from src.auth import get_current_user, require_role
-from sqlalchemy import select
-import hashlib
-import json
-from typing import Any
 
 router = APIRouter()
 

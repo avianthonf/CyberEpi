@@ -52,4 +52,7 @@ def mock_redis():
 def mock_kafka_producer():
     producer = AsyncMock()
     producer.send_and_wait = AsyncMock()
+    # Mimic aiokafka's internal client so health checks see it as connected
+    producer._client = MagicMock()
+    producer._client._closed = False
     return producer

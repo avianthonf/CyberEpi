@@ -4,58 +4,149 @@ import httpx
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 import os
-import time
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+import uuid
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import select
+
+from src.db.models import EpiParams, ForecastCache
+
 
 @pytest.fixture(scope="session")
 def postgres_container():
     with PostgresContainer("postgres:16-alpine") as postgres:
         yield postgres
 
+
 @pytest.fixture(scope="session")
 def redis_container():
     with RedisContainer("redis:7-alpine") as redis:
         yield redis
 
+
 @pytest_asyncio.fixture
 async def api_client(postgres_container, redis_container):
-    # Override settings for test environment
-    db_url = postgres_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql+asyncpg://").replace("postgresql://", "postgresql+asyncpg://")
+    # Build URLs for the fresh containers
+    db_url = postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql+asyncpg://"
+    ).replace("postgresql://", "postgresql+asyncpg://")
     redis_url = f"redis://{redis_container.get_container_host_ip()}:{redis_container.get_exposed_port(6379)}/0"
-    
+
     os.environ["DATABASE_URL"] = db_url
     os.environ["REDIS_URL"] = redis_url
-    
+
     from src.config import settings
+
     settings.redis_url = redis_url
     settings.database_url = db_url
-    
-    # In a real app, we'd use a test version of the FastAPI app
-    # For now, we'll just test the logic or use a mock client
-    from src.main import app
-    
-    # Override Redis connection to use the testcontainer instance, overcoming import-order caching
+
+    # Create tables directly (avoids requiring alembic to run against the fresh container)
+    from src.db.models import Base
+
+    engine = create_async_engine(db_url)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Recreate the app engine bound to the same URL and import the app
+    import src.db.connection as db_connection
+    import src.main as main
+
+    # Ensure the app's engine targets the test DB (the module-level engine was
+    # created from settings at import time, which we just updated).
+    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
+
+    db_connection.engine = engine
+    db_connection.AsyncSessionLocal = _asm(engine, class_=AsyncSession, expire_on_commit=False)
+
     import redis.asyncio as aioredis
-    app.state.redis = aioredis.from_url(redis_url)
-    
-    transport = httpx.ASGITransport(app=app)
+
+    main.app.state.redis = aioredis.from_url(redis_url, decode_responses=True)
+
+    transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
 
-@pytest.mark.asyncio
-async def test_forecast_returns_200_with_valid_region(api_client):
-    # 1. Seed a region (default is seeded by migration, but we might need to run migrations)
-    # Since we're using a fresh container, we'd need to run alembic upgrade head
-    
-    # For this task, we'll assume the startup task or a manual seed works
-    response = await api_client.get("/api/v1/regions/state-initial/forecast")
-    assert response.status_code == 200
-    data = response.json()
-    assert "forecast" in data
-    assert "points" in data["forecast"]
+    await engine.dispose()
+
+
+async def _seed_region(db_url: str, region_id: str) -> None:
+    """Insert a region's SEIR parameters directly."""
+    engine = create_async_engine(db_url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        params = EpiParams(
+            id=uuid.uuid4(),
+            region_id=region_id,
+            source="manual_override",
+            beta=0.6,
+            sigma=0.25,
+            gamma=0.1,
+            rho=0.5,
+            fA=0.3,
+            fM=0.5,
+            fS=0.2,
+            alpha=0.1,
+            h_rate=0.05,
+            delta=0.02,
+            mu=0.01,
+            mu_icu=0.05,
+            gamma_A=0.1,
+            gamma_M=0.1,
+            gamma_S=0.1,
+            gamma_H=0.1,
+            gamma_ICU=0.1,
+            papp=0.12,
+            N_pop=1000000,
+        )
+        session.add(params)
+        await session.commit()
+    await engine.dispose()
+
 
 @pytest.mark.asyncio
-async def test_param_update_invalidates_cache(api_client):
-    # Placeholder for cache invalidation logic test
-    pass
+async def test_forecast_returns_200_with_valid_region(api_client, postgres_container):
+    db_url = postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql+asyncpg://"
+    ).replace("postgresql://", "postgresql+asyncpg://")
+    region_id = "state-initial"
+    await _seed_region(db_url, region_id)
+
+    response = await api_client.get(f"/api/v1/regions/{region_id}/forecast?horizon_days=7")
+    assert response.status_code == 200
+    data = response.json()
+    # Real ForecastResponse contract
+    assert data["region_id"] == region_id
+    assert data["horizon_days"] == 7
+    assert "trajectory" in data
+    assert "S" in data["trajectory"]
+    assert len(data["trajectory"]["t"]) == 8  # 0..7 days
+
+
+@pytest.mark.asyncio
+async def test_param_update_invalidates_cache(api_client, postgres_container):
+    """Updating region params changes the params hash, so the old cached
+    forecast is no longer served."""
+    db_url = postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql+asyncpg://"
+    ).replace("postgresql://", "postgresql+asyncpg://")
+    region_id = "cache-check"
+    await _seed_region(db_url, region_id)
+
+    # First forecast populates cache
+    r1 = await api_client.get(f"/api/v1/regions/{region_id}/forecast?horizon_days=7")
+    assert r1.status_code == 200
+    hash1 = r1.json()["params_hash"]
+
+    # Update params (beta changes → new hash → old cache invalid)
+    engine = create_async_engine(db_url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        result = await session.execute(select(EpiParams).where(EpiParams.region_id == region_id))
+        row = result.scalar_one()
+        row.beta = 0.9
+        await session.commit()
+    await engine.dispose()
+
+    r2 = await api_client.get(f"/api/v1/regions/{region_id}/forecast?horizon_days=7")
+    assert r2.status_code == 200
+    hash2 = r2.json()["params_hash"]
+    assert hash1 != hash2

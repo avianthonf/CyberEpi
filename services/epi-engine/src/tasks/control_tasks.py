@@ -1,14 +1,16 @@
 import asyncio
 import json
+from datetime import datetime
+
 import numpy as np
 import structlog
-from datetime import datetime
 from sqlalchemy import select
-from .celery_app import celery_app
-from ..db.connection import AsyncSessionLocal
-from ..db.models import EpiParams, ControlWeights, ControlRecommendation
-from ..control.fb_sweep import forward_backward_sweep
+
 from ..config import settings
+from ..control.fb_sweep import forward_backward_sweep
+from ..db.connection import AsyncSessionLocal
+from ..db.models import ControlRecommendation, ControlWeights, EpiParams
+from .celery_app import celery_app
 
 logger = structlog.get_logger()
 
@@ -43,7 +45,7 @@ async def async_solve_optimal_control(region_id: str):
             await db.commit()
             await db.refresh(weights_row)
             
-        C1, C2, C3, C4 = weights_row.C1, weights_row.C2, weights_row.C3, weights_row.C4
+        C1, C2, C3 = weights_row.C1, weights_row.C2, weights_row.C3
         W = np.diag([weights_row.W_u1, weights_row.W_u2, weights_row.W_u3])
         
         # 3. Get latest state (x0)
@@ -53,12 +55,12 @@ async def async_solve_optimal_control(region_id: str):
         x0 = np.array([params_dict['N_pop'] * 0.9, params_dict['N_pop'] * 0.05, 100, 50, 10, 5, 0, 0])
         
         # 4. Run FB Sweep
-        T = 30.0 # 30 day horizon
+        T = 30.0  # 30 day horizon
         result_sweep = forward_backward_sweep(x0, T, params_dict, C1, C2, C3, W)
-        
+
         # 5. Store Recommendation
-        # Calculate Rt_current (placeholder or from actual data)
-        Rt_current = 1.2 # Placeholder
+        # Rt_current from actual parameters: Rt = (beta * S / N) / gamma
+        Rt_current = (params_dict['beta'] * x0[0] / params_dict['N_pop']) / params_dict['gamma']
         
         # Rt_predicted_30d: from x trajectory
         # Rt ~= (beta * S / N) / gamma
@@ -86,7 +88,23 @@ async def async_solve_optimal_control(region_id: str):
         db.add(recommendation)
         await db.commit()
         
-        # 6. Publish to Kafka (Placeholder for actual Kafka producer call)
-        logger.info("recommendation_published", region_id=region_id, cost=result_sweep.final_cost)
-        
+        # 6. Publish recommendation to Kafka
+        from aiokafka import AIOKafkaProducer
+
+        producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_bootstrap_servers)
+        await producer.start()
+        try:
+            await producer.send_and_wait(
+                settings.kafka_topic_updates,
+                json.dumps({
+                    "region_id": region_id,
+                    "event_type": "control_recommendation",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "cost": float(result_sweep.final_cost),
+                }).encode(),
+            )
+            logger.info("recommendation_published", region_id=region_id, cost=result_sweep.final_cost)
+        finally:
+            await producer.stop()
+
     return {"status": "success", "region_id": region_id}

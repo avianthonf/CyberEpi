@@ -1,19 +1,24 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from typing import List, Union, Any
 from src.dp.mechanisms import laplace_mechanism, laplace_mechanism_array
-from src.dp.sensitivity import regional_rt_sensitivity, hotspot_count_sensitivity, aggregate_count_sensitivity
+from src.dp.sensitivity import (
+    aggregate_count_sensitivity,
+    hotspot_count_sensitivity,
+    regional_rt_sensitivity,
+)
 
 router = APIRouter()
 
 class DPPublishRequest(BaseModel):
     stat_type: str # 'Rt', 'hotspot_count', 'aggregate'
-    value: Union[float, List[float]]
+    value: float | list[float]
     region_id: str
     epsilon: float = 1.0
 
 from src.auth import get_current_user
-from typing import Any
+
 
 @router.post("/publish")
 async def dp_publish(

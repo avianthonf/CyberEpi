@@ -1,8 +1,8 @@
+
 import numpy as np
-from scipy.stats import norm
-from seir_core import SEIRParams, seir_extended
 from scipy.integrate import solve_ivp
-from typing import Tuple
+from seir_core import SEIRParams, seir_extended
+
 
 class ParticleFilter:
     def __init__(self, Np: int, params: SEIRParams, Q: np.ndarray, R_obs: np.ndarray, H_obs: np.ndarray):
@@ -30,8 +30,7 @@ class ParticleFilter:
         for i in range(self.Np):
             # Transition
             state = self.particles[i, :9]
-            params_aug = self.particles[i, 9:]
-            
+
             sol = solve_ivp(
                 seir_extended, (0, 1), state, args=(self.params,),
                 method='LSODA'
@@ -97,7 +96,7 @@ class ParticleFilter:
             
         self.particles = np.clip(self.particles, 0, None)
 
-    def estimate(self) -> Tuple[np.ndarray, np.ndarray]:
+    def estimate(self) -> tuple[np.ndarray, np.ndarray]:
         """Return state estimate (mean) and variance"""
         x_hat = np.average(self.particles, axis=0, weights=self.weights)
         # Variance calculation
@@ -105,7 +104,7 @@ class ParticleFilter:
         var = np.average(diff**2, axis=0, weights=self.weights)
         return x_hat, var
 
-    def step(self, y_obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def step(self, y_obs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Full PF step: Propagate + Weight + Resample + Smooth"""
         self.propagate()
         if not np.all(np.isnan(y_obs)):

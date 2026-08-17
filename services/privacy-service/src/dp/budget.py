@@ -1,6 +1,6 @@
+
 import redis.asyncio as redis
-from typing import Dict, List
-from .composition import advanced_composition_bound
+
 
 class BudgetTracker:
     def __init__(self, redis_client: redis.Redis, max_budget: float = 10.0):
@@ -36,7 +36,7 @@ class BudgetTracker:
         success = await self.redis.eval(lua_script, 1, key, str(epsilon), str(self.max_budget))
         return bool(success)
 
-    async def batch_consume(self, user_ids: List[str], epsilon: float) -> Dict[str, bool]:
+    async def batch_consume(self, user_ids: list[str], epsilon: float) -> dict[str, bool]:
         results = {}
         for uid in user_ids:
             results[uid] = await self.consume(uid, epsilon)

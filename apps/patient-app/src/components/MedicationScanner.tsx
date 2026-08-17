@@ -163,7 +163,9 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
 
               {currentMedication?.interactions.map((interaction, index) => (
                 <View key={index} style={styles.interactionItem}>
-                  <Text style={styles.interactingDrug}>{interaction.interacting_drug}</Text>
+                  <Text style={styles.interactingDrug}>
+                    {interaction.drug_b_name ?? interaction.drug_b}
+                  </Text>
                   <Text
                     style={[
                       styles.interactionSeverity,
@@ -174,9 +176,6 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
                   </Text>
                   <Text style={styles.interactionDescriptionText}>
                     {interaction.description}
-                  </Text>
-                  <Text style={styles.interactionRecommendation}>
-                    Recommendation: {interaction.recommendation}
                   </Text>
                 </View>
               ))}

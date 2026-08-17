@@ -106,7 +106,7 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
         <View style={styles.scheduleItem}>
           <Ionicons name="time-outline" size={16} color="#6b7280" />
           <Text style={styles.scheduleText}>
-            {medication.schedule.frequency}
+            {medication.schedule?.frequency ?? 'As directed'}
           </Text>
         </View>
         
@@ -166,7 +166,7 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
       </View>
 
       {/* Reminders Badge */}
-      {medication.schedule.reminders.enabled && (
+      {medication.schedule?.reminders.enabled && (
         <View style={styles.reminderBadge}>
           <Ionicons name="notifications-outline" size={12} color="#3b82f6" />
           <Text style={styles.reminderText}>

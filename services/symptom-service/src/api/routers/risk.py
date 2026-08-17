@@ -1,10 +1,15 @@
+
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, Any, List
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ...db.models import VitalsTS
+from ...db.session import get_db
 from ...services.deterioration import DeteriorationPredictor
-from ...services.risk import calculate_bayesian_risk # Existing risk logic
 
 router = APIRouter(prefix="/v1/risk", tags=["risk"])
+
 
 class PatientFeatures(BaseModel):
     age: int
@@ -22,13 +27,23 @@ class PatientFeatures(BaseModel):
     local_hosp_rate: float
     regional_Rt: float
 
+
 class DeteriorationResponse(BaseModel):
     p_hospitalization_72h: float
     p_icu_7d: float
-    alerts: List[str]
+    alerts: list[str]
+    source: str
     timestamp_utc: str
 
+
+class RiskScoreResponse(BaseModel):
+    patient_id: str
+    risk_score: float | None
+    tier: str | None
+
+
 predictor = DeteriorationPredictor()
+
 
 @router.post("/deterioration", response_model=DeteriorationResponse)
 async def get_deterioration_prediction(features: PatientFeatures):
@@ -41,10 +56,19 @@ async def get_deterioration_prediction(features: PatientFeatures):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/score/{patient_id}")
-async def get_patient_risk_score(patient_id: str):
+
+@router.get("/score/{patient_id}", response_model=RiskScoreResponse)
+async def get_patient_risk_score(patient_id: str, db: AsyncSession = Depends(get_db)):
     """
-    Computes the real-time Bayesian risk score (Chapter 4.3).
+    Computes the real-time Bayesian risk score from the patient's latest vitals.
     """
-    # This would normally pull from Redis/DB
-    return {"patient_id": patient_id, "risk_score": 0.42, "tier": "moderate"}
+    result = await db.execute(
+        select(VitalsTS.risk_score, VitalsTS.risk_tier)
+        .where(VitalsTS.patient_id == patient_id)
+        .order_by(VitalsTS.time.desc())
+        .limit(1)
+    )
+    latest = result.first()
+    if latest is None:
+        raise HTTPException(status_code=404, detail="No symptom reports found for patient")
+    return RiskScoreResponse(patient_id=patient_id, risk_score=latest.risk_score, tier=latest.risk_tier)

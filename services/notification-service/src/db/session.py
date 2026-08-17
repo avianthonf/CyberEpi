@@ -1,22 +1,26 @@
-"""Async database session management."""
+"""Async database session management — shared via libs/shared."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from shared.db import create_session_factory
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 
-engine = create_async_engine(settings.database_url, echo=settings.debug, pool_size=10, max_overflow=20, pool_pre_ping=True)
-async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+engine, async_session_factory = create_session_factory(settings)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency yielding an async session.
+
+    Note: the old implementation auto-committed on success; we align with all
+    other services where callers own the transaction lifecycle explicitly.
+    """
     async with async_session_factory() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise

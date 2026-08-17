@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useRiskStore } from '@/store/riskStore';
 import { useMedicationStore } from '@/store/medicationStore';
@@ -59,7 +60,7 @@ export default function TabLayout() {
           headerRight: () => {
             const queuedCount = getQueuedReportsCount();
             return (
-              <Tabs.Button
+              <TouchableOpacity
                 onPress={handleLogout}
                 style={{ marginRight: 16 }}
               >
@@ -89,7 +90,7 @@ export default function TabLayout() {
                     </Text>
                   </View>
                 )}
-              </Tabs.Button>
+              </TouchableOpacity>
             );
           },
         }}
@@ -108,7 +109,7 @@ export default function TabLayout() {
         options={{
           title: 'Medications',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pill-outline" size={size} color={color} />
+            <Ionicons name="medkit-outline" size={size} color={color} />
           ),
         }}
       />

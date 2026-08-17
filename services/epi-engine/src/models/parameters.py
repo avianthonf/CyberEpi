@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional
-from uuid import UUID
 from datetime import datetime
+
+from pydantic import BaseModel, Field, model_validator
+
 
 class SEIRParameterBase(BaseModel):
     beta: float = Field(..., gt=0, le=5.0)
@@ -16,11 +16,11 @@ class SEIRParameterBase(BaseModel):
     delta: float = Field(..., gt=0)
     mu: float = Field(..., gt=0)
     mu_icu: float = Field(..., gt=0)
-    gammaA: float = Field(..., gt=0)
-    gammaM: float = Field(..., gt=0)
-    gammaS: float = Field(..., gt=0)
-    gammaH: float = Field(..., gt=0)
-    gammaICU: float = Field(..., gt=0)
+    gamma_A: float = Field(..., gt=0)
+    gamma_M: float = Field(..., gt=0)
+    gamma_S: float = Field(..., gt=0)
+    gamma_H: float = Field(..., gt=0)
+    gamma_ICU: float = Field(..., gt=0)
     papp: float = Field(default=0.12, gt=0, le=1.0)
     N_pop: int = Field(..., ge=1000)
 
@@ -33,7 +33,7 @@ class SEIRParameterBase(BaseModel):
 class RegionParams(SEIRParameterBase):
     region_id: str
     source: str = Field(..., pattern='^(ekf_estimate|manual_override)$')
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 class ForecastRequest(BaseModel):
     horizon_days: int = Field(default=14, ge=7, le=21)

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { RiskTier } from '@/types';
-import { getRiskTierColor, getRiskTierLabel } from '@/store/riskStore';
+import { getRiskTierColor, getRiskTierLabel, getRiskTierFromScore } from '@/store/riskStore';
 
 interface RiskGaugeProps {
   score: number | null;
@@ -19,6 +19,7 @@ interface RiskGaugeProps {
   showLabel?: boolean;
   animated?: boolean;
   onCallPress?: () => void;
+  testID?: string;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -31,6 +32,7 @@ export function RiskGauge({
   showLabel = true,
   animated = true,
   onCallPress,
+  testID,
 }: RiskGaugeProps) {
   const animatedValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(1)).current;
@@ -89,13 +91,9 @@ export function RiskGauge({
     return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`;
   };
 
-  // Get color based on score
-  const getScoreColor = (value: number): string => {
-    if (value < 0.2) return '#10b981'; // green
-    if (value < 0.5) return '#f59e0b'; // amber
-    if (value < 0.75) return '#f97316'; // orange
-    return '#ef4444'; // red
-  };
+  // Color from score value — reuse the store's tier mapping (single source of truth)
+  const getScoreColor = (value: number): string =>
+    getRiskTierColor(getRiskTierFromScore(value));
 
   const handleCallPress = () => {
     if (tier === 'urgent' && onCallPress) {
@@ -137,7 +135,7 @@ export function RiskGauge({
   }
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
+    <View testID={testID} style={[styles.container, { width: size, height: size }]}>
       <Animated.View
         style={[
           styles.gaugeContainer,
@@ -164,12 +162,9 @@ export function RiskGauge({
             strokeLinecap="round"
           />
 
-          {/* Animated progress arc */}
-          <Animated.Path
-            d={animatedValue.interpolate({
-              inputRange: [0, 1],
-              outputRange: [createGaugePath(0), createGaugePath(1)],
-            })}
+          {/* Progress arc */}
+          <Path
+            d={createGaugePath(Math.min(Math.max(score ?? 0, 0), 1))}
             stroke="url(#gaugeGradient)"
             strokeWidth={size * 0.08}
             fill="none"

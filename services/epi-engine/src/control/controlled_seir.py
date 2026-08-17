@@ -1,7 +1,9 @@
-import numpy as np
-from typing import Dict, Any
+from typing import Any
 
-def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
+import numpy as np
+
+
+def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: dict[str, Any]) -> np.ndarray:
     """
     Controlled SEIR ODE system (8-dimensional).
     

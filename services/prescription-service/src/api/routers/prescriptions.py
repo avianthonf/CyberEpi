@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import date
 from typing import Any
 
-import httpx
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -15,9 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user
-from src.config import settings
 from src.db.models import Patient, Prescription
 from src.db.session import get_db
+from src.services.interactions import (
+    cached_fda_lookup,
+    check_interactions,
+    rxnorm_lookup,
+)
 
 router = APIRouter()
 
@@ -68,14 +70,6 @@ class MedicationScanResponse(BaseModel):
     interactions: list[dict[str, Any]]
 
 
-from src.services.interactions import (
-    cached_fda_lookup,
-    rxnorm_lookup,
-    check_interactions,
-)
-
-
-
 # ─── Endpoints ────────────────────────────────────────────────────
 @router.post(
     "/api/v1/prescriptions",
@@ -108,16 +102,16 @@ async def create_prescription(
     # Resolve RxNorm ID if not provided
     rxnorm_id = body.rxnorm_id
     if not rxnorm_id:
-        rxnorm_id = await _rxnorm_lookup(body.drug_name)
+        rxnorm_id = await rxnorm_lookup(body.drug_name)
 
     # Check interactions
     interactions: list[dict[str, Any]] = []
     if rxnorm_id:
-        interactions = await _check_interactions(redis_client, rxnorm_id, body.patient_id, db)
+        interactions = await check_interactions(redis_client, rxnorm_id, body.patient_id, db)
 
     # FDA lookup
     if body.ndc_code:
-        await _cached_fda_lookup(redis_client, body.ndc_code)
+        await cached_fda_lookup(redis_client, body.ndc_code)
 
     rx = Prescription(
         patient_id=body.patient_id,
@@ -228,7 +222,7 @@ async def scan_medication(
     drug_name = body.ocr_text.strip().split("\n")[0].strip()
 
     # RxNorm lookup
-    rxnorm_id = await _rxnorm_lookup(drug_name)
+    rxnorm_id = await rxnorm_lookup(drug_name)
 
     # FDA lookup by guessing NDC from text
     ndc_code: str | None = None
@@ -240,14 +234,14 @@ async def scan_medication(
     ndc_match = re.search(r"\d{4,5}-\d{3,4}-\d{1,2}", body.ocr_text)
     if ndc_match:
         ndc_code = ndc_match.group()
-        fda_result = await _cached_fda_lookup(redis_client, ndc_code)
+        fda_result = await cached_fda_lookup(redis_client, ndc_code)
         if fda_result and not rxnorm_id:
             drug_name = fda_result.get("brand_name", drug_name)
 
     # Check interactions if patient provided
     interactions: list[dict[str, Any]] = []
     if rxnorm_id and body.patient_id:
-        interactions = await _check_interactions(redis_client, rxnorm_id, body.patient_id, db)
+        interactions = await check_interactions(redis_client, rxnorm_id, body.patient_id, db)
 
     return MedicationScanResponse(
         drug_name=drug_name,
