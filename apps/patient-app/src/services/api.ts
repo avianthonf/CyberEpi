@@ -1,8 +1,13 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, {
+  AxiosInstance,
+  AxiosError,
+  InternalAxiosRequestConfig,
+} from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import { ApiResponse } from '@/types';
+import {ApiResponse} from '@/types';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.cyberepi.health/api/v1';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'https://api.cyberepi.health/api/v1';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -13,7 +18,7 @@ class ApiClient {
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
     });
 
@@ -23,7 +28,7 @@ class ApiClient {
   private setupInterceptors() {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
-      async (config) => {
+      async config => {
         try {
           const token = await SecureStore.getItemAsync('access_token');
           if (token) {
@@ -34,16 +39,18 @@ class ApiClient {
         }
         return config;
       },
-      (error) => {
+      error => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Response interceptor to handle token refresh
     this.client.interceptors.response.use(
-      (response) => response,
+      response => response,
       async (error: AxiosError) => {
-        const originalRequest = error.config as any;
+        const originalRequest = error.config as InternalAxiosRequestConfig & {
+          _retry?: boolean;
+        };
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
@@ -65,7 +72,7 @@ class ApiClient {
         }
 
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -80,7 +87,11 @@ class ApiClient {
         refresh_token: refreshToken,
       });
 
-      const { access_token, refresh_token: newRefreshToken, expires_in } = response.data;
+      const {
+        access_token,
+        refresh_token: newRefreshToken,
+        expires_in,
+      } = response.data;
 
       await SecureStore.setItemAsync('access_token', access_token);
       if (newRefreshToken) {
@@ -109,27 +120,36 @@ class ApiClient {
   }
 
   // Public methods
-  async get<T = any>(url: string, params?: any): Promise<ApiResponse<T>> {
-    const response = await this.client.get(url, { params });
+  async get<T = unknown>(
+    url: string,
+    params?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    const response = await this.client.get(url, {params});
     return response.data;
   }
 
-  async post<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T = unknown>(
+    url: string,
+    data?: unknown,
+  ): Promise<ApiResponse<T>> {
     const response = await this.client.post(url, data);
     return response.data;
   }
 
-  async put<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async put<T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> {
     const response = await this.client.put(url, data);
     return response.data;
   }
 
-  async patch<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(
+    url: string,
+    data?: unknown,
+  ): Promise<ApiResponse<T>> {
     const response = await this.client.patch(url, data);
     return response.data;
   }
 
-  async delete<T = any>(url: string): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(url: string): Promise<ApiResponse<T>> {
     const response = await this.client.delete(url);
     return response.data;
   }

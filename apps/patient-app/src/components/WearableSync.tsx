@@ -1,19 +1,13 @@
-import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useWearable } from '@/hooks/useWearable';
+import React, {useEffect} from 'react';
+import {View, Text, StyleSheet, TouchableOpacity, Alert} from 'react-native';
+import {Ionicons} from '@expo/vector-icons';
+import {useWearable} from '@/hooks/useWearable';
 
 interface WearableSyncProps {
   onSyncComplete?: () => void;
 }
 
-export function WearableSync({ onSyncComplete }: WearableSyncProps) {
+export function WearableSync({onSyncComplete}: WearableSyncProps) {
   const {
     wearableData,
     isLoading,
@@ -32,7 +26,7 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
   const handleConnect = async () => {
     try {
       await requestPermissions();
-    } catch (err) {
+    } catch {
       Alert.alert('Error', 'Failed to connect to health services');
     }
   };
@@ -43,18 +37,18 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
 
   const getLastSyncTime = (): string => {
     if (!wearableData?.last_updated) return 'Never';
-    
+
     const now = new Date();
     const lastSync = new Date(wearableData.last_updated);
     const diffMs = now.getTime() - lastSync.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
-    
+
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
-    
+
     return `${Math.floor(diffHours / 24)}d ago`;
   };
 
@@ -62,10 +56,10 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <Ionicons 
-            name="watch-outline" 
-            size={24} 
-            color={isAuthorized ? '#10b981' : '#9ca3af'} 
+          <Ionicons
+            name="watch-outline"
+            size={24}
+            color={isAuthorized ? '#10b981' : '#9ca3af'}
           />
         </View>
         <View style={styles.headerContent}>
@@ -75,10 +69,10 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
           </Text>
         </View>
         <TouchableOpacity onPress={handleRefresh} disabled={isLoading}>
-          <Ionicons 
-            name="refresh-outline" 
-            size={24} 
-            color={isLoading ? '#9ca3af' : '#3b82f6'} 
+          <Ionicons
+            name="refresh-outline"
+            size={24}
+            color={isLoading ? '#9ca3af' : '#3b82f6'}
           />
         </TouchableOpacity>
       </View>
@@ -96,8 +90,7 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
           </Text>
           <TouchableOpacity
             style={styles.connectButton}
-            onPress={handleConnect}
-          >
+            onPress={handleConnect}>
             <Ionicons name="link-outline" size={20} color="#ffffff" />
             <Text style={styles.connectButtonText}>Connect Devices</Text>
           </TouchableOpacity>
@@ -115,7 +108,9 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
                 <View style={styles.metricItem}>
                   <Ionicons name="heart-outline" size={16} color="#ef4444" />
                   <Text style={styles.metricLabel}>Heart Rate</Text>
-                  <Text style={styles.metricValue}>{wearableData.heart_rate_bpm} bpm</Text>
+                  <Text style={styles.metricValue}>
+                    {wearableData.heart_rate_bpm} bpm
+                  </Text>
                 </View>
               )}
 
@@ -123,7 +118,9 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
                 <View style={styles.metricItem}>
                   <Ionicons name="water-outline" size={16} color="#3b82f6" />
                   <Text style={styles.metricLabel}>SpO2</Text>
-                  <Text style={styles.metricValue}>{wearableData.spo2_pct}%</Text>
+                  <Text style={styles.metricValue}>
+                    {wearableData.spo2_pct}%
+                  </Text>
                 </View>
               )}
 
@@ -131,7 +128,9 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
                 <View style={styles.metricItem}>
                   <Ionicons name="pulse-outline" size={16} color="#8b5cf6" />
                   <Text style={styles.metricLabel}>HRV</Text>
-                  <Text style={styles.metricValue}>{wearableData.hrv_rmssd_ms} ms</Text>
+                  <Text style={styles.metricValue}>
+                    {wearableData.hrv_rmssd_ms} ms
+                  </Text>
                 </View>
               )}
 
@@ -139,7 +138,9 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
                 <View style={styles.metricItem}>
                   <Ionicons name="bed-outline" size={16} color="#10b981" />
                   <Text style={styles.metricLabel}>Resting HR</Text>
-                  <Text style={styles.metricValue}>{wearableData.resting_hr_bpm} bpm</Text>
+                  <Text style={styles.metricValue}>
+                    {wearableData.resting_hr_bpm} bpm
+                  </Text>
                 </View>
               )}
 
@@ -147,7 +148,9 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
                 <View style={styles.metricItem}>
                   <Ionicons name="moon-outline" size={16} color="#6366f1" />
                   <Text style={styles.metricLabel}>Sleep</Text>
-                  <Text style={styles.metricValue}>{wearableData.sleep_hours} hrs</Text>
+                  <Text style={styles.metricValue}>
+                    {wearableData.sleep_hours} hrs
+                  </Text>
                 </View>
               )}
 
@@ -155,7 +158,9 @@ export function WearableSync({ onSyncComplete }: WearableSyncProps) {
                 <View style={styles.metricItem}>
                   <Ionicons name="walk-outline" size={16} color="#f59e0b" />
                   <Text style={styles.metricLabel}>Steps</Text>
-                  <Text style={styles.metricValue}>{wearableData.step_count.toLocaleString()}</Text>
+                  <Text style={styles.metricValue}>
+                    {wearableData.step_count.toLocaleString()}
+                  </Text>
                 </View>
               )}
             </View>

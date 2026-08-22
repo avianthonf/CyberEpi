@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,14 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SymptomForm } from '@/components/SymptomForm';
-import { useSymptomSubmit } from '@/hooks/useSymptomSubmit';
-import { useAuthStore } from '@/store/authStore';
+import {router} from 'expo-router';
+import {Ionicons} from '@expo/vector-icons';
+import {SymptomForm} from '@/components/SymptomForm';
+import {useSymptomSubmit} from '@/hooks/useSymptomSubmit';
 
 export default function SymptomsScreen() {
   const [showForm, setShowForm] = useState(false);
-  const { submitReport, isSubmitting, getQueuedReportsCount } = useSymptomSubmit();
-  const { user } = useAuthStore();
+  const {isSubmitting, getQueuedReportsCount} = useSymptomSubmit();
 
   const handleSymptomSubmit = async () => {
     setShowForm(false);
@@ -24,9 +22,9 @@ export default function SymptomsScreen() {
       'Success',
       'Your symptom report has been submitted successfully.',
       [
-        { text: 'OK', onPress: () => router.push('/(tabs)/home') },
-        { text: 'Report Another', onPress: () => setShowForm(true) },
-      ]
+        {text: 'OK', onPress: () => router.push('/(tabs)/home')},
+        {text: 'Report Another', onPress: () => setShowForm(true)},
+      ],
     );
   };
 
@@ -75,14 +73,14 @@ export default function SymptomsScreen() {
           <TouchableOpacity
             style={styles.primaryCard}
             onPress={() => setShowForm(true)}
-            disabled={isSubmitting}
-          >
+            disabled={isSubmitting}>
             <View style={styles.cardHeader}>
               <Ionicons name="add-circle" size={32} color="#3b82f6" />
               <Text style={styles.cardTitle}>Report New Symptoms</Text>
             </View>
             <Text style={styles.cardDescription}>
-              Log your current symptoms including temperature, cough, fatigue, and more
+              Log your current symptoms including temperature, cough, fatigue,
+              and more
             </Text>
             <View style={styles.cardFooter}>
               <Text style={styles.cardAction}>Start Report</Text>
@@ -101,7 +99,11 @@ export default function SymptomsScreen() {
             </View>
 
             <View style={styles.infoCard}>
-              <Ionicons name="shield-checkmark-outline" size={24} color="#3b82f6" />
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={24}
+                color="#3b82f6"
+              />
               <Text style={styles.infoTitle}>Privacy First</Text>
               <Text style={styles.infoDescription}>
                 Your health data is encrypted and secure
@@ -126,7 +128,9 @@ export default function SymptomsScreen() {
           </View>
 
           {/* History Button */}
-          <TouchableOpacity style={styles.historyButton} onPress={handleViewHistory}>
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={handleViewHistory}>
             <Ionicons name="calendar-outline" size={20} color="#6b7280" />
             <Text style={styles.historyButtonText}>View Symptom History</Text>
             <Ionicons name="chevron-forward" size={16} color="#6b7280" />
@@ -223,7 +227,7 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,

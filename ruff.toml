@@ -42,3 +42,12 @@ extend-immutable-calls = [
 "services/privacy-service/src/federated/**" = ["N803", "N806"]
 "services/symptom-service/src/services/deterioration.py" = ["N803"]
 "services/symptom-service/src/api/routers/risk.py" = ["N815"]
+# E2E verification/fuzz harness: any exception from a probe MUST be captured as
+# a recorded failed step (never crash the run) -> blind except is the harness
+# contract. Probe payloads stay as one-line literals for grepability. These are
+# standalone ops scripts, not service code.
+"scripts/verify_all.py" = ["BLE001", "E501"]
+"scripts/verify_negative.py" = ["BLE001", "E501"]
+"scripts/verify_extra.py" = ["BLE001", "E501"]
+"scripts/fuzz_mutating.py" = ["BLE001", "E501"]
+"scripts/healthcheck.py" = ["BLE001"]

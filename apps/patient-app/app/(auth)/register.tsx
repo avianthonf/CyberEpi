@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,12 @@ import {
   ScrollView,
   Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
+import {useRouter} from 'expo-router';
+import {useAuthStore} from '@/store/authStore';
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { login, isLoading, isAuthenticated } = useAuthStore();
+  const {login, isLoading, isAuthenticated} = useAuthStore();
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -46,10 +46,9 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Header */}
@@ -64,7 +63,8 @@ export default function RegisterScreen() {
               <Text style={styles.infoTitle}>How to Register</Text>
               <Text style={styles.infoText}>
                 1. Click "Sign Up with Keycloak" below{'\n'}
-                2. You'll be redirected to our secure authentication portal{'\n'}
+                2. You'll be redirected to our secure authentication portal
+                {'\n'}
                 3. Click "Create Account" on the sign-in page{'\n'}
                 4. Fill in your details and verify your email{'\n'}
                 5. Return to the app and sign in
@@ -74,21 +74,24 @@ export default function RegisterScreen() {
             <View style={styles.requirementsBox}>
               <Text style={styles.requirementsTitle}>Requirements</Text>
               <Text style={styles.requirementsText}>
-                • Valid email address{'\n'}
-                • Mobile phone number for verification{'\n'}
-                • Basic health information (optional)
+                • Valid email address{'\n'}• Mobile phone number for
+                verification{'\n'}• Basic health information (optional)
               </Text>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.registerButton, isLoading && styles.disabledButton]}
+            <TouchableOpacity
+              style={[
+                styles.registerButton,
+                isLoading && styles.disabledButton,
+              ]}
               onPress={handleRegister}
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               {isLoading ? (
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
-                <Text style={styles.registerButtonText}>Sign Up with Keycloak</Text>
+                <Text style={styles.registerButtonText}>
+                  Sign Up with Keycloak
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 52,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,

@@ -15,51 +15,14 @@ This implementation:
   to expected observation counts using the model's emission equations.
 - Computes the Jacobian numerically at every step (state-dependent H).
 - Uses Joseph form for covariance update.
-- Removes state clipping (replaced with soft floor).
+- Hard-clips transition states at 0 (non-negativity); the measurement
+  update applies a soft floor (1e-6) so the next integration starts
+  from a strictly positive state.
 """
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from scipy.linalg import inv
 from seir_core import SEIRParams, seir_extended
-
-
-class NonlinearSEIR_EKF:
-    """EKF with nonlinear observation model and numerical Jacobian.
-
-    State: [S, E, IA, IM, IS, H, ICU, R, D, log_beta]
-    (Single-parameterization of beta via log for stability.)
-
-    Observations (5-dim):
-      [0] app_reports           = papp * (IM + IS)
-      [1] confirmed_cases       = ptest * (IM + IS)
-      [2] hospital_admissions   = h_rate * IS
-      [3] pharmacy_proxy        = kappa * IM
-      [4] wastewater            = papp * (IA + IM + IS)
-    """
-
-    def __init__(
-        self,
-        params: SEIRParams,
-        Q_logbeta: float,
-        R_obs_diag: np.ndarray,
-    ):
-        """
-        Args:
-            params: SEIR model parameters (used for population size and
-                    structural constants).
-            Q_logbeta: Process noise variance on log(beta).
-                       Controls how fast Rt can change.
-            R_obs_diag: 5-element array of observation noise variances.
-        """
-        self.params = params
-        self.Q_logbeta = Q_logbeta
-        self.R_obs_diag = R_obs_diag
-        self.dim = 10
-
-    def _emission_params(self, x: np.ndarray) -> tuple[float, float, float, float, float]:
-        """Pull emission coefficients from the augmented state."""
-        raise NotImplementedError("Use emission_params from extended state instead")
 
 
 class CorrectedSEIR_EKF_Extended:
@@ -179,7 +142,8 @@ class CorrectedSEIR_EKF_Extended:
 
         H = self._jacobian_H(x_pred)
         S = H @ P_pred @ H.T + np.diag(self.R_obs_diag)
-        K = P_pred @ H.T @ inv(S)
+        # K = P H^T S^{-1} via solve (numerically stable; no explicit inverse)
+        K = np.linalg.solve(S.T, (P_pred @ H.T).T).T
         x_upd = x_pred + K @ innovation
 
         # Soft non-negativity floor (1e-6 instead of 0 to preserve gradient info)

@@ -78,3 +78,36 @@ services:
       limits:
         memory: 256Mi
         cpu: 500m
+
+  epiEngine:
+    name: epi-engine
+    replicas: 2
+    port: 8005
+    image: epi-engine
+    env:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 200m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+
+  privacyService:
+    name: privacy-service
+    replicas: 2
+    port: 8006
+    image: privacy-service
+    env:
+      DATABASE_URL: postgresql+asyncpg://cyberepi:devpassword@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 256Mi
+        cpu: 500m

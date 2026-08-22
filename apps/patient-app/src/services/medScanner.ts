@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
-import { MedicationScanRequest, MedicationScanResponse } from '@/types';
-import { apiClient } from '@/services/api';
+import {Alert} from 'react-native';
+import {MedicationScanRequest, MedicationScanResponse} from '@/types';
+import {apiClient} from '@/services/api';
 
 export class MedScannerService {
   private static instance: MedScannerService;
@@ -16,7 +16,7 @@ export class MedScannerService {
   // Request camera permissions
   async requestCameraPermission(): Promise<boolean> {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const {status} = await ImagePicker.requestCameraPermissionsAsync();
       return status === 'granted';
     } catch (error) {
       console.error('Camera permission request failed:', error);
@@ -27,7 +27,7 @@ export class MedScannerService {
   // Request gallery permissions
   async requestGalleryPermission(): Promise<boolean> {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const {status} = await ImagePicker.requestMediaLibraryPermissionsAsync();
       return status === 'granted';
     } catch (error) {
       console.error('Gallery permission request failed:', error);
@@ -43,7 +43,7 @@ export class MedScannerService {
         Alert.alert(
           'Permission Required',
           'Camera permission is required to scan medication labels.',
-          [{ text: 'OK' }]
+          [{text: 'OK'}],
         );
         return null;
       }
@@ -74,7 +74,7 @@ export class MedScannerService {
         Alert.alert(
           'Permission Required',
           'Gallery permission is required to select medication images.',
-          [{ text: 'OK' }]
+          [{text: 'OK'}],
         );
         return null;
       }
@@ -126,27 +126,34 @@ export class MedScannerService {
   // Extract drug name from OCR text using regex
   extractDrugName(text: string): string | null {
     const match = text.match(/^([A-Za-z\s]+)\s+\d+mg/i);
-    return (match && match[1]) ? match[1].trim() : null;
+    return match && match[1] ? match[1].trim() : null;
   }
-
 
   // Scan medication from OCR text and send to API.
   // OCR itself (image → text) requires ML Kit, which is not wired up yet;
   // the text comes from the manual-entry field on the scan screen.
-  async scanMedication(ocrText: string, patientId?: string): Promise<MedicationScanResponse> {
+  async scanMedication(
+    ocrText: string,
+    patientId?: string,
+  ): Promise<MedicationScanResponse> {
     const scanRequest: MedicationScanRequest = {
       ocr_text: ocrText,
-      ...(patientId ? { patient_id: patientId } : {}),
+      ...(patientId ? {patient_id: patientId} : {}),
     };
 
-    const response = await apiClient.post<MedicationScanResponse>('/medications/scan', scanRequest);
+    const response = await apiClient.post<MedicationScanResponse>(
+      '/medications/scan',
+      scanRequest,
+    );
     return response.data;
   }
 
   // Check for severe interactions
   hasSevereInteractions(medication: MedicationScanResponse): boolean {
     return medication.interactions.some(
-      interaction => interaction.severity === 'severe' || interaction.severity === 'contraindicated'
+      interaction =>
+        interaction.severity === 'severe' ||
+        interaction.severity === 'contraindicated',
     );
   }
 

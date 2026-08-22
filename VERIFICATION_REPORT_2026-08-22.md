@@ -111,3 +111,73 @@ Adversarial program completed end-to-end: recon (suites, lint, tsc) → exploit 
 ## Verdict
 
 **Ship-shape for dev/CI. Production-ready subjects:** authn/authz, input validation, ledger/race integrity, failure-mode degradation are all contract-correct under live adversarial probing. **Not production-ready:** inline control solve (risk 1), FL round lifecycle (risk 2). Everything above is reproducible from this report plus `local/security-cleanup-report.md`.
+
+---
+
+# Run 3 — Correctness Review: epi math, DP/FL, filters, async (same day)
+
+**Method**: Read-only adversarial review of the math/numerical/concurrency core, then targeted fixes, then full live re-verification. Adversarial negative harness (`scripts/verify_negative.py`) + positive harness (`scripts/verify_all.py`, 52/52) both green post-restart.
+
+## Findings & fixes (all verified live after fix)
+
+| # | Severity | Finding | Fix | Evidence |
+|---|---|---|---|---|
+| C1 | MED | `SEIRParams.__post_init__` never enforced `fA+fM+fS == 1`; non-summing fractions leak/gain population in `seir_extended` (E compartment mismatch). API already 422s, but direct library use was silent. | Sum invariant added to `__post_init__` (libs/seir-core/seir_core/seir.py). | 15/15 seir-core tests; live PUT params probe → 422 "fA + fM + fS must sum to 1.0" |
+| C2 | MED | `seir_metapopulation` used one mobility matrix `M` in two contradictory semantics: FOI contact mixing (visitation) AND physical relocation flux — same people counted twice per step. | M is now strictly *migration*: FOI fully local (denominator = current living population, D excluded); antisymmetric flux pairs for mobile compartments S,E,IA,IM,IS,R; H/ICU/D immobile (hospitalized/dead don't relocate). | Conservation drift 1.5e-11 over 120d/2-patch LSODA sim; cross-patch seeding via migration confirmed; no negative compartments |
+| C3 | LOW-MED | FL `upload_gradient` appended the gradient, then `pop()`ed on budget rejection — an `await` between append and pop lets a concurrent request append later, so the pop could evict *another* client's accepted gradient. | Split `FedAvgAggregator.validate_gradient` (pure) from `receive_gradient` (mutating); endpoint now validates → consumes budget → appends. `pop()` path deleted. | privacy-service 15/15 tests; live FL upload round-trip in harness |
+| C4 | LOW | EKF Kalman gain computed via explicit `inv(S)` — unnecessary, less stable than triangular solves. | `K = solve(S.T, (P Hᵀ).T).T`; unused `scipy.linalg.inv` import removed. | epi-engine 34/34 tests; live forecast/state/Rt endpoints exercised in harness |
+| C5 | LOW | Dead, half-implemented `NonlinearSEIR_EKF` class (init + unconditional `NotImplementedError`, zero callers) shipped in `ekf_corrected.py`. | Class deleted; module docstring corrected to describe actual clipping behavior (hard clip in transition, soft floor in update). | grep: zero references remain; 34/34 tests |
+
+## Rejected fix (advisory-driven, evidence-checked)
+
+- Proposed soft-floor (1e-6) in EKF `_transition` to match the old docstring was **reverted**: with forward-difference `eps=1e-6`, a decaying compartment at the floor yields `f(x) == f(x+eps)` → zero Jacobian column, i.e. would *introduce* the gradient-flatting it claimed to solve. Transition keeps the hard `0.0` clip; the docstring (which claimed "removes state clipping") was fixed to describe reality instead.
+
+## Reviewed, intentionally unchanged (dev tradeoffs, documented in code)
+
+- `observation_consumer` drops backlog on restart (`seek_to_end`, no group coordinator) — deliberate per docstring; single-node broker.
+- `_observations_from_event` synthesizes confirmed/hospital counts from `risk_score` constants — documented placeholder pending real upstream counts; drives EKF/Rt, so live Rt magnitudes are synthetic-calibrated, not epidemiological.
+- DP ledger: `dp/gaussian` is a pure utility (no server-side private data read) and correctly does NOT consume budget; `dp/publish` consumes per-call; FL uploads consume per-round. Ledger integrity + Redis→memory fallback verified in Run 2.
+- FL model state is in-memory per process (restart loses the round) — acknowledged in code comment.
+- Infra: dev compose runs PLAINTEXT Kafka, no Redis auth, dev Keycloak admin — local-dev only; prod compose (docker-compose.prod.yml) is the hardened variant.
+
+## Final verification (post all Run-3 fixes, services restarted)
+
+- `pytest`: seir-core 15/15, epi-engine 34/34, privacy-service 15/15, ruff clean on all edited files, patient-app `tsc --noEmit` clean.
+- `verify_all.py` → **52/52 PASSED**; `verify_negative.py` → **ALL NEGATIVE CHECKS PASSED** (incl. new bad-fraction 422 probe end-to-end).
+- `python scripts/smoke.py` → 6/6 services healthy.
+
+**Verdict**: stack fully operational; every previously-known defect fixed; this round found five sub-critical defects in the math/concurrency layer, all fixed and re-verified live. No remaining critical or high-severity issues.
+
+---
+
+# Run 4 — Deployment & Client Hardening Sweep (same day, later)
+
+**Method**: Reviewed infra surfaces (prod compose, Kong, k8s, monitoring, Helm), patient-app source, and scripts/seed helpers. Every defect fixed and validated.
+
+## Fixes landed
+
+| # | File | Defect | Fix | Evidence |
+|---|---|---|---|---|
+| I1 | `docker-compose.prod.yml` | postgres env was nonsense (`DATABASE_URL`/`REDIS_URL` postgres ignores; **no `POSTGRES_PASSWORD`** → container refuses to boot) | `POSTGRES_USER/DB/PASSWORD=${POSTGRES_PASSWORD:-devpassword}` | `docker compose config -q` OK |
+| I2 | `docker-compose.prod.yml` | Kong admin API exposed unauth on host `8001` (collides with user-service port) | bound to loopback: `127.0.0.1:8001:8001` | config -q OK |
+| I3 | `infra/kong/kong.yml` | privacy-service absent → gateway could not route FL/`dp` traffic | added `/api/v1/fl` route → `privacy-service:8006` (internal `/internal/dp` stays unexposed) | YAML parse OK |
+| I4 | `infra/monitoring/prometheus.yml` + `infra/k8s/monitoring/prometheus-config.yaml` | epi-engine + privacy-service missing from **both** scrape configs | added both scrape jobs | YAML parse OK |
+| I5 | `infra/k8s/services/privacy-service.yaml` | **copy-paste from prescription**: `containerPort: 8003`, probes on `:8003`, missing `DATABASE_URL` env | port 8006, probes 8006, full env block | k8s YAML all parse |
+| I6 | `infra/helm/cyberepi-services/values.yaml` | chart only defined 4 services; epi-engine + privacy-service absent | added both entries | all 6 in rendered values; YAML OK |
+| A1 | `apps/patient-app/src/lib/storage.ts` | **Security flaw**: MMKV encryption key taken from `EXPO_PUBLIC_MMKV_ENCRYPTION_KEY` (public env vars ship in the JS bundle) with hardcoded fallback `cyberepi-storage-key` — same key on every install of a patient-data cache | hardware-backed per-device key generated with `expo-crypto`, stored in `expo-secure-store` (Keychain/Keystore); mocks updated | `tsc --noEmit` clean; 47/47 jest tests |
+| S1 | `scripts/seed-data.py` | hardcoded absolute path; crashed on re-run (unique `region_id`) | `Path(__file__)`-relative; idempotent upsert | ran twice vs live DB: Update/Update/Update both times |
+| S2 | `.env.example`, `.env.local`, `scripts/prepare-deploy.sh` | dead `ENCRYPTION_KEY` and `JWT_SECRET_KEY` config — no runtime consumer (auth is Keycloak RS256/JWKS; MMKV key is device-generated) | removed everywhere | ruff clean; smoke 6/6 |
+| A2 | `apps/patient-app/.eslintrc` | extends missing `@react-native-community` shareable config — eslint cannot run | noted; dependency install out of scope for this pass | — |
+
+Known gaps (documented, not defects): Kong jwt plugin can't validate Keycloak RS256 (needs `jwt` + JWKS config; gateway auth semantics untouched), prod compose cites unbuilt service images.
+
+## Final state (all live-verified this run)
+
+- `python scripts/smoke.py` → **6/6 PASS** (health + metrics).
+- `scripts/seed-data.py` idempotent (2 consecutive runs OK).
+- `docker compose -f docker-compose.prod.yml config -q` → clean.
+- All YAML (k8s/helm/monitoring) parses; helm values render all 6 services.
+- patient-app: `tsc --noEmit` clean, **47/47 jest tests**.
+- Backend: ruff clean across `services/ libs/ scripts/`.
+
+**Verdict**: deployment surfaces, client storage security, and seed tooling now match the verified runtime. No known open defects.

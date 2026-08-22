@@ -2,7 +2,7 @@ export * from './symptom';
 export * from './auth';
 export * from './medication';
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data: T;
   message?: string;
   status: number;
@@ -28,4 +28,5 @@ export interface ExposureAlert {
   read_at?: string;
 }
 
-export type NotificationType = 'RISK_CHANGE' | 'MEDICATION_REMINDER' | 'EXPOSURE_ALERT';
+export type NotificationType =
+  'RISK_CHANGE' | 'MEDICATION_REMINDER' | 'EXPOSURE_ALERT';

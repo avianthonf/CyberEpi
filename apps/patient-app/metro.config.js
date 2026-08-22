@@ -1,4 +1,4 @@
-const { getDefaultConfig, mergeConfig } = require('@expo/metro-config');
+const {getDefaultConfig} = require('@expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
@@ -16,11 +16,12 @@ config.resolver.assetExts.push(
   'otf',
   'eot',
   'woff',
-  'woff2'
+  'woff2',
 );
 
 // Transform SVG files with react-native-svg-transformer
-config.transformer.babelTransformerPath = require.resolve('react-native-svg-transformer');
+config.transformer.babelTransformerPath =
+  require.resolve('react-native-svg-transformer');
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 
 module.exports = config;

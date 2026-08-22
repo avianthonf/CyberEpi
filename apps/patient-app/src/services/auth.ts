@@ -2,13 +2,15 @@ import * as AuthSession from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
-import { AuthTokens, PKCECodePair, UserProfile } from '@/types';
+import {AuthTokens, PKCECodePair, UserProfile} from '@/types';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const KEYCLOAK_URL = process.env.EXPO_PUBLIC_KEYCLOAK_URL || 'https://auth.cyberepi.health';
+const KEYCLOAK_URL =
+  process.env.EXPO_PUBLIC_KEYCLOAK_URL || 'https://auth.cyberepi.health';
 const KEYCLOAK_REALM = process.env.EXPO_PUBLIC_KEYCLOAK_REALM || 'cyberepi';
-const KEYCLOAK_CLIENT_ID = process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID || 'patient-app';
+const KEYCLOAK_CLIENT_ID =
+  process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID || 'patient-app';
 
 const discovery = {
   authorizationEndpoint: `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`,
@@ -30,7 +32,7 @@ export class AuthService {
   async generatePKCE(): Promise<PKCECodePair> {
     const codeVerifier = this.generateRandomString(128);
     const codeChallenge = await this.sha256(codeVerifier);
-    
+
     return {
       codeVerifier,
       codeChallenge,
@@ -41,27 +43,26 @@ export class AuthService {
   private generateRandomString(length: number): string {
     const array = new Uint8Array(length);
     Crypto.getRandomValues(array);
-    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join(
+      '',
+    );
   }
 
   private async sha256(input: string): Promise<string> {
     const hash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
-      input
+      input,
     );
     return this.base64UrlEncode(hash);
   }
 
   private base64UrlEncode(input: string): string {
-    return input
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+    return input.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
   async login(): Promise<AuthTokens> {
     const pkce = await this.generatePKCE();
-    
+
     // Store code verifier for token exchange
     await SecureStore.setItemAsync('pkce_code_verifier', pkce.codeVerifier);
 
@@ -73,7 +74,8 @@ export class AuthService {
       }),
       responseType: AuthSession.ResponseType.Code,
       codeChallenge: pkce.codeChallenge,
-      codeChallengeMethod: pkce.codeChallengeMethod as AuthSession.CodeChallengeMethod,
+      codeChallengeMethod:
+        pkce.codeChallengeMethod as AuthSession.CodeChallengeMethod,
       extraParams: {
         kc_idp_hint: 'keycloak', // Optional: specify identity provider
       },
@@ -82,7 +84,7 @@ export class AuthService {
     const result = await authRequest.promptAsync(discovery);
 
     if (result.type === 'success') {
-      const { code } = result.params;
+      const {code} = result.params;
       if (!code) {
         throw new Error('Authorization response missing code');
       }
@@ -122,11 +124,11 @@ export class AuthService {
     }
 
     const tokens: AuthTokens = await response.json();
-    
+
     // Store tokens securely
     await SecureStore.setItemAsync('access_token', tokens.access_token);
     await SecureStore.setItemAsync('refresh_token', tokens.refresh_token);
-    
+
     const expiresAt = Date.now() + tokens.expires_in * 1000;
     await SecureStore.setItemAsync('token_expires_at', expiresAt.toString());
 
@@ -138,7 +140,7 @@ export class AuthService {
 
   async logout(): Promise<void> {
     const refreshToken = await SecureStore.getItemAsync('refresh_token');
-    
+
     if (refreshToken) {
       try {
         // Revoke token at Keycloak
@@ -179,7 +181,7 @@ export class AuthService {
       // Check if token is expired or will expire within 60 seconds
       const now = Date.now();
       const expiryTime = parseInt(expiresAt, 10);
-      
+
       if (expiryTime - now < 60000) {
         // Token will expire soon, refresh it
         const refreshed = await this.refreshAccessToken();
@@ -224,13 +226,13 @@ export class AuthService {
       }
 
       const tokens: AuthTokens = await response.json();
-      
+
       // Update stored tokens
       await SecureStore.setItemAsync('access_token', tokens.access_token);
       if (tokens.refresh_token) {
         await SecureStore.setItemAsync('refresh_token', tokens.refresh_token);
       }
-      
+
       const expiresAt = Date.now() + tokens.expires_in * 1000;
       await SecureStore.setItemAsync('token_expires_at', expiresAt.toString());
 
@@ -260,15 +262,18 @@ export class AuthService {
       }
 
       const profile = await response.json();
-      
+
       // Transform Keycloak profile to our UserProfile format
       return {
         id: profile.sub,
         email: profile.email,
         name: profile.name || profile.preferred_username,
         phone: profile.phone_number,
-        role: profile.realm_access?.roles?.includes('physician') ? 'physician' : 
-              profile.realm_access?.roles?.includes('admin') ? 'admin' : 'patient',
+        role: profile.realm_access?.roles?.includes('physician')
+          ? 'physician'
+          : profile.realm_access?.roles?.includes('admin')
+            ? 'admin'
+            : 'patient',
         created_at: profile.created_at || new Date().toISOString(),
         updated_at: profile.updated_at || new Date().toISOString(),
       };

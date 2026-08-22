@@ -1,8 +1,8 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { AuthState, UserProfile, AuthTokens } from '@/types';
+import {create} from 'zustand';
+import {persist, createJSONStorage} from 'zustand/middleware';
+import {AuthState, UserProfile} from '@/types';
 import * as SecureStore from 'expo-secure-store';
-import { authService } from '@/services/auth';
+import {authService} from '@/services/auth';
 
 interface AuthStore extends AuthState {
   login: () => Promise<void>;
@@ -39,15 +39,15 @@ export const useAuthStore = create<AuthStore>()(
       // Actions
       login: async () => {
         try {
-          set({ isLoading: true, error: null });
-          
+          set({isLoading: true, error: null});
+
           const tokens = await authService.login();
           const user = await authService.getUserProfile();
-          
+
           if (!user) {
             throw new Error('Failed to fetch user profile');
           }
-          
+
           set({
             isAuthenticated: true,
             isLoading: false,
@@ -90,7 +90,7 @@ export const useAuthStore = create<AuthStore>()(
           // rotated an expired access token.
           const tokens = await authService.refreshAccessToken();
           if (tokens) {
-            set({ tokens });
+            set({tokens});
           } else {
             await get().logout();
           }
@@ -101,21 +101,21 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setUser: (user: UserProfile) => {
-        set({ user });
+        set({user});
       },
 
       setLoading: (isLoading: boolean) => {
-        set({ isLoading });
+        set({isLoading});
       },
 
       setError: (error: string | null) => {
-        set({ error });
+        set({error});
       },
 
       checkAuth: async () => {
         try {
-          set({ isLoading: true });
-          
+          set({isLoading: true});
+
           const tokens = await authService.getStoredTokens();
           if (!tokens) {
             set({
@@ -126,7 +126,7 @@ export const useAuthStore = create<AuthStore>()(
             });
             return;
           }
-          
+
           const user = await authService.getUserProfile();
           if (!user) {
             // Invalid session
@@ -139,7 +139,7 @@ export const useAuthStore = create<AuthStore>()(
             });
             return;
           }
-          
+
           set({
             isAuthenticated: true,
             isLoading: false,
@@ -161,11 +161,11 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => secureStorage),
-      partialize: (state) => ({
+      partialize: state => ({
         isAuthenticated: state.isAuthenticated,
         user: state.user,
         // Don't persist tokens - they're in SecureStore
       }),
-    }
-  )
+    },
+  ),
 );

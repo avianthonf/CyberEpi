@@ -14,18 +14,22 @@ class FedAvgAggregator:
     def start_new_round(self):
         self.current_round_gradients = []
 
-    def receive_gradient(self, gradient: np.ndarray):
-        """
-        Receives a raw gradient update from a client.
-        In a real scenario, this would be clipped and noised on the client
-        or securely aggregated. Here we perform server-side DP.
-        """
+    def validate_gradient(self, gradient: np.ndarray):
+        """Pure validation. Raises ValueError on malformed input. No mutation."""
         if gradient.shape[0] != self.model_dim:
             raise ValueError(
                 f"Gradient dimension mismatch. Expected {self.model_dim}, got {gradient.shape[0]}"
             )
         if not np.all(np.isfinite(gradient)):
             raise ValueError("Gradient contains non-finite values (NaN or inf)")
+
+    def receive_gradient(self, gradient: np.ndarray):
+        """
+        Receives a raw gradient update from a client.
+        In a real scenario, this would be clipped and noised on the client
+        or securely aggregated. Here we perform server-side DP.
+        """
+        self.validate_gradient(gradient)
         self.current_round_gradients.append(gradient)
 
     def aggregate(self, C: float = 1.0, epsilon: float = 0.5, delta: float = 1e-5) -> np.ndarray:

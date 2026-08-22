@@ -1,10 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { SymptomResponse } from '@/types';
-import { apiClient } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
-import { useRiskStore } from '@/store/riskStore';
-import { MMKV } from 'react-native-mmkv';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {useEffect} from 'react';
+
+import {apiClient} from '@/services/api';
+import {useAuthStore} from '@/store/authStore';
+import {useRiskStore} from '@/store/riskStore';
+import {MMKV} from 'react-native-mmkv';
 import NetInfo from '@react-native-community/netinfo';
 
 // Cache for risk score
@@ -19,10 +19,12 @@ interface RiskScoreResponse {
   risk_tier: 'low' | 'moderate' | 'consult' | 'urgent' | null;
 }
 
-export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 minutes default
+export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) {
+  // 5 minutes default
   const queryClient = useQueryClient();
-  const { user, isAuthenticated } = useAuthStore();
-  const { setRiskScore, setInsufficientData, riskScore, riskTier, lastUpdated } = useRiskStore();
+  const {user, isAuthenticated} = useAuthStore();
+  const {setRiskScore, setInsufficientData, riskScore, riskTier, lastUpdated} =
+    useRiskStore();
 
   const query = useQuery({
     queryKey: ['risk-score', user?.id],
@@ -31,7 +33,9 @@ export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 min
         throw new Error('User not authenticated');
       }
 
-      const response = await apiClient.get<RiskScoreResponse>(`/patients/${user.id}/risk`);
+      const response = await apiClient.get<RiskScoreResponse>(
+        `/patients/${user.id}/risk`,
+      );
       return response.data;
     },
     enabled: isAuthenticated && !!user?.id,
@@ -51,12 +55,14 @@ export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 min
   // Update store when query data changes
   useEffect(() => {
     if (query.data) {
-      const { risk_score, risk_tier } = query.data;
+      const {risk_score, risk_tier} = query.data;
 
       if (risk_score !== null && risk_tier) {
         setRiskScore(risk_score, risk_tier);
       } else {
-        setInsufficientData('Insufficient data: Need at least 3 symptom reports');
+        setInsufficientData(
+          'Insufficient data: Need at least 3 symptom reports',
+        );
       }
 
       // Cache the response
@@ -85,29 +91,31 @@ export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 min
   // Function to get time since last update
   const getTimeSinceLastUpdate = (): string => {
     if (!lastUpdated) return 'Never';
-    
+
     const now = new Date();
     const last = new Date(lastUpdated);
     const diffMs = now.getTime() - last.getTime();
-    
+
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
-    
+
     if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffMins < 60)
+      return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
   // Function to check if data is stale
   const isDataStale = (): boolean => {
     if (!lastUpdated) return true;
-    
+
     const now = new Date();
     const last = new Date(lastUpdated);
     const diffMs = now.getTime() - last.getTime();
-    
+
     // Consider stale after 10 minutes
     return diffMs > 10 * 60 * 1000;
   };
@@ -127,7 +135,7 @@ export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) { // 5 min
 
 // Hook for risk score history (for charts)
 export function useRiskScoreHistory(days: number = 7) {
-  const { user, isAuthenticated } = useAuthStore();
+  const {user, isAuthenticated} = useAuthStore();
 
   return useQuery({
     queryKey: ['risk-score-history', user?.id, days],
@@ -137,7 +145,7 @@ export function useRiskScoreHistory(days: number = 7) {
       }
 
       const response = await apiClient.get(
-        `/patients/${user.id}/history?days=${days}`
+        `/patients/${user.id}/history?days=${days}`,
       );
       return response.data;
     },
@@ -154,8 +162,8 @@ export function useNetworkSync() {
     const unsubscribe = NetInfo.addEventListener(state => {
       if (state.isConnected) {
         // When network is restored, refetch all queries
-        queryClient.refetchQueries({ queryKey: ['risk-score'] });
-        queryClient.refetchQueries({ queryKey: ['risk-score-history'] });
+        queryClient.refetchQueries({queryKey: ['risk-score']});
+        queryClient.refetchQueries({queryKey: ['risk-score-history']});
       }
     });
 

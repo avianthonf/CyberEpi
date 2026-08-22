@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-import { RiskTier } from '@/types';
-import { mmkvStorage } from '@/lib/storage';
+import {create} from 'zustand';
+import {createJSONStorage, persist} from 'zustand/middleware';
+import {RiskTier} from '@/types';
+import {mmkvStorage} from '@/lib/storage';
 
 interface RiskState {
   riskScore: number | null;
@@ -9,14 +9,18 @@ interface RiskState {
   lastUpdated: string | null;
   recommendations: string[];
   insufficientDataMessage: string | null;
-  setRiskScore: (score: number | null, tier: RiskTier | null, recommendations?: string[]) => void;
+  setRiskScore: (
+    score: number | null,
+    tier: RiskTier | null,
+    recommendations?: string[],
+  ) => void;
   setInsufficientData: (message: string) => void;
   clearRiskData: () => void;
 }
 
 export const useRiskStore = create<RiskState>()(
   persist(
-    (set) => ({
+    set => ({
       // Initial state
       riskScore: null,
       riskTier: null,
@@ -35,7 +39,7 @@ export const useRiskStore = create<RiskState>()(
         });
       },
 
-      setInsufficientData: (message) => {
+      setInsufficientData: message => {
         set({
           riskScore: null,
           riskTier: null,
@@ -58,8 +62,8 @@ export const useRiskStore = create<RiskState>()(
     {
       name: 'risk-storage',
       storage: createJSONStorage(() => mmkvStorage),
-    }
-  )
+    },
+  ),
 );
 
 // Helper function to get risk tier from score

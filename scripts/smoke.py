@@ -44,7 +44,7 @@ def main() -> int:
     all_passed = True
     for name, url in DEFAULT_SERVICES.items():
         ok, msg = False, "no attempts"
-        for attempt in range(args.retries):
+        for _ in range(args.retries):
             ok, msg = check_service(name, url, timeout=args.timeout)
             if ok:
                 break

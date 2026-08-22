@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRiskScoreHistory } from '@/hooks/useRiskScore';
-import { getRiskTierColor } from '@/store/riskStore';
-import { Svg, Line, Path, Circle } from 'react-native-svg';
-import { RiskTier } from '@/types';
+import {Ionicons} from '@expo/vector-icons';
+import {useRiskScoreHistory} from '@/hooks/useRiskScore';
+import {getRiskTierColor} from '@/store/riskStore';
+import {Svg, Line, Path, Circle} from 'react-native-svg';
+import {RiskTier} from '@/types';
 
 interface HistoryItem {
   time: string;
@@ -22,7 +22,11 @@ interface HistoryItem {
 
 export default function HistoryScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<'7' | '30' | '90'>('7');
-  const { data: historyData, isLoading, refetch } = useRiskScoreHistory(parseInt(selectedPeriod));
+  const {
+    data: historyData,
+    isLoading,
+    refetch,
+  } = useRiskScoreHistory(parseInt(selectedPeriod));
 
   const history: HistoryItem[] = Array.isArray(historyData) ? historyData : [];
 
@@ -37,8 +41,8 @@ export default function HistoryScreen() {
 
   const renderChart = () => {
     const chartItems = history.filter(
-      (item): item is HistoryItem & { risk_score: number } =>
-        item.risk_score !== null && item.risk_score !== undefined
+      (item): item is HistoryItem & {risk_score: number} =>
+        item.risk_score !== null && item.risk_score !== undefined,
     );
     if (chartItems.length === 0) return null;
 
@@ -52,7 +56,7 @@ export default function HistoryScreen() {
     const points = chartItems.map((item, index) => {
       const x = padding + (index / (chartItems.length - 1)) * chartWidth;
       const y = padding + chartHeight - item.risk_score * chartHeight;
-      return { x, y, score: item.risk_score, tier: item.risk_tier };
+      return {x, y, score: item.risk_score, tier: item.risk_tier};
     });
 
     // Create path for the line
@@ -64,7 +68,7 @@ export default function HistoryScreen() {
       <View style={styles.chartContainer}>
         <Svg width={width} height={height}>
           {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((value) => {
+          {[0, 0.25, 0.5, 0.75, 1].map(value => {
             const y = padding + chartHeight - value * chartHeight;
             return (
               <Line
@@ -80,12 +84,7 @@ export default function HistoryScreen() {
           })}
 
           {/* Risk score line */}
-          <Path
-            d={pathData}
-            stroke="#3b82f6"
-            strokeWidth="2"
-            fill="none"
-          />
+          <Path d={pathData} stroke="#3b82f6" strokeWidth="2" fill="none" />
 
           {/* Data points */}
           {points.map((point, index) => (
@@ -117,8 +116,7 @@ export default function HistoryScreen() {
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={isLoading} onRefresh={refetch} />
-      }
-    >
+      }>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
@@ -129,22 +127,24 @@ export default function HistoryScreen() {
 
       {/* Period Selector */}
       <View style={styles.periodSelector}>
-        {(['7', '30', '90'] as const).map((period) => (
+        {(['7', '30', '90'] as const).map(period => (
           <TouchableOpacity
             key={period}
             style={[
               styles.periodButton,
               selectedPeriod === period && styles.periodButtonActive,
             ]}
-            onPress={() => setSelectedPeriod(period)}
-          >
+            onPress={() => setSelectedPeriod(period)}>
             <Text
               style={[
                 styles.periodButtonText,
                 selectedPeriod === period && styles.periodButtonTextActive,
-              ]}
-            >
-              {period === '7' ? '7 Days' : period === '30' ? '30 Days' : '90 Days'}
+              ]}>
+              {period === '7'
+                ? '7 Days'
+                : period === '30'
+                  ? '30 Days'
+                  : '90 Days'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -181,9 +181,8 @@ export default function HistoryScreen() {
                 <View
                   style={[
                     styles.riskBadge,
-                    { backgroundColor: getRiskTierColor(item.risk_tier) },
-                  ]}
-                >
+                    {backgroundColor: getRiskTierColor(item.risk_tier)},
+                  ]}>
                   <Text style={styles.riskText}>
                     {item.risk_score !== null
                       ? `${Math.round(item.risk_score * 100)}% - ${item.risk_tier}`
@@ -195,7 +194,11 @@ export default function HistoryScreen() {
                 <View style={styles.symptomsContainer}>
                   {Object.entries(item.symptoms).map(([key, value], i) => (
                     <View key={i} style={styles.symptomItem}>
-                      <Ionicons name="chevron-forward" size={12} color="#6b7280" />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={12}
+                        color="#6b7280"
+                      />
                       <Text style={styles.symptomText}>
                         {key}: {String(value)}
                       </Text>

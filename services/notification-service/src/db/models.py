@@ -21,6 +21,7 @@ patients_table = Table(
     "patients",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True),
+    Column("keycloak_id", String(100)),
 )
 
 class Base(DeclarativeBase):

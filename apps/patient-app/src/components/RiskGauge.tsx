@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,13 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import Svg, { Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { RiskTier } from '@/types';
-import { getRiskTierColor, getRiskTierLabel, getRiskTierFromScore } from '@/store/riskStore';
+import Svg, {Path, Circle, Defs, LinearGradient, Stop} from 'react-native-svg';
+import {RiskTier} from '@/types';
+import {
+  getRiskTierColor,
+  getRiskTierLabel,
+  getRiskTierFromScore,
+} from '@/store/riskStore';
 
 interface RiskGaugeProps {
   score: number | null;
@@ -22,7 +26,7 @@ interface RiskGaugeProps {
   testID?: string;
 }
 
-const { width: screenWidth } = Dimensions.get('window');
+const {width: screenWidth} = Dimensions.get('window');
 const GAUGE_SIZE = Math.min(screenWidth * 0.8, 280);
 
 export function RiskGauge({
@@ -64,7 +68,7 @@ export function RiskGauge({
               duration: 600,
               useNativeDriver: true,
             }),
-          ])
+          ]),
         );
         pulseAnimation.start();
       }
@@ -76,7 +80,7 @@ export function RiskGauge({
       springAnimation?.stop();
       pulseAnimation?.stop();
     };
-  }, [score, tier, animated]);
+  }, [score, tier, animated, animatedValue, scaleValue]);
 
   // Calculate gauge path
   const createGaugePath = (progress: number) => {
@@ -106,18 +110,18 @@ export function RiskGauge({
         'Emergency Call',
         'Your risk score indicates immediate medical attention is needed. Do you want to call the crisis line?',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Call Now', onPress: onCallPress },
+          {text: 'Cancel', style: 'cancel'},
+          {text: 'Call Now', onPress: onCallPress},
         ],
-        { cancelable: false }
+        {cancelable: false},
       );
     }
   };
 
   if (score === null) {
     return (
-      <View style={[styles.container, { width: size, height: size }]}>
-        <View style={[styles.gaugeContainer, { width: size, height: size }]}>
+      <View style={[styles.container, {width: size, height: size}]}>
+        <View style={[styles.gaugeContainer, {width: size, height: size}]}>
           <Svg width={size} height={size}>
             {/* Background arc */}
             <Path
@@ -140,17 +144,23 @@ export function RiskGauge({
   }
 
   return (
-    <View testID={testID} style={[styles.container, { width: size, height: size }]}>
+    <View
+      testID={testID}
+      style={[styles.container, {width: size, height: size}]}>
       <Animated.View
         style={[
           styles.gaugeContainer,
-          { width: size, height: size },
-          { transform: [{ scale: scaleValue }] },
-        ]}
-      >
+          {width: size, height: size},
+          {transform: [{scale: scaleValue}]},
+        ]}>
         <Svg width={size} height={size}>
           <Defs>
-            <LinearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <LinearGradient
+              id="gaugeGradient"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="0%">
               <Stop offset="0%" stopColor={getScoreColor(0)} />
               <Stop offset="33%" stopColor={getScoreColor(0.33)} />
               <Stop offset="66%" stopColor={getScoreColor(0.66)} />
@@ -205,11 +215,10 @@ export function RiskGauge({
               {
                 color: getScoreColor(score),
               },
-            ]}
-          >
+            ]}>
             {Math.round(score * 100)}%
           </Animated.Text>
-          
+
           {showLabel && (
             <Text
               style={[
@@ -217,18 +226,19 @@ export function RiskGauge({
                 {
                   color: getRiskTierColor(tier),
                 },
-              ]}
-            >
+              ]}>
               {getRiskTierLabel(tier)}
             </Text>
           )}
 
           {tier === 'urgent' && (
             <TouchableOpacity
-              style={[styles.callButton, { backgroundColor: getScoreColor(score) }]}
+              style={[
+                styles.callButton,
+                {backgroundColor: getScoreColor(score)},
+              ]}
               onPress={handleCallPress}
-              activeOpacity={0.8}
-            >
+              activeOpacity={0.8}>
               <Text style={styles.callButtonText}>CALL NOW</Text>
             </TouchableOpacity>
           )}
@@ -237,21 +247,21 @@ export function RiskGauge({
 
       {/* Risk tier labels */}
       {showLabel && (
-        <View style={[styles.labelsContainer, { width: size * 0.8 }]}>
+        <View style={[styles.labelsContainer, {width: size * 0.8}]}>
           <View style={styles.labelItem}>
-            <View style={[styles.labelDot, { backgroundColor: '#10b981' }]} />
+            <View style={[styles.labelDot, {backgroundColor: '#10b981'}]} />
             <Text style={styles.labelText}>Low</Text>
           </View>
           <View style={styles.labelItem}>
-            <View style={[styles.labelDot, { backgroundColor: '#f59e0b' }]} />
+            <View style={[styles.labelDot, {backgroundColor: '#f59e0b'}]} />
             <Text style={styles.labelText}>Moderate</Text>
           </View>
           <View style={styles.labelItem}>
-            <View style={[styles.labelDot, { backgroundColor: '#f97316' }]} />
+            <View style={[styles.labelDot, {backgroundColor: '#f97316'}]} />
             <Text style={styles.labelText}>Consult</Text>
           </View>
           <View style={styles.labelItem}>
-            <View style={[styles.labelDot, { backgroundColor: '#ef4444' }]} />
+            <View style={[styles.labelDot, {backgroundColor: '#ef4444'}]} />
             <Text style={styles.labelText}>Urgent</Text>
           </View>
         </View>
@@ -306,7 +316,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,

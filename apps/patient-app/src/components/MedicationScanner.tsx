@@ -6,10 +6,9 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useMedScan } from '@/hooks/useMedScan';
+import {Ionicons} from '@expo/vector-icons';
+import {useMedScan} from '@/hooks/useMedScan';
 
 interface MedicationScannerProps {
   visible: boolean;
@@ -17,7 +16,11 @@ interface MedicationScannerProps {
   onSuccess?: () => void;
 }
 
-export function MedicationScanner({ visible, onClose, onSuccess }: MedicationScannerProps) {
+export function MedicationScanner({
+  visible,
+  onClose,
+  onSuccess,
+}: MedicationScannerProps) {
   const {
     isScanning,
     error,
@@ -56,16 +59,14 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
         visible={visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={handleClose}
-      >
+        onRequestClose={handleClose}>
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.closeButton}
               onPress={handleClose}
-              disabled={isScanning}
-            >
+              disabled={isScanning}>
               <Ionicons name="close" size={24} color="#374151" />
             </TouchableOpacity>
             <Text style={styles.title}>Scan Medication</Text>
@@ -73,10 +74,13 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
           </View>
 
           {/* Content */}
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}>
             <Text style={styles.description}>
-              Scan your medication label using your camera or select an image from your gallery.
-              The app will automatically detect the medication information.
+              Scan your medication label using your camera or select an image
+              from your gallery. The app will automatically detect the
+              medication information.
             </Text>
 
             {/* Error Message */}
@@ -92,10 +96,12 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
             {/* Scan Options */}
             <View style={styles.optionsContainer}>
               <TouchableOpacity
-                style={[styles.optionButton, isScanning && styles.disabledButton]}
+                style={[
+                  styles.optionButton,
+                  isScanning && styles.disabledButton,
+                ]}
                 onPress={handleCameraPress}
-                disabled={isScanning}
-              >
+                disabled={isScanning}>
                 <View style={styles.optionIcon}>
                   <Ionicons name="camera" size={32} color="#3b82f6" />
                 </View>
@@ -106,10 +112,12 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.optionButton, isScanning && styles.disabledButton]}
+                style={[
+                  styles.optionButton,
+                  isScanning && styles.disabledButton,
+                ]}
                 onPress={handleGalleryPress}
-                disabled={isScanning}
-              >
+                disabled={isScanning}>
                 <View style={styles.optionIcon}>
                   <Ionicons name="images" size={32} color="#3b82f6" />
                 </View>
@@ -147,18 +155,20 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
         visible={showInteractionModal}
         animationType="fade"
         transparent={true}
-        onRequestClose={handleInteractionModalReject}
-      >
+        onRequestClose={handleInteractionModalReject}>
         <View style={styles.modalOverlay}>
           <View style={styles.interactionModal}>
             <View style={styles.interactionHeader}>
               <Ionicons name="warning" size={32} color="#dc2626" />
-              <Text style={styles.interactionTitle}>Drug Interactions Detected</Text>
+              <Text style={styles.interactionTitle}>
+                Drug Interactions Detected
+              </Text>
             </View>
 
             <ScrollView style={styles.interactionContent}>
               <Text style={styles.interactionDescription}>
-                The following interactions were detected for {currentMedication?.drug_name}:
+                The following interactions were detected for{' '}
+                {currentMedication?.drug_name}:
               </Text>
 
               {currentMedication?.interactions.map((interaction, index) => (
@@ -169,9 +179,12 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
                   <Text
                     style={[
                       styles.interactionSeverity,
-                      { color: getInteractionSeverityColor(interaction.severity) },
-                    ]}
-                  >
+                      {
+                        color: getInteractionSeverityColor(
+                          interaction.severity,
+                        ),
+                      },
+                    ]}>
                     {interaction.severity.toUpperCase()}
                   </Text>
                   <Text style={styles.interactionDescriptionText}>
@@ -182,7 +195,8 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
 
               <View style={styles.disclaimer}>
                 <Text style={styles.disclaimerText}>
-                  Please consult with your physician before taking this medication.
+                  Please consult with your physician before taking this
+                  medication.
                 </Text>
               </View>
             </ScrollView>
@@ -190,14 +204,12 @@ export function MedicationScanner({ visible, onClose, onSuccess }: MedicationSca
             <View style={styles.interactionActions}>
               <TouchableOpacity
                 style={styles.rejectButton}
-                onPress={handleInteractionModalReject}
-              >
+                onPress={handleInteractionModalReject}>
                 <Text style={styles.rejectButtonText}>Do Not Add</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.acceptButton}
-                onPress={handleInteractionModalAccept}
-              >
+                onPress={handleInteractionModalAccept}>
                 <Text style={styles.acceptButtonText}>Add Anyway</Text>
               </TouchableOpacity>
             </View>

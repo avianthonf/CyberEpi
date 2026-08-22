@@ -34,8 +34,9 @@ async def upload_gradient(
 
     # 2. Validate the gradient BEFORE charging budget so rejected
     #    uploads do not consume the user's privacy budget.
+    #    (pure check — no aggregation state is mutated here)
     try:
-        aggregator.receive_gradient(np.array(req.gradient))
+        aggregator.validate_gradient(np.array(req.gradient))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
@@ -46,9 +47,12 @@ async def upload_gradient(
     epsilon_per_upload = 0.1
     success = await budget_tracker.consume(user_id, epsilon_per_upload)
     if not success:
-        # Gradient was accepted but the user has no budget left — drop it.
-        aggregator.current_round_gradients.pop()
         raise HTTPException(status_code=403, detail="Privacy budget exceeded for this round")
+
+    # 4. Append only after budget success. Appending late avoids a
+    #    concurrency hazard where a budget-rejected uploader would have to
+    #    pop() its gradient out from under concurrent accepted uploads.
+    aggregator.receive_gradient(np.array(req.gradient))
 
     return {
         "accepted": True,

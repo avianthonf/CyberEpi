@@ -1,4 +1,4 @@
-import { MedScannerService } from '@/services/medScanner';
+import {MedScannerService} from '@/services/medScanner';
 
 describe('Medication Scanner', () => {
   let scanner: MedScannerService;
@@ -154,7 +154,9 @@ describe('Medication Scanner', () => {
     });
 
     it('should return red for contraindicated severity', () => {
-      expect(scanner.getInteractionSeverityColor('contraindicated')).toBe('#dc2626');
+      expect(scanner.getInteractionSeverityColor('contraindicated')).toBe(
+        '#dc2626',
+      );
     });
 
     it('should return gray for unknown severity', () => {

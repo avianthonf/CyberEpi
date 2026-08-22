@@ -1,6 +1,7 @@
-import sys
 import http.client
 import os
+import sys
+
 
 def check_health():
     port = os.getenv("SERVICE_PORT", "8000")

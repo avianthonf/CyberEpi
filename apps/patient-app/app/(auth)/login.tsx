@@ -1,23 +1,22 @@
-import React, { useEffect } from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
-import { useNetworkSync } from '@/hooks/useRiskScore';
+import {useRouter} from 'expo-router';
+import {useAuthStore} from '@/store/authStore';
+import {useNetworkSync} from '@/hooks/useRiskScore';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading, error, isAuthenticated, checkAuth } = useAuthStore();
-  
+  const {login, isLoading, error, isAuthenticated, checkAuth} = useAuthStore();
+
   // Initialize network sync listener
   useNetworkSync();
 
@@ -48,10 +47,9 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Logo and Title */}
@@ -63,18 +61,20 @@ export default function LoginScreen() {
           {/* Login Form */}
           <View style={styles.form}>
             <Text style={styles.description}>
-              Sign in to monitor your health symptoms and receive personalized risk assessments.
+              Sign in to monitor your health symptoms and receive personalized
+              risk assessments.
             </Text>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.disabledButton]}
               onPress={handleLogin}
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               {isLoading ? (
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In with Keycloak</Text>
+                <Text style={styles.loginButtonText}>
+                  Sign In with Keycloak
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 52,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,

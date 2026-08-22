@@ -27,8 +27,6 @@ mkdir -p deploy/prod
 # Generate random passwords
 echo "🔐 Generating secure passwords..."
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
-JWT_SECRET=$(openssl rand -base64 64)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
 
 # Create .env.production template
 echo "📝 Creating .env.production template..."
@@ -54,10 +52,6 @@ SERVICE_PORT_PRESCRIPTION=8003
 SERVICE_PORT_NOTIFICATION=8004
 SERVICE_PORT_EPI=8005
 SERVICE_PORT_PRIVACY=8006
-
-# Security Keys
-JWT_SECRET_KEY=${JWT_SECRET}
-ENCRYPTION_KEY=${ENCRYPTION_KEY}
 
 # External APIs
 OPENFDA_API_URL=https://api.fda.gov

@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Alert, Modal } from 'react-native';
-import { MedicationScanResponse } from '@/types';
-import { medScannerService } from '@/services/medScanner';
-import { useAuthStore } from '@/store/authStore';
-import { useMedicationStore } from '@/store/medicationStore';
+import {useState} from 'react';
+import {Alert} from 'react-native';
+import {MedicationScanResponse} from '@/types';
+import {medScannerService} from '@/services/medScanner';
+import {useAuthStore} from '@/store/authStore';
+import {useMedicationStore} from '@/store/medicationStore';
 
 interface UseMedScanOptions {
   onSuccess?: (medication: MedicationScanResponse) => void;
@@ -12,12 +12,13 @@ interface UseMedScanOptions {
 }
 
 export function useMedScan(options: UseMedScanOptions = {}) {
-  const { user } = useAuthStore();
-  const { addMedication } = useMedicationStore();
-  
+  const {user} = useAuthStore();
+  const {addMedication} = useMedicationStore();
+
   const [isScanning, setIsScanning] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
-  const [currentMedication, setCurrentMedication] = useState<MedicationScanResponse | null>(null);
+  const [currentMedication, setCurrentMedication] =
+    useState<MedicationScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleScanSuccess = (medication: MedicationScanResponse) => {
@@ -69,7 +70,7 @@ export function useMedScan(options: UseMedScanOptions = {}) {
       Alert.alert(
         'Enter medication text',
         'Image captured. OCR is not yet available — enter the label text (drug name or NDC) to look it up.',
-        [{ text: 'OK' }]
+        [{text: 'OK'}],
       );
       options.onScanTextEntry?.();
     } catch (err) {
@@ -99,7 +100,7 @@ export function useMedScan(options: UseMedScanOptions = {}) {
       Alert.alert(
         'Enter medication text',
         'Image selected. OCR is not yet available — enter the label text (drug name or NDC) to look it up.',
-        [{ text: 'OK' }]
+        [{text: 'OK'}],
       );
       options.onScanTextEntry?.();
     } catch (err) {
@@ -120,7 +121,10 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     setError(null);
 
     try {
-      const medication = await medScannerService.scanMedication(ocrText, user.id);
+      const medication = await medScannerService.scanMedication(
+        ocrText,
+        user.id,
+      );
       handleScanSuccess(medication);
     } catch (err) {
       console.error('Text scan error:', err);
@@ -154,9 +158,9 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     Alert.alert(
       'Medication Not Added',
       'Please consult with your physician before taking this medication due to potential interactions.',
-      [{ text: 'OK' }]
+      [{text: 'OK'}],
     );
-    
+
     setShowInteractionModal(false);
     setCurrentMedication(null);
   };
@@ -171,13 +175,13 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     error,
     showInteractionModal,
     currentMedication,
-    
+
     // Actions
     scanFromCamera,
     scanFromGallery,
     scanFromText,
     clearError,
-    
+
     // Modal handlers
     handleInteractionModalAccept,
     handleInteractionModalReject,

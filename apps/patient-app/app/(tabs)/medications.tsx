@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,16 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { MedCard } from '@/components/MedCard';
-import { MedicationScanner } from '@/components/MedicationScanner';
-import { useMedicationStore } from '@/store/medicationStore';
-import { calculateOverallAdherence } from '@/store/medicationStore';
-import { Medication } from '@/types';
+import {Ionicons} from '@expo/vector-icons';
+import {MedCard} from '@/components/MedCard';
+import {MedicationScanner} from '@/components/MedicationScanner';
+import {useMedicationStore} from '@/store/medicationStore';
+import {calculateOverallAdherence} from '@/store/medicationStore';
+import {Medication} from '@/types';
 
 export default function MedicationsScreen() {
   const [showScanner, setShowScanner] = useState(false);
-  const { medications, activeMedications, isLoading } = useMedicationStore();
+  const {medications, activeMedications} = useMedicationStore();
 
   const overallAdherence = calculateOverallAdherence(activeMedications);
 
@@ -24,7 +24,7 @@ export default function MedicationsScreen() {
     Alert.alert(
       'Medication Recorded',
       `${medication.drug_name} marked as taken.`,
-      [{ text: 'OK' }]
+      [{text: 'OK'}],
     );
   };
 
@@ -37,7 +37,7 @@ export default function MedicationsScreen() {
     Alert.alert(
       'Add Medication Manually',
       'Manual medication entry is not yet implemented. Use Scan Medication instead.',
-      [{ text: 'OK' }]
+      [{text: 'OK'}],
     );
   };
 
@@ -71,18 +71,16 @@ export default function MedicationsScreen() {
             <Text
               style={[
                 styles.adherencePercentage,
-                { color: getAdherenceColor(overallAdherence) },
-              ]}
-            >
+                {color: getAdherenceColor(overallAdherence)},
+              ]}>
               {overallAdherence}%
             </Text>
           </View>
           <Text
             style={[
               styles.adherenceLabel,
-              { color: getAdherenceColor(overallAdherence) },
-            ]}
-          >
+              {color: getAdherenceColor(overallAdherence)},
+            ]}>
             {getAdherenceLabel(overallAdherence)}
           </Text>
           <View style={styles.adherenceBar}>
@@ -103,13 +101,14 @@ export default function MedicationsScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => setShowScanner(true)}
-        >
+          onPress={() => setShowScanner(true)}>
           <Ionicons name="camera-outline" size={20} color="#ffffff" />
           <Text style={styles.primaryButtonText}>Scan Medication</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleAddManually}>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={handleAddManually}>
           <Ionicons name="add-outline" size={20} color="#3b82f6" />
           <Text style={styles.secondaryButtonText}>Add Manually</Text>
         </TouchableOpacity>
@@ -130,13 +129,12 @@ export default function MedicationsScreen() {
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
-              onPress={() => setShowScanner(true)}
-            >
+              onPress={() => setShowScanner(true)}>
               <Text style={styles.emptyButtonText}>Scan First Medication</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          activeMedications.map((medication) => (
+          activeMedications.map(medication => (
             <MedCard
               key={medication.id}
               medication={medication}
@@ -150,11 +148,12 @@ export default function MedicationsScreen() {
       {medications.some(m => !m.is_active) && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            Inactive Medications ({medications.filter(m => !m.is_active).length})
+            Inactive Medications ({medications.filter(m => !m.is_active).length}
+            )
           </Text>
           {medications
             .filter(m => !m.is_active)
-            .map((medication) => (
+            .map(medication => (
               <MedCard
                 key={medication.id}
                 medication={medication}
@@ -204,7 +203,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,

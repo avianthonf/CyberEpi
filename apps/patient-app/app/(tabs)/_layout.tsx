@@ -1,18 +1,18 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { useAuthStore } from '@/store/authStore';
-import { useRiskStore } from '@/store/riskStore';
-import { useMedicationStore } from '@/store/medicationStore';
-import { useSymptomSubmit } from '@/hooks/useSymptomSubmit';
-import { useEffect } from 'react';
+import {Tabs} from 'expo-router';
+import {Ionicons} from '@expo/vector-icons';
+import {View, Text, TouchableOpacity} from 'react-native';
+import {useAuthStore} from '@/store/authStore';
+import {useRiskStore} from '@/store/riskStore';
+import {useMedicationStore} from '@/store/medicationStore';
+import {useSymptomSubmit} from '@/hooks/useSymptomSubmit';
+import {useEffect} from 'react';
 import NetInfo from '@react-native-community/netinfo';
 
 export default function TabLayout() {
-  const { logout } = useAuthStore();
-  const { clearRiskData } = useRiskStore();
-  const { clearMedications } = useMedicationStore();
-  const { getQueuedReportsCount, syncQueuedReports } = useSymptomSubmit();
+  const {logout} = useAuthStore();
+  const {clearRiskData} = useRiskStore();
+  const {clearMedications} = useMedicationStore();
+  const {getQueuedReportsCount, syncQueuedReports} = useSymptomSubmit();
 
   useEffect(() => {
     // Sync when coming back online
@@ -48,13 +48,12 @@ export default function TabLayout() {
         headerTitleStyle: {
           fontWeight: '600',
         },
-      }}
-    >
+      }}>
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({color, size}) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
           headerRight: () => {
@@ -62,8 +61,7 @@ export default function TabLayout() {
             return (
               <TouchableOpacity
                 onPress={handleLogout}
-                style={{ marginRight: 16 }}
-              >
+                style={{marginRight: 16}}>
                 <Ionicons name="log-out-outline" size={24} color="#6b7280" />
                 {queuedCount > 0 && (
                   <View
@@ -77,15 +75,13 @@ export default function TabLayout() {
                       height: 16,
                       alignItems: 'center',
                       justifyContent: 'center',
-                    }}
-                  >
+                    }}>
                     <Text
                       style={{
                         color: '#ffffff',
                         fontSize: 10,
                         fontWeight: 'bold',
-                      }}
-                    >
+                      }}>
                       {queuedCount > 9 ? '9+' : queuedCount}
                     </Text>
                   </View>
@@ -99,7 +95,7 @@ export default function TabLayout() {
         name="symptoms"
         options={{
           title: 'Symptoms',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({color, size}) => (
             <Ionicons name="medical-outline" size={size} color={color} />
           ),
         }}
@@ -108,7 +104,7 @@ export default function TabLayout() {
         name="medications"
         options={{
           title: 'Medications',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({color, size}) => (
             <Ionicons name="medkit-outline" size={size} color={color} />
           ),
         }}
@@ -117,7 +113,7 @@ export default function TabLayout() {
         name="history"
         options={{
           title: 'History',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({color, size}) => (
             <Ionicons name="time-outline" size={size} color={color} />
           ),
         }}

@@ -73,22 +73,31 @@ def build_auth_dependency(settings: Settings):
     ) -> dict[str, Any]:
         # Dev mode: bypass JWT validation for local testing
         if settings.dev_auth_mode:
+            logger.warning(
+                "DEV_AUTH_MODE active: JWT validation bypassed; all requests get patient+admin"
+            )
             return {"sub": "dev-user-id", "realm_access": {"roles": ["patient", "admin"]}}
 
         token = credentials.credentials
         try:
             jwks = await jwks_provider.get_jwks()
+            # Audience verification is disabled: the realm's tokens carry the
+            # Keycloak-default aud="account" (no audience mapper configured), so
+            # enabling it would reject every legitimate token. Trust is anchored by
+            # RS256 signature verification against THIS realm's JWKS endpoint — only
+            # tokens issued by the configured realm validate. A realm audience mapper
+            # emitting `keycloak_client_id` should be added before enabling
+            # verify_aud in production.
             payload = jwt.decode(
                 token,
                 jwks,
                 algorithms=["RS256"],
-                audience=settings.keycloak_client_id,
                 options={"verify_aud": False},
             )
         except JWTError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Could not validate credentials: {exc}",
+                detail="Could not validate credentials",
             ) from exc
         except Exception as exc:
             raise HTTPException(

@@ -1,5 +1,9 @@
-import { SymptomReport } from '@/types/symptom';
-import { getRiskTierFromScore, getRiskTierColor, getRiskTierLabel } from '@/store/riskStore';
+import {SymptomReport} from '@/types/symptom';
+import {
+  getRiskTierFromScore,
+  getRiskTierColor,
+  getRiskTierLabel,
+} from '@/store/riskStore';
 
 describe('Symptom Report Contract', () => {
   const createValidReport = (): SymptomReport => ({

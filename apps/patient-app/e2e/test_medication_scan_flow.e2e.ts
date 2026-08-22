@@ -1,8 +1,8 @@
-import { by, device, element, expect } from 'detox';
+import {by, device, element, expect} from 'detox';
 
 describe('Medication Scan Flow E2E', () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
+    await device.launchApp({newInstance: true});
   });
 
   beforeEach(async () => {
@@ -91,7 +91,9 @@ describe('Medication Scan Flow E2E', () => {
 
     // If interaction modal is visible, test the buttons
     try {
-      await expect(element(by.text('Drug Interactions Detected'))).toBeVisible();
+      await expect(
+        element(by.text('Drug Interactions Detected')),
+      ).toBeVisible();
 
       // Verify severity label is visible
       await expect(element(by.text('SEVERE'))).toBeVisible();

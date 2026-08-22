@@ -1,7 +1,6 @@
-import { renderHook, act } from '@testing-library/react-native';
-import { useAuthStore } from '@/store/authStore';
-import * as SecureStore from 'expo-secure-store';
-import { authService } from '@/services/auth';
+import {renderHook, act} from '@testing-library/react-native';
+import {useAuthStore} from '@/store/authStore';
+import {authService} from '@/services/auth';
 
 // Mock SecureStore
 jest.mock('expo-secure-store', () => ({
@@ -47,7 +46,7 @@ describe('AuthStore', () => {
       (authService.login as jest.Mock).mockResolvedValue(mockTokens);
       (authService.getUserProfile as jest.Mock).mockResolvedValue(mockUser);
 
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       await act(async () => {
         await result.current.login();
@@ -63,12 +62,12 @@ describe('AuthStore', () => {
       const error = new Error('Login failed');
       (authService.login as jest.Mock).mockRejectedValue(error);
 
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       await act(async () => {
         try {
           await result.current.login();
-        } catch (e) {
+        } catch {
           // Expected error
         }
       });
@@ -102,7 +101,7 @@ describe('AuthStore', () => {
       (authService.login as jest.Mock).mockResolvedValue(mockTokens);
       (authService.getUserProfile as jest.Mock).mockResolvedValue(mockUser);
 
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       await act(async () => {
         await result.current.login();
@@ -131,9 +130,11 @@ describe('AuthStore', () => {
         token_type: 'Bearer' as const,
       };
 
-      (authService.refreshAccessToken as jest.Mock).mockResolvedValue(mockTokens);
+      (authService.refreshAccessToken as jest.Mock).mockResolvedValue(
+        mockTokens,
+      );
 
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       await act(async () => {
         await result.current.refreshToken();
@@ -164,7 +165,7 @@ describe('AuthStore', () => {
       (authService.getStoredTokens as jest.Mock).mockResolvedValue(mockTokens);
       (authService.getUserProfile as jest.Mock).mockResolvedValue(mockUser);
 
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       await act(async () => {
         await result.current.checkAuth();
@@ -178,7 +179,7 @@ describe('AuthStore', () => {
     it('should clear session if no tokens found', async () => {
       (authService.getStoredTokens as jest.Mock).mockResolvedValue(null);
 
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       await act(async () => {
         await result.current.checkAuth();
@@ -192,7 +193,7 @@ describe('AuthStore', () => {
 
   describe('setters', () => {
     it('should set user correctly', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       const mockUser = {
         id: '123e4567-e89b-12d3-a456-426614174000',
@@ -211,7 +212,7 @@ describe('AuthStore', () => {
     });
 
     it('should set loading state correctly', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       act(() => {
         result.current.setLoading(true);
@@ -227,7 +228,7 @@ describe('AuthStore', () => {
     });
 
     it('should set error state correctly', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const {result} = renderHook(() => useAuthStore());
 
       act(() => {
         result.current.setError('Test error');

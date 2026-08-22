@@ -178,7 +178,7 @@ class SurveillanceObservation(Base):
     __tablename__ = 'surveillance_observations'
 
     region_id = Column(String(50), primary_key=True)          # FIPS or 'US'
-    week_end = Column(DateTime(timezone=True), primary_key=True)
+    week_end = Column(DateTime(timezone=True), primary_key=True, index=True)
     admissions = Column(Float)                                 # weekly incident influenza admissions
     ili_fraction = Column(Float)                               # fraction of ED visits with influenza
     source = Column(String(40), nullable=False)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -9,27 +9,28 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { RiskGauge } from '@/components/RiskGauge';
-import { AlertBanner } from '@/components/AlertBanner';
-import { SymptomForm } from '@/components/SymptomForm';
-import { useRiskScore } from '@/hooks/useRiskScore';
-import { useAuthStore } from '@/store/authStore';
-import { useRiskStore } from '@/store/riskStore';
-import { useSymptomSubmit } from '@/hooks/useSymptomSubmit';
-import { useNetworkSync } from '@/hooks/useRiskScore';
+import {Ionicons} from '@expo/vector-icons';
+import {router} from 'expo-router';
+import {RiskGauge} from '@/components/RiskGauge';
+import {AlertBanner} from '@/components/AlertBanner';
+import {SymptomForm} from '@/components/SymptomForm';
+import {useRiskScore} from '@/hooks/useRiskScore';
+import {useAuthStore} from '@/store/authStore';
+import {useRiskStore} from '@/store/riskStore';
+import {useSymptomSubmit} from '@/hooks/useSymptomSubmit';
+import {useNetworkSync} from '@/hooks/useRiskScore';
 import NetInfo from '@react-native-community/netinfo';
 
 export default function HomeScreen() {
   const [showSymptomForm, setShowSymptomForm] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  
-  const { user } = useAuthStore();
-  const { riskScore, riskTier, lastUpdated, refreshRiskScore, getTimeSinceLastUpdate } = useRiskScore();
-  const { insufficientDataMessage } = useRiskStore();
-  const { submitReport, isSubmitting } = useSymptomSubmit();
-  
+
+  const {user} = useAuthStore();
+  const {riskScore, riskTier, refreshRiskScore, getTimeSinceLastUpdate} =
+    useRiskScore();
+  const {insufficientDataMessage} = useRiskStore();
+  const {isSubmitting} = useSymptomSubmit();
+
   // Network sync
   useNetworkSync();
 
@@ -65,13 +66,14 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={false} onRefresh={handleRefresh} />
-      }
-    >
+      }>
       {/* Offline Badge */}
       {!isOnline && (
         <View style={styles.offlineBanner}>
           <Ionicons name="wifi-outline" size={16} color="#ffffff" />
-          <Text style={styles.offlineText}>Offline - Data will sync when connected</Text>
+          <Text style={styles.offlineText}>
+            Offline - Data will sync when connected
+          </Text>
         </View>
       )}
 
@@ -116,10 +118,12 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionsGrid}>
           <TouchableOpacity
-            style={[styles.actionCard, showSymptomForm && styles.actionCardActive]}
+            style={[
+              styles.actionCard,
+              showSymptomForm && styles.actionCardActive,
+            ]}
             onPress={() => setShowSymptomForm(!showSymptomForm)}
-            disabled={isSubmitting}
-          >
+            disabled={isSubmitting}>
             <Ionicons name="medical-outline" size={24} color="#3b82f6" />
             <Text style={styles.actionTitle}>Report Symptoms</Text>
             <Text style={styles.actionDescription}>
@@ -129,8 +133,7 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/medications')}
-          >
+            onPress={() => router.push('/(tabs)/medications')}>
             <Ionicons name="medkit-outline" size={24} color="#3b82f6" />
             <Text style={styles.actionTitle}>Medications</Text>
             <Text style={styles.actionDescription}>
@@ -140,8 +143,7 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/history')}
-          >
+            onPress={() => router.push('/(tabs)/history')}>
             <Ionicons name="time-outline" size={24} color="#3b82f6" />
             <Text style={styles.actionTitle}>History</Text>
             <Text style={styles.actionDescription}>
@@ -155,15 +157,12 @@ export default function HomeScreen() {
               Alert.alert(
                 'Emergency Contacts',
                 'Crisis Hotline: 988\n\nPoison Control: 1-800-222-1222\n\nYour Physician: [Contact Info]',
-                [{ text: 'OK' }]
+                [{text: 'OK'}],
               );
-            }}
-          >
+            }}>
             <Ionicons name="call-outline" size={24} color="#ef4444" />
             <Text style={styles.actionTitle}>Emergency</Text>
-            <Text style={styles.actionDescription}>
-              Get help now
-            </Text>
+            <Text style={styles.actionDescription}>Get help now</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -268,7 +267,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     width: '48%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,

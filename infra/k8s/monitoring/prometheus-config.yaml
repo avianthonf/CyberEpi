@@ -37,6 +37,14 @@ data:
         static_configs:
           - targets: ["notification-service:8004"]
         metrics_path: /metrics
+      - job_name: epi-engine
+        static_configs:
+          - targets: ["epi-engine:8005"]
+        metrics_path: /metrics
+      - job_name: privacy-service
+        static_configs:
+          - targets: ["privacy-service:8006"]
+        metrics_path: /metrics
   alert-rules.yml: |
     groups:
       - name: service_health

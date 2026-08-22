@@ -10,8 +10,7 @@ import string
 import sys
 
 import requests
-
-from verify_all import SERVICES, get_user_token, reg_user, step
+from verify_all import SERVICES, get_user_token, reg_user
 
 EPI = SERVICES["epi"]
 PRI = SERVICES["privacy"]
@@ -31,6 +30,7 @@ def expect(name: str, r: requests.Response, codes: tuple[int, ...], note: str = 
 
 
 def main() -> int:
+    global failures
     suffix = "".join(random.choices(string.ascii_lowercase, k=8))
     uname, pwd, patient_id, _ = reg_user(suffix)  # patient role only, NO physician
     ptok = get_user_token(uname, pwd)
@@ -60,6 +60,25 @@ def main() -> int:
     expect("GET risk score of other patient", requests.get(f"{SYM}/v1/risk/score/{other_pid}", headers=pat, timeout=5), (403,))
     expect("POST mobility/upload as patient", requests.post(f"{EPI}/api/v1/mobility/upload", params={"region_id": region}, headers=pat, files={"file": ("m.csv", b"from_patch_id,to_patch_id,fraction\nA,B,0.5\n", "text/csv")}, timeout=10), (403,))
 
+    print("\n== Cross-patient IDOR (patient token vs second registered patient): expect 403/scoped ==")
+    usr_svc = SERVICES["user"]
+    notif_svc = SERVICES["notification"]
+    _, _, victim_pid, _ = reg_user(suffix + "-victim")
+    r = requests.get(f"{usr_svc}/api/v1/patients/{victim_pid}/risk", headers=pat, timeout=5)
+    expect("GET user-svc risk of other patient", r, (403,))
+    r = requests.post(f"{usr_svc}/api/v1/patients/{victim_pid}/push_token", headers=pat,
+                      json={"token": "attacker-device-token", "platform": "android"}, timeout=5)
+    expect("POST push_token for other patient", r, (403,))
+    r = requests.get(f"{notif_svc}/api/v1/notifications", headers=pat, params={"patient_id": victim_pid}, timeout=5)
+    expect("GET notifications filtered by other patient", r, (403,))
+    r = requests.get(f"{notif_svc}/api/v1/notifications", headers=pat, timeout=5)
+    rows = r.json() if r.status_code == 200 else None
+    scoped_ok = r.status_code == 200 and isinstance(rows, list) and all(x.get("patient_id") == patient_id for x in rows)
+    marker = "PASS" if scoped_ok else "FAIL"
+    print(f"  [{marker}] GET notifications unfiltered is auto-scoped to caller: HTTP {r.status_code} rows={len(rows) if rows is not None else '-'}")
+    if not scoped_ok:
+        failures += 1
+
     print("\n== Staff (physician) allowed ==")
     from verify_all import get_admin_token, grant_physician_role
 
@@ -72,10 +91,10 @@ def main() -> int:
     print("\n== Input validation: expect 400/422 ==")
     expect("dp/gaussian negative epsilon", requests.post(f"{PRI}/internal/dp/gaussian", headers=pat, json={"value": 1.0, "epsilon": -1.0, "delta": 1e-5, "sensitivity": 1.0}, timeout=5), (400, 422))
     expect("dp/publish negative epsilon", requests.post(f"{PRI}/internal/dp/publish", headers=pat, json={"region_id": region, "stat_type": "count", "value": 1, "epsilon": -1.0}, timeout=5), (400, 422))
-    # NaN payloads – json.dumps emits NaN literal; FastAPI/pydantic must reject
+    # NaN payloads - json.dumps emits NaN literal; FastAPI/pydantic must reject
     nan_body = b'{"value": 1.0, "epsilon": NaN, "delta": 1e-5, "sensitivity": 1.0}'
     expect("dp/gaussian NaN epsilon", requests.post(f"{PRI}/internal/dp/gaussian", headers={**pat, "Content-Type": "application/json"}, data=nan_body, timeout=5), (400, 422))
-    grad_nan = ('{"user_id": "%s", "round_id": 1, "gradient": [0.1, NaN, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1], "n_samples": 10}' % patient_id).encode()
+    grad_nan = (f'{{"user_id": "{patient_id}", "round_id": 1, "gradient": [0.1, NaN, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1], "n_samples": 10}}').encode()
     expect("fl/upload_gradient NaN element", requests.post(f"{PRI}/api/v1/fl/upload_gradient", headers={**pat, "Content-Type": "application/json"}, data=grad_nan, timeout=5), (400, 422))
     expect("prescription oversize drug_name", requests.post(f"{RX}/api/v1/prescriptions", headers=pat, json={"patient_id": patient_id, "drug_name": "X" * 300, "dosage": "1 mg", "frequency": "daily", "start_date": "2026-08-22"}, timeout=5), (400, 422))
 

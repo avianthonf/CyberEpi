@@ -198,17 +198,14 @@ async def update_prescription_status(
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
 
-    # Authorization
+    # Authorization: only physicians/admins may transition prescription status.
+    # A patient must not be able to e.g. re-activate a prescription a physician cancelled.
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        from src.auth import patient_id_from_jwt
-
-        own_patient_id = await patient_id_from_jwt(db, user)
-        if own_patient_id is None or rx.patient_id != own_patient_id:
-            raise HTTPException(
-                status_code=403,
-                detail="Access denied: Patients can only update their own prescriptions.",
-            )
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: Only physicians or admins can update prescription status.",
+        )
     rx.status = body.status
     await db.flush()
     await db.commit()

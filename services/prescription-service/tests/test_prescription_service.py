@@ -29,8 +29,20 @@ def client(mock_db, mock_redis):
 
 class TestHealthEndpoint:
     def test_health_reports_unavailable_without_infra(self, client):
-        """Without live DB/Redis, /health must return 503 with per-component detail."""
-        resp = client.get("/health")
+        """/health must return 503 with per-component detail when checks fail.
+
+        Patch the shared health probes to simulate an outage; previously this
+        test depended on ambient infra being down, so it failed on any
+        machine with a live database.
+        """
+        with patch(
+            "shared.health._redis_healthy",
+            new=AsyncMock(return_value=(False, "unhealthy: simulated outage")),
+        ), patch(
+            "shared.health._db_healthy",
+            new=AsyncMock(return_value=(False, "unhealthy: simulated outage")),
+        ):
+            resp = client.get("/health")
         assert resp.status_code == 503
         detail = resp.json()["detail"]
         assert detail["status"] == "unhealthy"

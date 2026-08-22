@@ -1,16 +1,9 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
+import {View, Text, StyleSheet, TouchableOpacity, Alert} from 'react-native';
+import {Ionicons} from '@expo/vector-icons';
+import {Medication, MedicationSchedule} from '@/types';
+import {useMedicationStore} from '@/store/medicationStore';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Medication } from '@/types';
-import { useMedicationStore } from '@/store/medicationStore';
-import {
-  calculateOverallAdherence,
   getNextDoseTime,
   isDoseDueSoon,
   isDoseOverdue,
@@ -22,8 +15,8 @@ interface MedCardProps {
   onTaken?: (medication: Medication) => void;
 }
 
-export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
-  const { updateMedication } = useMedicationStore();
+export function MedCard({medication, onPress, onTaken}: MedCardProps) {
+  const {updateMedication} = useMedicationStore();
   const [isTaking, setIsTaking] = useState(false);
 
   const nextDoseTime = getNextDoseTime(medication);
@@ -32,7 +25,7 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
 
   const handleMarkAsTaken = async () => {
     setIsTaking(true);
-    
+
     try {
       // Update medication
       const now = new Date().toISOString();
@@ -52,9 +45,12 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
     }
   };
 
-  const calculateNextDose = (schedule: any, lastTaken: string): string => {
+  const calculateNextDose = (
+    schedule: MedicationSchedule | undefined,
+    lastTaken: string,
+  ): string => {
     // Simple calculation - in a real app, this would be more sophisticated
-    const hours = schedule.frequency.includes('twice') ? 12 : 24;
+    const hours = schedule?.frequency.includes('twice') === true ? 12 : 24;
     const nextDose = new Date(lastTaken);
     nextDose.setHours(nextDose.getHours() + hours);
     return nextDose.toISOString();
@@ -86,17 +82,18 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
         isOverdue && styles.overdueContainer,
       ]}
       onPress={onPress}
-      activeOpacity={0.8}
-    >
+      activeOpacity={0.8}>
       <View style={styles.header}>
         <View style={styles.medicationInfo}>
           <Text style={styles.drugName}>{medication.drug_name}</Text>
-          <Text style={styles.strength}>{medication.strength} • {medication.dosage_form}</Text>
+          <Text style={styles.strength}>
+            {medication.strength} • {medication.dosage_form}
+          </Text>
         </View>
-        
+
         <View style={styles.statusContainer}>
           <Ionicons name={getStatusIcon()} size={20} color={getStatusColor()} />
-          <Text style={[styles.statusText, { color: getStatusColor() }]}>
+          <Text style={[styles.statusText, {color: getStatusColor()}]}>
             {isOverdue ? 'Overdue' : isDueSoon ? 'Due Soon' : 'On Schedule'}
           </Text>
         </View>
@@ -109,13 +106,11 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
             {medication.schedule?.frequency ?? 'As directed'}
           </Text>
         </View>
-        
+
         {nextDoseTime && (
           <View style={styles.scheduleItem}>
             <Ionicons name="alarm-outline" size={16} color="#6b7280" />
-            <Text style={styles.scheduleText}>
-              Next: {nextDoseTime}
-            </Text>
+            <Text style={styles.scheduleText}>Next: {nextDoseTime}</Text>
           </View>
         )}
       </View>
@@ -137,22 +132,17 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
           <Text
             style={[
               styles.adherenceValue,
-              { color: getAdherenceColor(medication.adherence_rate) },
-            ]}
-          >
+              {color: getAdherenceColor(medication.adherence_rate)},
+            ]}>
             {medication.adherence_rate}%
           </Text>
         </View>
 
         {(isDueSoon || isOverdue) && (
           <TouchableOpacity
-            style={[
-              styles.takeButton,
-              isTaking && styles.takeButtonDisabled,
-            ]}
+            style={[styles.takeButton, isTaking && styles.takeButtonDisabled]}
             onPress={handleMarkAsTaken}
-            disabled={isTaking}
-          >
+            disabled={isTaking}>
             {isTaking ? (
               <Text style={styles.takeButtonText}>Marking...</Text>
             ) : (
@@ -170,7 +160,8 @@ export function MedCard({ medication, onPress, onTaken }: MedCardProps) {
         <View style={styles.reminderBadge}>
           <Ionicons name="notifications-outline" size={12} color="#3b82f6" />
           <Text style={styles.reminderText}>
-            {medication.schedule.reminders.times.length} reminder{medication.schedule.reminders.times.length > 1 ? 's' : ''}
+            {medication.schedule.reminders.times.length} reminder
+            {medication.schedule.reminders.times.length > 1 ? 's' : ''}
           </Text>
         </View>
       )}
@@ -187,7 +178,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,

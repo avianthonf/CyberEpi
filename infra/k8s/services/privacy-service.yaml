@@ -19,12 +19,19 @@ spec:
         - name: privacy-service
           image: cyberepi/privacy-service:latest
           ports:
-            - containerPort: 8003
+            - containerPort: 8006
           env:
+            - name: DATABASE_URL
+              value: postgresql+asyncpg://cyberepi:$(DB_PASSWORD)@postgres:5432/cyberepi
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
             - name: REDIS_URL
               value: redis://redis:6379/0
             - name: SERVICE_PORT
-              value: "8003"
+              value: "8006"
           resources:
             requests:
               memory: "256Mi"
@@ -35,12 +42,12 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 8003
+              port: 8006
             initialDelaySeconds: 15
           readinessProbe:
             httpGet:
               path: /health
-              port: 8003
+              port: 8006
             initialDelaySeconds: 10
 ---
 apiVersion: v1
@@ -52,5 +59,5 @@ spec:
   selector:
     app: privacy-service
   ports:
-    - port: 8003
-      targetPort: 8003
+    - port: 8006
+      targetPort: 8006

@@ -1,9 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
-import { apiClient } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
-import { NotificationType } from '@/types';
+import {Platform} from 'react-native';
+import {apiClient} from '@/services/api';
+import {NotificationType} from '@/types';
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -15,10 +14,10 @@ Notifications.setNotificationHandler({
 });
 
 export type NotificationRoute =
-  | { screen: 'Home' }
-  | { screen: 'Medications' }
-  | { screen: 'RiskDetail'; patientId: string }
-  | { screen: 'Alerts' };
+  | {screen: 'Home'}
+  | {screen: 'Medications'}
+  | {screen: 'RiskDetail'; patientId: string}
+  | {screen: 'Alerts'};
 
 export class NotificationService {
   private static instance: NotificationService;
@@ -44,11 +43,12 @@ export class NotificationService {
   // Request permissions
   async requestPermissions(): Promise<boolean> {
     if (Device.isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const {status: existingStatus} =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const {status} = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
 
@@ -84,9 +84,11 @@ export class NotificationService {
         throw new Error('EXPO_PUBLIC_PROJECT_ID is not configured');
       }
 
-      const token = (await Notifications.getExpoPushTokenAsync({
-        projectId,
-      })).data;
+      const token = (
+        await Notifications.getExpoPushTokenAsync({
+          projectId,
+        })
+      ).data;
 
       this.pushToken = token;
       return token;
@@ -119,7 +121,7 @@ export class NotificationService {
     title: string,
     body: string,
     data?: Record<string, unknown>,
-    trigger?: Notifications.NotificationTriggerInput
+    trigger?: Notifications.NotificationTriggerInput,
   ): Promise<string> {
     try {
       return await Notifications.scheduleNotificationAsync({
@@ -142,7 +144,7 @@ export class NotificationService {
     medicationId: string,
     medicationName: string,
     time: string,
-    repeat: boolean = true
+    repeat: boolean = true,
   ): Promise<string> {
     const parts = time.split(':');
     const hours = Number(parts[0]);
@@ -160,8 +162,8 @@ export class NotificationService {
     return this.scheduleLocalNotification(
       'Medication Reminder',
       `Time to take ${medicationName}`,
-      { type: 'MEDICATION_REMINDER', medicationId },
-      trigger
+      {type: 'MEDICATION_REMINDER', medicationId},
+      trigger,
     );
   }
 
@@ -184,7 +186,9 @@ export class NotificationService {
   }
 
   // Get scheduled notifications
-  async getScheduledNotifications(): Promise<Notifications.NotificationRequest[]> {
+  async getScheduledNotifications(): Promise<
+    Notifications.NotificationRequest[]
+  > {
     try {
       return await Notifications.getAllScheduledNotificationsAsync();
     } catch (error) {
@@ -195,26 +199,31 @@ export class NotificationService {
 
   // Handle notification response — routes to the registered screen via the
   // navigator callback set by App.tsx. Without a navigator this is a no-op.
-  handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+  handleNotificationResponse = (
+    response: Notifications.NotificationResponse,
+  ) => {
     const nav = this.navigator;
     if (!nav) {
       return;
     }
-    const { notification } = response;
-    const data = (notification.request.content.data || {}) as Record<string, unknown>;
+    const {notification} = response;
+    const data = (notification.request.content.data || {}) as Record<
+      string,
+      unknown
+    >;
     const type = data.type as NotificationType | undefined;
     switch (type) {
       case 'RISK_CHANGE':
-        nav({ screen: 'RiskDetail', patientId: String(data.patient_id ?? '') });
+        nav({screen: 'RiskDetail', patientId: String(data.patient_id ?? '')});
         return;
       case 'MEDICATION_REMINDER':
-        nav({ screen: 'Medications' });
+        nav({screen: 'Medications'});
         return;
       case 'EXPOSURE_ALERT':
-        nav({ screen: 'Alerts' });
+        nav({screen: 'Alerts'});
         return;
       default:
-        nav({ screen: 'Home' });
+        nav({screen: 'Home'});
         return;
     }
   };
@@ -222,12 +231,14 @@ export class NotificationService {
   // Initialize notification listeners
   initializeListeners(): void {
     // Handle notification when app is in foreground
-    Notifications.addNotificationReceivedListener((notification) => {
+    Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received in foreground:', notification);
     });
 
     // Handle notification response (user taps notification)
-    Notifications.addNotificationResponseReceivedListener(this.handleNotificationResponse);
+    Notifications.addNotificationResponseReceivedListener(
+      this.handleNotificationResponse,
+    );
   }
 
   // Send test notification (for development)
@@ -236,7 +247,7 @@ export class NotificationService {
       await this.scheduleLocalNotification(
         'Test Notification',
         'This is a test notification from CyberEpi',
-        { type: 'TEST' }
+        {type: 'TEST'},
       );
     } catch (error) {
       console.error('Failed to send test notification:', error);

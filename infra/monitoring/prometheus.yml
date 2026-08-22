@@ -45,6 +45,18 @@ scrape_configs:
       - targets: ["notification-service:8004"]
     metrics_path: /metrics
 
+  - job_name: "epi-engine"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["epi-engine:8005"]
+    metrics_path: /metrics
+
+  - job_name: "privacy-service"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["privacy-service:8006"]
+    metrics_path: /metrics
+
   - job_name: "postgres"
     scrape_interval: 30s
     static_configs:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   TextInput,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { SymptomReport } from '@/types';
-import { useWearable } from '@/hooks/useWearable';
-import { useSymptomSubmit } from '@/hooks/useSymptomSubmit';
-import { useAuthStore } from '@/store/authStore';
+import {SymptomReport, WearableData} from '@/types';
+import {useWearable} from '@/hooks/useWearable';
+import {useSymptomSubmit} from '@/hooks/useSymptomSubmit';
+import {useAuthStore} from '@/store/authStore';
 
 interface SymptomFormProps {
   onSubmit?: (report: SymptomReport) => void;
@@ -30,21 +30,26 @@ interface SegmentSelectorProps {
 
 // Simple segmented selector — replaces @react-native-community/segmented-control
 // (whose packaged types are incompatible with strict TS).
-function SegmentSelector({ values, selectedIndex, onSelect }: SegmentSelectorProps) {
+function SegmentSelector({
+  values,
+  selectedIndex,
+  onSelect,
+}: SegmentSelectorProps) {
   return (
     <View style={styles.segmentRow}>
       {values.map((value, index) => (
         <TouchableOpacity
           key={value}
-          style={[styles.segmentOption, index === selectedIndex && styles.segmentOptionActive]}
-          onPress={() => onSelect(index)}
-        >
+          style={[
+            styles.segmentOption,
+            index === selectedIndex && styles.segmentOptionActive,
+          ]}
+          onPress={() => onSelect(index)}>
           <Text
             style={[
               styles.segmentText,
               index === selectedIndex && styles.segmentTextActive,
-            ]}
-          >
+            ]}>
             {value}
           </Text>
         </TouchableOpacity>
@@ -68,7 +73,7 @@ interface FormData {
   anosmia: boolean;
 }
 
-export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
+export function SymptomForm({onSubmit, onCancel}: SymptomFormProps) {
   const [currentStep, setCurrentStep] = useState<FormStep>(1);
   const [formData, setFormData] = useState<FormData>({
     fever_celsius: null,
@@ -85,9 +90,9 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
     anosmia: false,
   });
 
-  const { wearableData } = useWearable();
-  const { submitReport, isSubmitting } = useSymptomSubmit();
-  const { user } = useAuthStore();
+  const {wearableData} = useWearable();
+  const {submitReport, isSubmitting} = useSymptomSubmit();
+  const {user} = useAuthStore();
 
   // Auto-populate wearable data when available
   useEffect(() => {
@@ -108,7 +113,10 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
         // Temperature and SpO2 validation
         if (formData.fever_measured && formData.fever_celsius) {
           if (formData.fever_celsius < 35.0 || formData.fever_celsius > 42.0) {
-            Alert.alert('Invalid Temperature', 'Temperature must be between 35.0°C and 42.0°C');
+            Alert.alert(
+              'Invalid Temperature',
+              'Temperature must be between 35.0°C and 42.0°C',
+            );
             return false;
           }
         }
@@ -177,7 +185,7 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
     };
 
     try {
-      await submitReport({ report });
+      await submitReport({report});
       onSubmit?.(report);
     } catch (error) {
       console.error('Submit error:', error);
@@ -203,20 +211,18 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
     <View style={styles.container}>
       {/* Progress Indicator */}
       <View style={styles.progressContainer}>
-        {[1, 2, 3, 4].map((step) => (
+        {[1, 2, 3, 4].map(step => (
           <View key={step} style={styles.progressStep}>
             <View
               style={[
                 styles.progressDot,
                 step <= currentStep && styles.progressDotActive,
-              ]}
-            >
+              ]}>
               <Text
                 style={[
                   styles.progressDotText,
                   step <= currentStep && styles.progressDotTextActive,
-                ]}
-              >
+                ]}>
                 {step}
               </Text>
             </View>
@@ -244,8 +250,7 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
             <TouchableOpacity
               style={[styles.button, styles.buttonSecondary]}
               onPress={handlePrevious}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               <Text style={styles.buttonSecondaryText}>Previous</Text>
             </TouchableOpacity>
           )}
@@ -256,8 +261,7 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
             <TouchableOpacity
               style={[styles.button, styles.buttonCancel]}
               onPress={onCancel}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               <Text style={styles.buttonCancelText}>Cancel</Text>
             </TouchableOpacity>
           )}
@@ -266,16 +270,18 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
             <TouchableOpacity
               style={[styles.button, styles.buttonPrimary]}
               onPress={handleNext}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               <Text style={styles.buttonPrimaryText}>Next</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary, isSubmitting && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                styles.buttonPrimary,
+                isSubmitting && styles.buttonDisabled,
+              ]}
               onPress={handleSubmit}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               {isSubmitting ? (
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
@@ -290,11 +296,19 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
 }
 
 // Step 1: Temperature and SpO2
-function Step1({ formData, setFormData }: { formData: FormData; setFormData: (data: FormData) => void }) {
+function Step1({
+  formData,
+  setFormData,
+}: {
+  formData: FormData;
+  setFormData: (data: FormData) => void;
+}) {
   return (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Vital Signs</Text>
-      <Text style={styles.stepDescription}>Enter your temperature and oxygen saturation if available.</Text>
+      <Text style={styles.stepDescription}>
+        Enter your temperature and oxygen saturation if available.
+      </Text>
 
       {/* Temperature */}
       <View style={styles.fieldContainer}>
@@ -302,8 +316,12 @@ function Step1({ formData, setFormData }: { formData: FormData; setFormData: (da
           <Text style={styles.fieldLabel}>Temperature</Text>
           <TouchableOpacity
             style={styles.toggleButton}
-            onPress={() => setFormData({ ...formData, fever_measured: !formData.fever_measured })}
-          >
+            onPress={() =>
+              setFormData({
+                ...formData,
+                fever_measured: !formData.fever_measured,
+              })
+            }>
             <Text style={styles.toggleText}>
               {formData.fever_measured ? 'Measured' : 'Not Measured'}
             </Text>
@@ -317,11 +335,15 @@ function Step1({ formData, setFormData }: { formData: FormData; setFormData: (da
               maximumValue={42.0}
               step={0.1}
               value={formData.fever_celsius || 37.0}
-              onValueChange={(value) => setFormData({ ...formData, fever_celsius: value })}
+              onValueChange={value =>
+                setFormData({...formData, fever_celsius: value})
+              }
               minimumTrackTintColor="#ef4444"
               maximumTrackTintColor="#e5e7eb"
             />
-            <Text style={styles.sliderValue}>{formData.fever_celsius?.toFixed(1)}°C</Text>
+            <Text style={styles.sliderValue}>
+              {formData.fever_celsius?.toFixed(1)}°C
+            </Text>
           </>
         )}
       </View>
@@ -332,8 +354,9 @@ function Step1({ formData, setFormData }: { formData: FormData; setFormData: (da
           <Text style={styles.fieldLabel}>Blood Oxygen (SpO2)</Text>
           <TouchableOpacity
             style={styles.toggleButton}
-            onPress={() => setFormData({ ...formData, spo2_measured: !formData.spo2_measured })}
-          >
+            onPress={() =>
+              setFormData({...formData, spo2_measured: !formData.spo2_measured})
+            }>
             <Text style={styles.toggleText}>
               {formData.spo2_measured ? 'Measured' : 'Not Measured'}
             </Text>
@@ -344,10 +367,10 @@ function Step1({ formData, setFormData }: { formData: FormData; setFormData: (da
             <TextInput
               style={styles.numericInput}
               value={formData.spo2_pct?.toString() || ''}
-              onChangeText={(text) => {
+              onChangeText={text => {
                 const value = parseInt(text) || null;
                 if (value === null || (value >= 85 && value <= 100)) {
-                  setFormData({ ...formData, spo2_pct: value });
+                  setFormData({...formData, spo2_pct: value});
                 }
               }}
               keyboardType="numeric"
@@ -363,11 +386,19 @@ function Step1({ formData, setFormData }: { formData: FormData; setFormData: (da
 }
 
 // Step 2: Respiratory Symptoms
-function Step2({ formData, setFormData }: { formData: FormData; setFormData: (data: FormData) => void }) {
+function Step2({
+  formData,
+  setFormData,
+}: {
+  formData: FormData;
+  setFormData: (data: FormData) => void;
+}) {
   return (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Respiratory Symptoms</Text>
-      <Text style={styles.stepDescription}>Tell us about your respiratory symptoms.</Text>
+      <Text style={styles.stepDescription}>
+        Tell us about your respiratory symptoms.
+      </Text>
 
       {/* Cough Severity */}
       <View style={styles.fieldContainer}>
@@ -375,8 +406,8 @@ function Step2({ formData, setFormData }: { formData: FormData; setFormData: (da
         <SegmentSelector
           values={['None', 'Mild', 'Moderate', 'Severe']}
           selectedIndex={formData.cough_severity}
-          onSelect={(index) =>
-            setFormData({ ...formData, cough_severity: index as 0 | 1 | 2 | 3 })
+          onSelect={index =>
+            setFormData({...formData, cough_severity: index as 0 | 1 | 2 | 3})
           }
         />
       </View>
@@ -386,18 +417,30 @@ function Step2({ formData, setFormData }: { formData: FormData; setFormData: (da
         <Text style={styles.fieldLabel}>Shortness of Breath</Text>
         <View style={styles.switchContainer}>
           <TouchableOpacity
-            style={[styles.switchOption, !formData.dyspnoea && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, dyspnoea: false })}
-          >
-            <Text style={[styles.switchOptionText, !formData.dyspnoea && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              !formData.dyspnoea && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, dyspnoea: false})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                !formData.dyspnoea && styles.switchOptionTextActive,
+              ]}>
               No
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.switchOption, formData.dyspnoea && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, dyspnoea: true })}
-          >
-            <Text style={[styles.switchOptionText, formData.dyspnoea && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              formData.dyspnoea && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, dyspnoea: true})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                formData.dyspnoea && styles.switchOptionTextActive,
+              ]}>
               Yes
             </Text>
           </TouchableOpacity>
@@ -410,8 +453,8 @@ function Step2({ formData, setFormData }: { formData: FormData; setFormData: (da
         <SegmentSelector
           values={['None', 'Mild', 'Moderate', 'Severe']}
           selectedIndex={formData.fatigue_severity}
-          onSelect={(index) =>
-            setFormData({ ...formData, fatigue_severity: index as 0 | 1 | 2 | 3 })
+          onSelect={index =>
+            setFormData({...formData, fatigue_severity: index as 0 | 1 | 2 | 3})
           }
         />
       </View>
@@ -420,11 +463,19 @@ function Step2({ formData, setFormData }: { formData: FormData; setFormData: (da
 }
 
 // Step 3: Other Symptoms
-function Step3({ formData, setFormData }: { formData: FormData; setFormData: (data: FormData) => void }) {
+function Step3({
+  formData,
+  setFormData,
+}: {
+  formData: FormData;
+  setFormData: (data: FormData) => void;
+}) {
   return (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Other Symptoms</Text>
-      <Text style={styles.stepDescription}>Let us know about any other symptoms you're experiencing.</Text>
+      <Text style={styles.stepDescription}>
+        Let us know about any other symptoms you're experiencing.
+      </Text>
 
       {/* Heart Rate */}
       <View style={styles.fieldContainer}>
@@ -432,8 +483,12 @@ function Step3({ formData, setFormData }: { formData: FormData; setFormData: (da
           <Text style={styles.fieldLabel}>Heart Rate</Text>
           <TouchableOpacity
             style={styles.toggleButton}
-            onPress={() => setFormData({ ...formData, heart_rate_measured: !formData.heart_rate_measured })}
-          >
+            onPress={() =>
+              setFormData({
+                ...formData,
+                heart_rate_measured: !formData.heart_rate_measured,
+              })
+            }>
             <Text style={styles.toggleText}>
               {formData.heart_rate_measured ? 'Measured' : 'Not Measured'}
             </Text>
@@ -444,10 +499,10 @@ function Step3({ formData, setFormData }: { formData: FormData; setFormData: (da
             <TextInput
               style={styles.numericInput}
               value={formData.heart_rate_bpm?.toString() || ''}
-              onChangeText={(text) => {
+              onChangeText={text => {
                 const value = parseInt(text) || null;
                 if (value === null || (value >= 40 && value <= 200)) {
-                  setFormData({ ...formData, heart_rate_bpm: value });
+                  setFormData({...formData, heart_rate_bpm: value});
                 }
               }}
               keyboardType="numeric"
@@ -464,18 +519,30 @@ function Step3({ formData, setFormData }: { formData: FormData; setFormData: (da
         <Text style={styles.fieldLabel}>Sore Throat</Text>
         <View style={styles.switchContainer}>
           <TouchableOpacity
-            style={[styles.switchOption, !formData.sore_throat && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, sore_throat: false })}
-          >
-            <Text style={[styles.switchOptionText, !formData.sore_throat && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              !formData.sore_throat && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, sore_throat: false})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                !formData.sore_throat && styles.switchOptionTextActive,
+              ]}>
               No
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.switchOption, formData.sore_throat && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, sore_throat: true })}
-          >
-            <Text style={[styles.switchOptionText, formData.sore_throat && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              formData.sore_throat && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, sore_throat: true})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                formData.sore_throat && styles.switchOptionTextActive,
+              ]}>
               Yes
             </Text>
           </TouchableOpacity>
@@ -487,18 +554,30 @@ function Step3({ formData, setFormData }: { formData: FormData; setFormData: (da
         <Text style={styles.fieldLabel}>Diarrhea</Text>
         <View style={styles.switchContainer}>
           <TouchableOpacity
-            style={[styles.switchOption, !formData.diarrhoea && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, diarrhoea: false })}
-          >
-            <Text style={[styles.switchOptionText, !formData.diarrhoea && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              !formData.diarrhoea && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, diarrhoea: false})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                !formData.diarrhoea && styles.switchOptionTextActive,
+              ]}>
               No
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.switchOption, formData.diarrhoea && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, diarrhoea: true })}
-          >
-            <Text style={[styles.switchOptionText, formData.diarrhoea && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              formData.diarrhoea && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, diarrhoea: true})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                formData.diarrhoea && styles.switchOptionTextActive,
+              ]}>
               Yes
             </Text>
           </TouchableOpacity>
@@ -510,18 +589,30 @@ function Step3({ formData, setFormData }: { formData: FormData; setFormData: (da
         <Text style={styles.fieldLabel}>Loss of Smell (Anosmia)</Text>
         <View style={styles.switchContainer}>
           <TouchableOpacity
-            style={[styles.switchOption, !formData.anosmia && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, anosmia: false })}
-          >
-            <Text style={[styles.switchOptionText, !formData.anosmia && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              !formData.anosmia && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, anosmia: false})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                !formData.anosmia && styles.switchOptionTextActive,
+              ]}>
               No
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.switchOption, formData.anosmia && styles.switchOptionActive]}
-            onPress={() => setFormData({ ...formData, anosmia: true })}
-          >
-            <Text style={[styles.switchOptionText, formData.anosmia && styles.switchOptionTextActive]}>
+            style={[
+              styles.switchOption,
+              formData.anosmia && styles.switchOptionActive,
+            ]}
+            onPress={() => setFormData({...formData, anosmia: true})}>
+            <Text
+              style={[
+                styles.switchOptionText,
+                formData.anosmia && styles.switchOptionTextActive,
+              ]}>
               Yes
             </Text>
           </TouchableOpacity>
@@ -532,7 +623,13 @@ function Step3({ formData, setFormData }: { formData: FormData; setFormData: (da
 }
 
 // Step 4: Review
-function Step4({ formData, wearableData }: { formData: FormData; wearableData?: any }) {
+function Step4({
+  formData,
+  wearableData,
+}: {
+  formData: FormData;
+  wearableData?: WearableData | null;
+}) {
   const getSymptomText = (severity: number) => {
     const labels = ['None', 'Mild', 'Moderate', 'Severe'];
     return labels[severity];
@@ -541,37 +638,55 @@ function Step4({ formData, wearableData }: { formData: FormData; wearableData?: 
   return (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Review Your Symptoms</Text>
-      <Text style={styles.stepDescription}>Please review your symptom report before submitting.</Text>
+      <Text style={styles.stepDescription}>
+        Please review your symptom report before submitting.
+      </Text>
 
       <View style={styles.reviewContainer}>
         {/* Vital Signs */}
         <View style={styles.reviewSection}>
           <Text style={styles.reviewSectionTitle}>Vital Signs</Text>
           {formData.fever_measured && (
-            <Text style={styles.reviewItem}>Temperature: {formData.fever_celsius?.toFixed(1)}°C</Text>
+            <Text style={styles.reviewItem}>
+              Temperature: {formData.fever_celsius?.toFixed(1)}°C
+            </Text>
           )}
           {formData.spo2_measured && (
             <Text style={styles.reviewItem}>SpO2: {formData.spo2_pct}%</Text>
           )}
           {formData.heart_rate_measured && (
-            <Text style={styles.reviewItem}>Heart Rate: {formData.heart_rate_bpm} bpm</Text>
+            <Text style={styles.reviewItem}>
+              Heart Rate: {formData.heart_rate_bpm} bpm
+            </Text>
           )}
         </View>
 
         {/* Respiratory */}
         <View style={styles.reviewSection}>
           <Text style={styles.reviewSectionTitle}>Respiratory</Text>
-          <Text style={styles.reviewItem}>Cough: {getSymptomText(formData.cough_severity)}</Text>
-          <Text style={styles.reviewItem}>Shortness of Breath: {formData.dyspnoea ? 'Yes' : 'No'}</Text>
-          <Text style={styles.reviewItem}>Fatigue: {getSymptomText(formData.fatigue_severity)}</Text>
+          <Text style={styles.reviewItem}>
+            Cough: {getSymptomText(formData.cough_severity)}
+          </Text>
+          <Text style={styles.reviewItem}>
+            Shortness of Breath: {formData.dyspnoea ? 'Yes' : 'No'}
+          </Text>
+          <Text style={styles.reviewItem}>
+            Fatigue: {getSymptomText(formData.fatigue_severity)}
+          </Text>
         </View>
 
         {/* Other Symptoms */}
         <View style={styles.reviewSection}>
           <Text style={styles.reviewSectionTitle}>Other Symptoms</Text>
-          <Text style={styles.reviewItem}>Sore Throat: {formData.sore_throat ? 'Yes' : 'No'}</Text>
-          <Text style={styles.reviewItem}>Diarrhea: {formData.diarrhoea ? 'Yes' : 'No'}</Text>
-          <Text style={styles.reviewItem}>Loss of Smell: {formData.anosmia ? 'Yes' : 'No'}</Text>
+          <Text style={styles.reviewItem}>
+            Sore Throat: {formData.sore_throat ? 'Yes' : 'No'}
+          </Text>
+          <Text style={styles.reviewItem}>
+            Diarrhea: {formData.diarrhoea ? 'Yes' : 'No'}
+          </Text>
+          <Text style={styles.reviewItem}>
+            Loss of Smell: {formData.anosmia ? 'Yes' : 'No'}
+          </Text>
         </View>
 
         {/* Wearable Data */}
@@ -579,16 +694,24 @@ function Step4({ formData, wearableData }: { formData: FormData; wearableData?: 
           <View style={styles.reviewSection}>
             <Text style={styles.reviewSectionTitle}>Wearable Data</Text>
             {wearableData.hrv_rmssd_ms && (
-              <Text style={styles.reviewItem}>HRV: {wearableData.hrv_rmssd_ms} ms</Text>
+              <Text style={styles.reviewItem}>
+                HRV: {wearableData.hrv_rmssd_ms} ms
+              </Text>
             )}
             {wearableData.resting_hr_bpm && (
-              <Text style={styles.reviewItem}>Resting HR: {wearableData.resting_hr_bpm} bpm</Text>
+              <Text style={styles.reviewItem}>
+                Resting HR: {wearableData.resting_hr_bpm} bpm
+              </Text>
             )}
             {wearableData.sleep_hours && (
-              <Text style={styles.reviewItem}>Sleep: {wearableData.sleep_hours} hours</Text>
+              <Text style={styles.reviewItem}>
+                Sleep: {wearableData.sleep_hours} hours
+              </Text>
             )}
             {wearableData.step_count && (
-              <Text style={styles.reviewItem}>Steps: {wearableData.step_count.toLocaleString()}</Text>
+              <Text style={styles.reviewItem}>
+                Steps: {wearableData.step_count.toLocaleString()}
+              </Text>
             )}
           </View>
         )}
@@ -759,7 +882,7 @@ const styles = StyleSheet.create({
   switchOptionActive: {
     backgroundColor: '#ffffff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,

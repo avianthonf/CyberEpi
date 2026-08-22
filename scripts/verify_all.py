@@ -5,13 +5,10 @@ and live Kafka/Redis/Postgres backends. Exits 0 only when every step succeeds.
 """
 from __future__ import annotations
 
-import json
-import os
 import random
 import string
 import sys
 import time
-import uuid
 
 import requests
 

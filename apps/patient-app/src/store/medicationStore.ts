@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-import { Medication } from '@/types';
-import { mmkvStorage } from '@/lib/storage';
+import {create} from 'zustand';
+import {createJSONStorage, persist} from 'zustand/middleware';
+import {Medication} from '@/types';
+import {mmkvStorage} from '@/lib/storage';
 
 interface MedicationState {
   medications: Medication[];
@@ -27,7 +27,7 @@ export const useMedicationStore = create<MedicationState>()(
       error: null,
 
       // Actions
-      setMedications: (medications) => {
+      setMedications: medications => {
         const activeMeds = medications.filter(med => med.is_active);
         set({
           medications,
@@ -35,8 +35,8 @@ export const useMedicationStore = create<MedicationState>()(
         });
       },
 
-      addMedication: (medication) => {
-        const { medications } = get();
+      addMedication: medication => {
+        const {medications} = get();
         const updated = [...medications, medication];
         const activeMeds = updated.filter(med => med.is_active);
         set({
@@ -46,9 +46,9 @@ export const useMedicationStore = create<MedicationState>()(
       },
 
       updateMedication: (id, updates) => {
-        const { medications } = get();
-        const updated = medications.map(med => 
-          med.id === id ? { ...med, ...updates } : med
+        const {medications} = get();
+        const updated = medications.map(med =>
+          med.id === id ? {...med, ...updates} : med,
         );
         const activeMeds = updated.filter(med => med.is_active);
         set({
@@ -57,8 +57,8 @@ export const useMedicationStore = create<MedicationState>()(
         });
       },
 
-      removeMedication: (id) => {
-        const { medications } = get();
+      removeMedication: id => {
+        const {medications} = get();
         const updated = medications.filter(med => med.id !== id);
         const activeMeds = updated.filter(med => med.is_active);
         set({
@@ -67,12 +67,12 @@ export const useMedicationStore = create<MedicationState>()(
         });
       },
 
-      setLoading: (isLoading) => {
-        set({ isLoading });
+      setLoading: isLoading => {
+        set({isLoading});
       },
 
-      setError: (error) => {
-        set({ error });
+      setError: error => {
+        set({error});
       },
 
       clearMedications: () => {
@@ -86,15 +86,18 @@ export const useMedicationStore = create<MedicationState>()(
     {
       name: 'medication-storage',
       storage: createJSONStorage(() => mmkvStorage),
-    }
-  )
+    },
+  ),
 );
 
 // Helper function to calculate overall adherence rate
 export function calculateOverallAdherence(medications: Medication[]): number {
   if (medications.length === 0) return 100;
-  
-  const totalAdherence = medications.reduce((sum, med) => sum + med.adherence_rate, 0);
+
+  const totalAdherence = medications.reduce(
+    (sum, med) => sum + med.adherence_rate,
+    0,
+  );
   return Math.round(totalAdherence / medications.length);
 }
 
@@ -103,15 +106,15 @@ export function getNextDoseTime(medication: Medication): string | null {
   if (!medication.is_active || !medication.next_dose) {
     return null;
   }
-  
+
   const nextDose = new Date(medication.next_dose);
   const now = new Date();
-  
+
   // If next dose is in the past, return null
   if (nextDose < now) {
     return null;
   }
-  
+
   // Format time as HH:MM AM/PM
   return nextDose.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -125,11 +128,11 @@ export function isDoseDueSoon(medication: Medication): boolean {
   if (!medication.is_active || !medication.next_dose) {
     return false;
   }
-  
+
   const nextDose = new Date(medication.next_dose);
   const now = new Date();
   const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
-  
+
   return nextDose >= now && nextDose <= thirtyMinutesFromNow;
 }
 
@@ -138,10 +141,10 @@ export function isDoseOverdue(medication: Medication): boolean {
   if (!medication.is_active || !medication.next_dose) {
     return false;
   }
-  
+
   const nextDose = new Date(medication.next_dose);
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  
+
   return nextDose < now && nextDose > oneHourAgo;
 }

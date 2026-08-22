@@ -1,9 +1,9 @@
-import { Stack } from 'expo-router';
-import { useEffect } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import {Stack} from 'expo-router';
+import {useEffect} from 'react';
+import {useAuthStore} from '@/store/authStore';
 
 export default function AuthLayout() {
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const {checkAuth} = useAuthStore();
 
   useEffect(() => {
     // Check authentication status on mount
@@ -11,7 +11,7 @@ export default function AuthLayout() {
   }, [checkAuth]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{headerShown: false}}>
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
     </Stack>

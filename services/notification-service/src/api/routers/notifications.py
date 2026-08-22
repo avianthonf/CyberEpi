@@ -227,7 +227,21 @@ async def get_notifications(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[NotificationResponse]:
     """Get notifications, optionally filtered by patient_id."""
-    # Authorization check...
+    roles = user.get("realm_access", {}).get("roles", [])
+    is_staff = "physician" in roles or "admin" in roles
+    if not is_staff:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, user)
+        if own_patient_id is None:
+            raise HTTPException(status_code=403, detail="Access denied")
+        if patient_id is not None and patient_id != own_patient_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only view their own notifications.",
+            )
+        patient_id = own_patient_id
+
     query = select(Notification)
     if patient_id:
         query = query.where(Notification.patient_id == patient_id)
@@ -249,6 +263,18 @@ async def update_notification(
     notification = result.scalars().first()
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
+
+    roles = user.get("realm_access", {}).get("roles", [])
+    is_staff = "physician" in roles or "admin" in roles
+    if not is_staff:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, user)
+        if own_patient_id is None or notification.patient_id != own_patient_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only update their own notifications.",
+            )
 
     notification.read = read
     await db.commit()

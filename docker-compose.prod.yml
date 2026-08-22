@@ -11,8 +11,9 @@ services:
     ports:
       - "5433:5432"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:password@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DB: cyberepi
+      POSTGRES_USER: cyberepi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres-init:/docker-entrypoint-initdb.d
@@ -220,7 +221,8 @@ services:
     container_name: cyberepi-kong-prod
     ports:
       - "8000:8000"
-      - "8001:8001"
+      # Admin API has no authentication - bind to loopback only.
+      - "127.0.0.1:8001:8001"
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/kong.yml

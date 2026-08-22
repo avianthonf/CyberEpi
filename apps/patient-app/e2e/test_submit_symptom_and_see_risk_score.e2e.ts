@@ -1,8 +1,8 @@
-import { by, device, element, expect } from 'detox';
+import {by, device, element, expect} from 'detox';
 
 describe('Submit Symptom and See Risk Score E2E', () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
+    await device.launchApp({newInstance: true});
   });
 
   beforeEach(async () => {
@@ -118,7 +118,7 @@ describe('Submit Symptom and See Risk Score E2E', () => {
       await expect(element(by.text('%'))).toBeVisible();
     } catch {
       await expect(
-        element(by.text('Insufficient data: Need at least 3 symptom reports'))
+        element(by.text('Insufficient data: Need at least 3 symptom reports')),
       ).toBeVisible();
     }
   });

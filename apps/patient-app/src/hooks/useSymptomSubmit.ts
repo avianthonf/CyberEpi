@@ -1,11 +1,11 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { SymptomReport, SymptomResponse } from '@/types';
-import { apiClient } from '@/services/api';
-import { MMKV } from 'react-native-mmkv';
-import { useAuthStore } from '@/store/authStore';
-import { useRiskStore } from '@/store/riskStore';
-import { Alert, Linking } from 'react-native';
-import { randomUUID } from 'expo-crypto';
+import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {SymptomReport, SymptomResponse} from '@/types';
+import {apiClient} from '@/services/api';
+import {MMKV} from 'react-native-mmkv';
+import {useAuthStore} from '@/store/authStore';
+import {useRiskStore} from '@/store/riskStore';
+import {Alert, Linking} from 'react-native';
+import {randomUUID} from 'expo-crypto';
 
 // Offline queue storage
 const offlineStorage = new MMKV({
@@ -21,11 +21,11 @@ interface SymptomSubmitVariables {
 
 export function useSymptomSubmit() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const { setRiskScore, setInsufficientData } = useRiskStore();
+  const {user} = useAuthStore();
+  const {setRiskScore, setInsufficientData} = useRiskStore();
 
   const mutation = useMutation<SymptomResponse, Error, SymptomSubmitVariables>({
-    mutationFn: async ({ report }) => {
+    mutationFn: async ({report}) => {
       // Ensure patient_id is set from current user
       if (!user?.id) {
         throw new Error('User not authenticated');
@@ -37,18 +37,23 @@ export function useSymptomSubmit() {
       };
 
       try {
-        const response = await apiClient.post<SymptomResponse>('/symptoms', reportWithPatient);
+        const response = await apiClient.post<SymptomResponse>(
+          '/symptoms',
+          reportWithPatient,
+        );
         return response.data;
       } catch (error) {
         // If network error, queue for later
         if (error instanceof Error && error.message.includes('Network Error')) {
           await queueReportOffline(reportWithPatient);
-          throw new Error('Network unavailable. Report saved locally and will sync when online.');
+          throw new Error(
+            'Network unavailable. Report saved locally and will sync when online.',
+          );
         }
         throw error;
       }
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       if (data.risk_score !== null && data.risk_tier) {
         // Update risk store with new score
         setRiskScore(data.risk_score, data.risk_tier);
@@ -59,22 +64,24 @@ export function useSymptomSubmit() {
             'Urgent Risk Detected',
             'Your risk score indicates immediate medical attention is needed. Please call the crisis line.',
             [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Call Now', onPress: () => makeEmergencyCall() },
+              {text: 'Cancel', style: 'cancel'},
+              {text: 'Call Now', onPress: () => makeEmergencyCall()},
             ],
-            { cancelable: false }
+            {cancelable: false},
           );
         }
       } else {
         // Insufficient data
-        setInsufficientData(data.message || 'Insufficient data: Need at least 3 symptom reports');
+        setInsufficientData(
+          data.message || 'Insufficient data: Need at least 3 symptom reports',
+        );
       }
 
       // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ['risk-score'] });
-      queryClient.invalidateQueries({ queryKey: ['symptom-history'] });
+      queryClient.invalidateQueries({queryKey: ['risk-score']});
+      queryClient.invalidateQueries({queryKey: ['symptom-history']});
     },
-    onError: (error) => {
+    onError: error => {
       console.error('Symptom submission error:', error);
       // Error is handled by the UI component
     },
@@ -112,7 +119,7 @@ export function useSymptomSubmit() {
       for (const queuedReport of queue) {
         try {
           // Remove queue-specific fields before sending
-          const { id, queued_at, ...report } = queuedReport;
+          const {id, queued_at, ...report} = queuedReport;
 
           await apiClient.post<SymptomResponse>('/symptoms', report);
           syncedReports.push(queuedReport.id);
@@ -123,7 +130,9 @@ export function useSymptomSubmit() {
       }
 
       // Remove synced reports from queue
-      const remainingQueue = queue.filter((r: any) => !syncedReports.includes(r.id));
+      const remainingQueue = queue.filter(
+        (r: {id: string}) => !syncedReports.includes(r.id),
+      );
       offlineStorage.set('offline_queue', JSON.stringify(remainingQueue));
 
       return syncedReports.length;
@@ -169,7 +178,7 @@ function generateId(): string {
 
 // Helper function to make emergency call
 function makeEmergencyCall() {
-  Linking.openURL(CRISIS_LINE).catch((err) => {
+  Linking.openURL(CRISIS_LINE).catch(err => {
     console.error('Failed to open crisis line:', err);
   });
 }

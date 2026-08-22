@@ -230,10 +230,19 @@ async def register_push_token(
     _user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
     """Register an FCM/APNs push token for a patient."""
-    # Check patient exists
+    # Check patient exists and authorize caller
     result = await db.execute(select(Patient).where(Patient.id == patient_id))
-    if not result.scalar_one_or_none():
+    patient = result.scalar_one_or_none()
+    if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+
+    roles = _user.get("realm_access", {}).get("roles", [])
+    is_staff = any(r in ["physician", "admin"] for r in roles)
+    if not is_staff and patient.keycloak_id != _user.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to register devices for this patient",
+        )
 
     # Upsert push token
     existing = await db.execute(
@@ -267,6 +276,20 @@ async def get_patient_risk(
 ) -> RiskResponse:
     """Get latest risk score and tier for a patient from vitals_ts."""
     from sqlalchemy import text
+
+    # Ownership / RBAC check: patients may only read their own risk.
+    roles = _user.get("realm_access", {}).get("roles", [])
+    is_staff = any(r in ["physician", "admin"] for r in roles)
+    if not is_staff:
+        result = await db.execute(select(Patient.keycloak_id).where(Patient.id == patient_id))
+        owner_keycloak_id = result.scalar_one_or_none()
+        if owner_keycloak_id is None:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        if owner_keycloak_id != _user.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this patient's risk score",
+            )
 
     result = await db.execute(
         text("SELECT risk_score, risk_tier FROM vitals_ts WHERE patient_id = :pid ORDER BY time DESC LIMIT 1"),

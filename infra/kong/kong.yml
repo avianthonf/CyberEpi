@@ -66,6 +66,15 @@ services:
           - /api/v1/simulate
         strip_path: false
 
+  - name: privacy-service
+    url: http://privacy-service:8006
+    routes:
+      - name: federated-learning-routes
+        paths:
+          - /api/v1/fl
+        strip_path: false
+      # /internal/dp is deliberately not exposed through the gateway.
+
 plugins:
   - name: jwt
     config:

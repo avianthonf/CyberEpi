@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from alembic.config import Config
@@ -41,7 +42,13 @@ async def lifespan(app: FastAPI):
     # `asyncio.run()` internally, which raises RuntimeError when called from
     # inside an already-running event loop (our async lifespan). Run the
     # synchronous `command.upgrade` in a separate thread to avoid that.
-    alembic_cfg = Config("alembic.ini")
+    # Resolve the ini relative to the repo layout, not the process cwd, so
+    # the service (and tests using TestClient) work from any directory.
+    # main.py lives at <service>/src/main.py, so parents[1] is <service>/.
+    service_dir = Path(__file__).resolve().parents[1]
+    alembic_cfg = Config(str(service_dir / "alembic.ini"))
+    # The ini's script_location is relative to cwd; pin it absolutely.
+    alembic_cfg.set_main_option("script_location", str(service_dir / "alembic"))
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
     logger.info("Alembic migrations applied")
     app.state.redis = await connect_redis(settings)

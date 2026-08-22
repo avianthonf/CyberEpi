@@ -1,13 +1,7 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { RiskTier } from '@/types';
-import { getRiskTierColor } from '@/store/riskStore';
+import {View, Text, StyleSheet, TouchableOpacity, Alert} from 'react-native';
+import {RiskTier} from '@/types';
+import {getRiskTierColor} from '@/store/riskStore';
 
 interface AlertBannerProps {
   tier: RiskTier;
@@ -45,10 +39,10 @@ export function AlertBanner({
         'Emergency Call',
         'Your risk score indicates immediate medical attention is needed. Do you want to call the crisis line?',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Call Now', onPress: onCallPress },
+          {text: 'Cancel', style: 'cancel'},
+          {text: 'Call Now', onPress: onCallPress},
         ],
-        { cancelable: false }
+        {cancelable: false},
       );
     }
   };
@@ -61,25 +55,28 @@ export function AlertBanner({
     <View
       style={[
         styles.container,
-        { backgroundColor: getRiskTierColor(tier) },
+        {backgroundColor: getRiskTierColor(tier)},
         tier === 'urgent' && styles.urgentContainer,
-      ]}
-    >
+      ]}>
       <View style={styles.content}>
         <Text style={styles.alertTitle}>
-          {tier === 'urgent' ? '⚠️ URGENT' : tier === 'consult' ? '⚡ Consult Required' : '⚠️ Elevated Risk'}
+          {tier === 'urgent'
+            ? '⚠️ URGENT'
+            : tier === 'consult'
+              ? '⚡ Consult Required'
+              : '⚠️ Elevated Risk'}
         </Text>
         <Text style={styles.alertMessage}>
           {message || getAlertMessage(tier)}
         </Text>
-        
+
         {showCallButton && tier === 'urgent' && (
           <TouchableOpacity
-            style={[styles.callButton, { backgroundColor: '#ffffff' }]}
+            style={[styles.callButton, {backgroundColor: '#ffffff'}]}
             onPress={handleCallPress}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.callButtonText, { color: getRiskTierColor(tier) }]}>
+            activeOpacity={0.8}>
+            <Text
+              style={[styles.callButtonText, {color: getRiskTierColor(tier)}]}>
               CALL NOW
             </Text>
           </TouchableOpacity>
@@ -87,11 +84,14 @@ export function AlertBanner({
 
         {tier === 'consult' && (
           <TouchableOpacity
-            style={[styles.consultButton, { backgroundColor: '#ffffff' }]}
+            style={[styles.consultButton, {backgroundColor: '#ffffff'}]}
             onPress={onDismiss}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.consultButtonText, { color: getRiskTierColor(tier) }]}>
+            activeOpacity={0.8}>
+            <Text
+              style={[
+                styles.consultButtonText,
+                {color: getRiskTierColor(tier)},
+              ]}>
               I Understand
             </Text>
           </TouchableOpacity>
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
