@@ -1,12 +1,11 @@
-import pytest
-import httpx
-from fastapi.testclient import TestClient
-from src.main import app
-from src.auth import get_current_user
-import numpy as np
-
 from unittest.mock import AsyncMock, patch
-from src.dp.budget import BudgetTracker
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.auth import get_current_user
+from src.main import app
+
 
 @pytest.fixture
 def auth_client():
@@ -15,18 +14,27 @@ def auth_client():
 
     app.dependency_overrides[get_current_user] = override_get_current_user
 
-    # Mock Redis and BudgetTracker
+    # Mock Redis and the persistent budget tracker
     mock_redis = AsyncMock()
     mock_redis.eval.return_value = 1  # Success for budget consumption
     mock_redis.get.return_value = "1.0"  # Budget remaining
 
-    app.state.redis = mock_redis
-    app.state.budget_tracker = BudgetTracker(mock_redis, max_budget=1.0)
+    mock_tracker = AsyncMock()
+    mock_tracker.consume.return_value = True
+    mock_tracker.get_remaining.return_value = 1.0
 
-    # Prevent the lifespan from connecting to a real Redis.
-    with patch("src.main.connect_redis", return_value=mock_redis):
-        with TestClient(app) as c:
-            yield c
+    app.state.redis = mock_redis
+    app.state.budget_tracker = mock_tracker
+
+    # Prevent the lifespan from connecting to a real Redis or instantiating
+    # a real PersistentBudgetTracker (lifespan overwrites app.state on enter).
+    with (
+        patch("src.main.connect_redis", return_value=mock_redis),
+        patch("src.main.PersistentBudgetTracker", return_value=mock_tracker),
+        patch("src.main.command.upgrade"),  # no real DB in unit/integration tests
+        TestClient(app) as c,
+    ):
+        yield c
 
     app.dependency_overrides.clear()
 
@@ -47,7 +55,7 @@ def test_dp_publish_endpoint(auth_client):
 
 def test_fl_upload_pipeline(auth_client):
     client = auth_client
-    
+
     # 1. Upload 3 gradients (min_clients=3)
     for _ in range(3):
         res = client.post("/api/v1/fl/upload_gradient", json={
@@ -57,7 +65,7 @@ def test_fl_upload_pipeline(auth_client):
             "user_id": "user_abc"
         })
         assert res.status_code == 200
-    
+
     # 2. Trigger aggregation
     res = client.post("/api/v1/fl/trigger_aggregation")
     assert res.status_code == 200

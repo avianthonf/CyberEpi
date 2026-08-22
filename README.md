@@ -115,3 +115,12 @@ All endpoints except registration require a Keycloak-issued Bearer token (RS256,
 - Services share code via `libs/shared` — add shared functionality there, not per-service copies.
 - Backend changes need tests; frontend changes need `tsc --noEmit` clean.
 - Run `ruff check services/ libs/` before pushing.
+## Local Development (Re-initialized)
+
+1. Run `bash scripts/setup-venv.sh`
+2. Run `make up` to start all infra and services.
+3. Run `make smoke` to verify all services are healthy.
+4. Run `make status` to check service container status.
+5. Run `make down` to stop and remove all service containers.
+
+All services share `libs/shared` and `libs/seir-core`.

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     service_name: str = "service"
     service_port: int = 8000
     debug: bool = False
+    dev_auth_mode: bool = False  # Skip JWT validation for local development
 
     # Database (no default: services that need a DB must provide one)
     database_url: str = ""

@@ -39,18 +39,20 @@ export function RiskGauge({
 
   // Animation configuration
   useEffect(() => {
+    let springAnimation: Animated.CompositeAnimation | null = null;
+    let pulseAnimation: Animated.CompositeAnimation | null = null;
+
     if (score !== null && animated) {
-      // Spring animation for the gauge fill
-      Animated.spring(animatedValue, {
+      springAnimation = Animated.spring(animatedValue, {
         toValue: score,
         tension: 100,
         friction: 8,
         useNativeDriver: false,
-      }).start();
+      });
+      springAnimation.start();
 
-      // Pulse animation for urgent tier
       if (tier === 'urgent') {
-        const pulseAnimation = Animated.loop(
+        pulseAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(scaleValue, {
               toValue: 1.05,
@@ -65,12 +67,15 @@ export function RiskGauge({
           ])
         );
         pulseAnimation.start();
-
-        return () => pulseAnimation.stop();
       }
     } else if (score !== null && !animated) {
       animatedValue.setValue(score);
     }
+
+    return () => {
+      springAnimation?.stop();
+      pulseAnimation?.stop();
+    };
   }, [score, tier, animated]);
 
   // Calculate gauge path

@@ -1,7 +1,9 @@
-import pytest
 import numpy as np
-from src.filters.ekf import SEIR_EKF
+import pytest
 from seir_core import SEIRParams
+
+from src.filters.ekf import SEIR_EKF
+
 
 @pytest.fixture
 def ekf_setup():
@@ -50,7 +52,7 @@ def test_innovation_chi2_test(ekf_setup):
     S = np.eye(4)
     # chi2 = 4.0, benchmark is 13.28
     assert ekf_setup.innovation_test(innovation, S)
-    
+
     innovation_extreme = np.array([10.0, 10.0, 10.0, 10.0])
     # chi2 = 400.0
     assert not ekf_setup.innovation_test(innovation_extreme, S)
@@ -59,21 +61,21 @@ def test_ekf_convergence(ekf_setup):
     x_true = np.zeros(12)
     x_true[0] = 900000
     x_true[3] = 10000 # IA
-    
+
     x_est = np.zeros(12)
     x_est[0] = 1000000 # Wrong initial guess
     P_est = np.eye(12) * 1000.0
-    
+
     # Generate synthetic observations from x_true
     y_obs = ekf_setup.H_obs @ x_true
-    
+
     # Run multiple update steps
     for _ in range(10):
         # Predict
         x_est, P_est = ekf_setup.predict(x_est, P_est)
         # Update
         x_est, P_est, _, _ = ekf_setup.update(x_est, P_est, y_obs, ekf_setup.H_obs, ekf_setup.R_obs)
-    
+
     # Verify that the estimate for Susceptible (index 0) moved toward true value
     assert abs(x_est[0] - x_true[0]) < abs(1000000 - x_true[0])
     # Total error should decrease

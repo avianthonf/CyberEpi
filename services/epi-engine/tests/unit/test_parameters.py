@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
-from src.models.parameters import RegionParams, SEIRParameterBase
+
+from src.models.parameters import RegionParams
+
 
 def test_valid_params_accepted():
     params = {
@@ -46,7 +48,7 @@ def test_N_pop_below_1000_rejected():
         "fA": 0.4, "fM": 0.5, "fS": 0.1, "alpha": 0.05,
         "h_rate": 0.15, "delta": 0.1, "mu": 0.005, "mu_icu": 0.2,
         "gamma_A": 0.25, "gamma_M": 0.2, "gamma_S": 0.15,
-        "gamma_H": 0.1, "gamma_ICU": 0.07, "papp": 0.12, 
+        "gamma_H": 0.1, "gamma_ICU": 0.07, "papp": 0.12,
         "N_pop": 500, # Min is 1000
         "region_id": "test_region", "source": "manual_override"
     }

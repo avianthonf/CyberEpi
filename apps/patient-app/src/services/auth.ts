@@ -182,7 +182,7 @@ export class AuthService {
       
       if (expiryTime - now < 60000) {
         // Token will expire soon, refresh it
-        const refreshed = await this.refreshToken();
+        const refreshed = await this.refreshAccessToken();
         return refreshed;
       }
 
@@ -198,7 +198,7 @@ export class AuthService {
     }
   }
 
-  private async refreshToken(): Promise<AuthTokens | null> {
+  async refreshAccessToken(): Promise<AuthTokens | null> {
     try {
       const refreshToken = await SecureStore.getItemAsync('refresh_token');
       if (!refreshToken) {

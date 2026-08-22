@@ -85,16 +85,18 @@ export const useAuthStore = create<AuthStore>()(
 
       refreshToken: async () => {
         try {
-          const tokens = await authService.getStoredTokens();
+          // Force an OAuth2 refresh_token grant against Keycloak. The previous
+          // implementation just re-read from storage, so it never actually
+          // rotated an expired access token.
+          const tokens = await authService.refreshAccessToken();
           if (tokens) {
             set({ tokens });
           } else {
-            // Refresh failed, logout
-            get().logout();
+            await get().logout();
           }
         } catch (error) {
           console.error('Token refresh error:', error);
-          get().logout();
+          await get().logout();
         }
       },
 

@@ -1,9 +1,9 @@
-"""Unit tests for symptom-service – including Bayesian risk scoring."""
+"""Unit tests for symptom-service - including Bayesian risk scoring."""
 
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,11 +14,13 @@ import src.main  # noqa: F401  (ensure module exists before patching)
 @pytest.fixture
 def client(mock_db, mock_redis, mock_kafka_producer):
     with (
+        patch("src.main.create_all_on_startup", new=AsyncMock()),
         patch("src.main.engine") as mock_main_engine,
         patch("src.main.connect_redis", return_value=mock_redis),
         patch("src.main.connect_kafka", return_value=mock_kafka_producer),
         patch("src.main.disconnect_redis", new=AsyncMock()),
         patch("src.main.disconnect_kafka", new=AsyncMock()),
+        patch("shared.health._db_healthy", new=AsyncMock(return_value=(True, "healthy"))),
     ):
         mock_main_engine.dispose = AsyncMock()
 

@@ -5,17 +5,17 @@ Revises:
 Create Date: 2026-03-10 12:18:05.717962
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '658bf6edf6c7'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -58,8 +58,8 @@ def upgrade() -> None:
     )
     
     # Seed migration
-    from datetime import datetime
     import uuid
+    from datetime import datetime
     op.bulk_insert(
         sa.table('epi_params',
             sa.column('id', sa.UUID()),

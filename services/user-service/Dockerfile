@@ -1,9 +1,19 @@
 FROM python:3.12-slim AS builder
 
+# Build context for the multi-service compose setup is the repo root
+# (../ from services/symptom-service), so we can reach libs/ from here.
 WORKDIR /app
-COPY pyproject.toml ./
+
+# 1. Install shared libs (deps of every service, not on PyPI)
+COPY libs/shared /app/libs/shared
+COPY libs/seir-core /app/libs/seir-core
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir /app/libs/shared /app/libs/seir-core
+
+# 2. Install the service itself
+COPY services/user-service /app/svc
+WORKDIR /app/svc
+RUN pip install --no-cache-dir .
 
 FROM python:3.12-slim
 
@@ -12,8 +22,8 @@ WORKDIR /app
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY src/ ./src/
-COPY healthcheck.py .
+COPY --from=builder /app/svc/src ./src
+COPY --from=builder /app/svc/healthcheck.py ./healthcheck.py
 
 RUN chown -R appuser:appuser /app
 USER appuser

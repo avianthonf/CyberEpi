@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 import structlog
 
@@ -33,7 +33,7 @@ class DeteriorationPredictor:
     `source: "heuristic"` so the response is honest about what produced it.
     """
 
-    FEATURES = [
+    FEATURES: ClassVar[list[str]] = [
         'age', 'n_comorbidities', 'days_since_onset',
         'spo2_current', 'spo2_slope_48h', 'spo2_min_24h',
         'heart_rate_current', 'hr_slope_48h',

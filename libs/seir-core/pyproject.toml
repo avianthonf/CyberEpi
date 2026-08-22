@@ -16,3 +16,6 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["seir_core*"]
+
+[tool.ruff]
+extend = "../../ruff.toml"

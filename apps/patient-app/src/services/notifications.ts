@@ -14,9 +14,25 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export type NotificationRoute =
+  | { screen: 'Home' }
+  | { screen: 'Medications' }
+  | { screen: 'RiskDetail'; patientId: string }
+  | { screen: 'Alerts' };
+
 export class NotificationService {
   private static instance: NotificationService;
   private pushToken: string | null = null;
+  /**
+   * Optional navigator callback. Consumers (typically the App root) wire
+   * this to their navigator's `navigate` so notification taps actually go
+   * somewhere. When unset the response handler is a no-op, not a TODO.
+   */
+  private navigator: ((route: NotificationRoute) => void) | null = null;
+
+  setNavigator(nav: (route: NotificationRoute) => void) {
+    this.navigator = nav;
+  }
 
   static getInstance(): NotificationService {
     if (!NotificationService.instance) {
@@ -30,17 +46,17 @@ export class NotificationService {
     if (Device.isDevice) {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
-      
+
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
-      
+
       if (finalStatus !== 'granted') {
         console.log('Failed to get push token for push notification!');
         return false;
       }
-      
+
       return true;
     } else {
       console.log('Must use physical device for Push Notifications');
@@ -55,7 +71,7 @@ export class NotificationService {
       if (!hasPermission) return null;
 
       if (Platform.OS === 'android') {
-        Notifications.setNotificationChannelAsync('default', {
+        await Notifications.setNotificationChannelAsync('default', {
           name: 'default',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
@@ -71,7 +87,7 @@ export class NotificationService {
       const token = (await Notifications.getExpoPushTokenAsync({
         projectId,
       })).data;
-      
+
       this.pushToken = token;
       return token;
     } catch (error) {
@@ -102,11 +118,11 @@ export class NotificationService {
   async scheduleLocalNotification(
     title: string,
     body: string,
-    data?: any,
+    data?: Record<string, unknown>,
     trigger?: Notifications.NotificationTriggerInput
   ): Promise<string> {
     try {
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      return await Notifications.scheduleNotificationAsync({
         content: {
           title,
           body,
@@ -115,8 +131,6 @@ export class NotificationService {
         },
         trigger: trigger || null,
       });
-      
-      return notificationId;
     } catch (error) {
       console.error('Failed to schedule notification:', error);
       throw error;
@@ -179,25 +193,29 @@ export class NotificationService {
     }
   }
 
-  // Handle notification response — routes to the relevant screen based on the
-  // `type` key in the notification payload.
+  // Handle notification response — routes to the registered screen via the
+  // navigator callback set by App.tsx. Without a navigator this is a no-op.
   handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+    const nav = this.navigator;
+    if (!nav) {
+      return;
+    }
     const { notification } = response;
-    const data = notification.request.content.data as Record<string, unknown> | undefined;
-    const type = data?.type;
-
+    const data = (notification.request.content.data || {}) as Record<string, unknown>;
+    const type = data.type as NotificationType | undefined;
     switch (type) {
       case 'RISK_CHANGE':
-        // Navigate to home screen
-        break;
+        nav({ screen: 'RiskDetail', patientId: String(data.patient_id ?? '') });
+        return;
       case 'MEDICATION_REMINDER':
-        // Navigate to medications screen
-        break;
+        nav({ screen: 'Medications' });
+        return;
       case 'EXPOSURE_ALERT':
-        // Navigate to home screen with alert
-        break;
+        nav({ screen: 'Alerts' });
+        return;
       default:
-        break;
+        nav({ screen: 'Home' });
+        return;
     }
   };
 
@@ -233,10 +251,10 @@ export async function setupNotifications(): Promise<void> {
   try {
     // Initialize listeners
     notificationService.initializeListeners();
-    
+
     // Get and store push token
     await notificationService.getPushToken();
-    
+
     console.log('Notifications initialized successfully');
   } catch (error) {
     console.error('Failed to setup notifications:', error);

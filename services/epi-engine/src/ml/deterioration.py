@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -65,7 +65,7 @@ class DeteriorationModel:
         """Save models to versioned directory."""
         if not os.path.exists(MODEL_DIR):
             os.makedirs(MODEL_DIR)
-        date_str = datetime.now().strftime("%Y%m%d")
+        date_str = datetime.now(UTC).strftime("%Y%m%d")
 
         hosp_path = os.path.join(MODEL_DIR, f"model_hosp_{date_str}.txt")
         icu_path = os.path.join(MODEL_DIR, f"model_icu_{date_str}.txt")
@@ -119,10 +119,7 @@ class DeteriorationModel:
 
         # SHAP returns a single array for binary in recent versions; older
         # versions return [class0, class1]. Normalize to the positive class.
-        if isinstance(raw_shap, list):
-            shap_vals = raw_shap[1][0]
-        else:
-            shap_vals = raw_shap[0]
+        shap_vals = raw_shap[1][0] if isinstance(raw_shap, list) else raw_shap[0]
 
         # compute top 5 shap features
         shap_abs = np.abs(shap_vals)

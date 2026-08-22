@@ -6,22 +6,21 @@ import uuid
 from datetime import datetime
 
 import sqlalchemy as sa
-from sqlalchemy import DateTime, Float, Integer, String, func
+from shared.models import Base, Patient
+from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
-
-class Base(DeclarativeBase):
-    pass
-
-
+__all__ = ["Base", "Patient", "VitalsTS"]
 class VitalsTS(Base):
     """Vitals time-series (hypertable in TimescaleDB)."""
 
     __tablename__ = "vitals_ts"
 
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), sa.ForeignKey("patients.id", ondelete="CASCADE"), primary_key=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey("patients.id", ondelete="CASCADE"), primary_key=True
+    )
     heart_rate: Mapped[int | None] = mapped_column(Integer)
     spo2: Mapped[float | None] = mapped_column(Float)
     temperature: Mapped[float | None] = mapped_column(Float)
@@ -54,14 +53,3 @@ class VitalsTS(Base):
         return value
 
 
-
-class Patient(Base):
-    """Read-only reference to patients table."""
-
-    __tablename__ = "patients"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    region_id: Mapped[str | None] = mapped_column(String(50))
-    patch_id: Mapped[str | None] = mapped_column(String(20))
-    risk_tier: Mapped[str] = mapped_column(String(20), default="low")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

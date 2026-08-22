@@ -1,4 +1,4 @@
-"""CyberEpi Privacy Service – Configuration."""
+"""CyberEpi Privacy Service - Configuration."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     service_port: int = 8006
 
     max_privacy_budget: float = 10.0
+    fl_min_clients: int = 3
 
 
 settings = Settings()

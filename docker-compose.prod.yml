@@ -9,11 +9,10 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: cyberepi-postgres-prod
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
-      POSTGRES_DB: cyberepi
-      POSTGRES_USER: cyberepi
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: postgresql+asyncpg://cyberepi:password@postgres:5432/cyberepi
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres-init:/docker-entrypoint-initdb.d
@@ -29,7 +28,7 @@ services:
     image: redis:7-alpine
     container_name: cyberepi-redis-prod
     ports:
-      - "6379:6379"
+      - "6380:6379"
     command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -43,7 +42,7 @@ services:
 
   # ─────────────── MESSAGE BUS ───────────────
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: docker.io/confluentinc/cp-zookeeper:7.5.0
     container_name: cyberepi-zookeeper-prod
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -58,7 +57,7 @@ services:
     restart: unless-stopped
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: docker.io/confluentinc/cp-kafka:7.5.0
     container_name: cyberepi-kafka-prod
     ports:
       - "9092:9092"
@@ -84,8 +83,8 @@ services:
   # ─────────────── MICROSERVICES ───────────────
   user-service:
     build:
-      context: ./services/user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/user-service/Dockerfile
     container_name: cyberepi-user-service-prod
     ports:
       - "8011:8001"
@@ -106,8 +105,8 @@ services:
 
   symptom-service:
     build:
-      context: ./services/symptom-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/symptom-service/Dockerfile
     container_name: cyberepi-symptom-service-prod
     ports:
       - "8012:8002"
@@ -129,8 +128,8 @@ services:
 
   prescription-service:
     build:
-      context: ./services/prescription-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/prescription-service/Dockerfile
     container_name: cyberepi-prescription-service-prod
     ports:
       - "8013:8003"
@@ -151,8 +150,8 @@ services:
 
   notification-service:
     build:
-      context: ./services/notification-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/notification-service/Dockerfile
     container_name: cyberepi-notification-service-prod
     ports:
       - "8014:8004"
@@ -174,8 +173,8 @@ services:
 
   epi-engine:
     build:
-      context: ./services/epi-engine
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/epi-engine/Dockerfile
     container_name: cyberepi-epi-engine-prod
     ports:
       - "8015:8005"
@@ -197,8 +196,8 @@ services:
 
   privacy-service:
     build:
-      context: ./services/privacy-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/privacy-service/Dockerfile
     container_name: cyberepi-privacy-service-prod
     ports:
       - "8016:8006"

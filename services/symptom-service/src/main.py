@@ -1,4 +1,4 @@
-"""CyberEpi Symptom Service – FastAPI application entry point."""
+"""CyberEpi Symptom Service - FastAPI application entry point."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
+from shared.db import create_all_on_startup, install_db_outage_handler
 from shared.health import build_health_router, kafka_health_check
 from shared.kafka import (
     connect_kafka,
@@ -16,8 +17,10 @@ from shared.kafka import (
     disconnect_redis,
 )
 from shared.security import SecurityHeadersMiddleware
+from shared.validation import install_validation_handler
 
 from src.config import settings
+from src.db.models import Base
 from src.db.session import engine
 
 logger = structlog.get_logger()
@@ -25,12 +28,13 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Startup and shutdown lifecycle with bounded retries and timeouts."""
     logger.info("Starting symptom-service", port=settings.service_port)
+
+    # Dev-time schema bootstrap. Production should run migrations instead.
+    await create_all_on_startup(engine, Base)
 
     app.state.redis = await connect_redis(settings)
     app.state.kafka_producer = await connect_kafka(settings)
-
     yield
 
     logger.info("Shutting down dependencies")
@@ -46,6 +50,8 @@ app = FastAPI(
     docs_url="/docs",
     lifespan=lifespan,
 )
+install_validation_handler(app)
+install_db_outage_handler(app)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.add_middleware(SecurityHeadersMiddleware)

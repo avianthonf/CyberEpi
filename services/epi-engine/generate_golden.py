@@ -1,6 +1,8 @@
-import numpy as np
 import json
+
+import numpy as np
 from seir_core import SEIRParams, run_seir
+
 
 def generate_golden():
     params = SEIRParams(
@@ -13,14 +15,14 @@ def generate_golden():
     y0 = np.array([999990, 10, 0, 0, 0, 0, 0, 0, 0])
     t_span = (0, 30)
     t_eval = np.linspace(0, 30, 31)
-    
+
     res = run_seir(y0, t_span, t_eval, params)
-    
+
     golden_data = {
         "t": res.t.tolist(),
         "y": res.y.tolist()
     }
-    
+
     with open("tests/regression/golden_output.json", "w") as f:
         json.dump(golden_data, f)
     print("Golden output generated.")

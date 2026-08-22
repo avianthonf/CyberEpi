@@ -1,19 +1,43 @@
+import contextlib
 import hashlib
 import json
+from typing import Any
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.auth import get_current_user
 from src.db.connection import get_db
 from src.db.models import EpiParams, ForecastCache
 from src.models.parameters import ForecastResponse
-from src.tasks.celery_app import run_forecast_async
+from src.tasks.celery_app import _forecast_task, _run_forecast_logic
 
 router = APIRouter()
 
 
+async def _cache_get(redis: aioredis.Redis, key: str) -> Any:
+    """Best-effort cache read: Redis outage must not fail the request."""
+    try:
+        return await redis.get(key)
+    except aioredis.RedisError:
+        return None
+
+
+async def _cache_set(redis: aioredis.Redis, key: str, ttl: int, value: str) -> None:
+    with contextlib.suppress(aioredis.RedisError):
+        await redis.setex(key, ttl, value)
+
+
 @router.get("/{id}/forecast", response_model=ForecastResponse)
-async def get_region_forecast(id: str, horizon_days: int = 14, db: AsyncSession = Depends(get_db), request: Request = None):
+async def get_region_forecast(
+    id: str,
+    horizon_days: int = 14,
+    db: AsyncSession = Depends(get_db),
+    request: Request = None,
+    user: dict[str, Any] = Depends(get_current_user),
+):
     # 1. Get current params to compute hash
     result = await db.execute(select(EpiParams).where(EpiParams.region_id == id))
     epi_params = result.scalar_one_or_none()
@@ -31,7 +55,7 @@ async def get_region_forecast(id: str, horizon_days: int = 14, db: AsyncSession 
     redis = request.app.state.redis
     cache_key = f"forecast:{id}:{horizon_days}:{params_hash}"
 
-    cached = await redis.get(cache_key)
+    cached = await _cache_get(redis, cache_key)
     if cached:
         return json.loads(cached)
 
@@ -53,11 +77,16 @@ async def get_region_forecast(id: str, horizon_days: int = 14, db: AsyncSession 
             trajectory=db_cache.trajectory,
             params_hash=params_hash
         ).model_dump_json()
-        await redis.setex(cache_key, 3600, resp_data)
+        await _cache_set(redis, cache_key, 3600, resp_data)
         return json.loads(resp_data)
 
-    # 4. Trigger forecast (inline by default; Celery dispatch when configured)
-    run_forecast_async(id, horizon_days)
+    # 4. Run the forecast. Inline mode awaits directly in the request loop
+    # (no Celery worker required). Celery mode dispatches and returns 202.
+    from src.config import settings
+    if settings.run_forecast_inline:
+        await _run_forecast_logic(id, horizon_days)
+    else:
+        _forecast_task.delay(id, horizon_days)
 
     # Re-check the DB cache — the inline task writes it synchronously.
     db_cache_result = await db.execute(
@@ -76,7 +105,7 @@ async def get_region_forecast(id: str, horizon_days: int = 14, db: AsyncSession 
             trajectory=db_cache.trajectory,
             params_hash=params_hash
         ).model_dump_json()
-        await redis.setex(cache_key, 3600, resp_data)
+        await _cache_set(redis, cache_key, 3600, resp_data)
         return json.loads(resp_data)
 
     # Celery dispatch path: forecast is being generated asynchronously.

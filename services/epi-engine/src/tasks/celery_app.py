@@ -9,7 +9,8 @@ dispatching to a broker — this keeps the forecast feature working out of the b
 import asyncio
 import hashlib
 import json
-from datetime import datetime
+import logging
+from datetime import UTC, datetime
 
 import numpy as np
 from celery import Celery
@@ -17,14 +18,29 @@ from seir_core import SEIRParams, compute_Rt, run_seir
 from sqlalchemy import select
 
 from ..config import settings
-from ..db.connection import AsyncSessionLocal
 from ..db.models import EpiParams, ForecastCache
 
 celery_app = Celery(
     "tasks",
-    broker="redis://localhost:6379/1",
-    backend="redis://localhost:6379/1",
+    broker=settings.celery_url,
+    backend=settings.celery_url,
 )
+
+_logger = logging.getLogger(__name__)
+
+# Strong references to fire-and-forget loop tasks, so the GC cannot cancel
+# an in-flight forecast; the done callback both releases the reference and
+# logs failures instead of silently swallowing them.
+_background_tasks: set = set()
+
+
+def _task_done(task: "asyncio.Task") -> None:
+    _background_tasks.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        _logger.exception("Background forecast task failed", exc_info=exc)
 
 
 def _params_hash(db_params) -> str:
@@ -37,6 +53,10 @@ def _params_hash(db_params) -> str:
 
 
 async def _run_forecast_logic(region_id: str, horizon_days: int):
+    # Resolve the session factory at call time: tests replace
+    # src.db.connection.AsyncSessionLocal per test (per event loop).
+    from ..db.connection import AsyncSessionLocal
+
     async with AsyncSessionLocal() as db:
         # 1. Load params
         result = await db.execute(select(EpiParams).where(EpiParams.region_id == region_id))
@@ -82,7 +102,7 @@ async def _run_forecast_logic(region_id: str, horizon_days: int):
             horizon_days=horizon_days,
             trajectory=trajectory,
             params_hash=params_hash,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(UTC),
         )
         db.add(cache_entry)
         await db.commit()
@@ -113,7 +133,7 @@ async def _run_forecast_logic(region_id: str, horizon_days: int):
             rt = compute_Rt(params, sol.y[0, -1], params.N_pop)
             update = {
                 "region_id": region_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "beta": params.beta,
                 "Rt": rt,
                 "forecast_hash": params_hash,
@@ -123,12 +143,29 @@ async def _run_forecast_logic(region_id: str, horizon_days: int):
             await producer.stop()
 
 
-def run_forecast_async(region_id: str, horizon_days: int):
-    """Run a forecast. Inline when no Celery worker is configured, else dispatch."""
+def run_forecast_async(region_id: str, horizon_days: int) -> None:
+    """Run a forecast synchronously when no Celery worker is configured.
+
+    The inline path is meant to run inside a Celery worker (its own thread /
+    process — no running event loop). When invoked from a FastAPI request
+    handler (already in a loop), the caller MUST `await` `_run_forecast_logic`
+    directly. We expose `_run_forecast_logic` so routers can do that.
+    """
     if settings.run_forecast_inline:
-        asyncio.run(_run_forecast_logic(region_id, horizon_days))
+        # Schedule on the running loop. asyncio.run() would crash here
+        # because the request handler is already inside an event loop.
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(_run_forecast_logic(region_id, horizon_days))
+        else:
+            task = loop.create_task(_run_forecast_logic(region_id, horizon_days))
+            # Retain a reference so the task isn't garbage-collected early,
+            # and log failures instead of silently dropping them.
+            _background_tasks.add(task)
+            task.add_done_callback(_task_done)
     else:
-        # Celery dispatch — this function is wrapped as a task below.
         _forecast_task.delay(region_id, horizon_days)
 
 

@@ -44,17 +44,28 @@ async def _db_healthy(engine: AsyncEngine | None) -> tuple[bool, str]:
 
 
 async def kafka_health_check(request: Request) -> tuple[bool, str]:
+    """Honest Kafka health probe.
+
+    aiokafka's internals (`producer.client`, `_closed`, `cluster.brokers()`)
+    have shifted across versions. We probe the durable contract instead:
+    "we can fetch cluster metadata" — that's what proves the producer is
+    actually connected to a broker. If the producer exposes nothing usable,
+    we treat it as unhealthy rather than claiming green.
+    """
     producer = getattr(request.app.state, "kafka_producer", None)
     if producer is None:
         return False, "unhealthy: not initialized"
-    # Honest check: ask the producer whether its client is still connected.
     try:
-        client = getattr(producer, "_client", None)
-        connected = bool(client is not None and not getattr(client, "_closed", True))
-        return (True, "healthy") if connected else (False, "unhealthy: client closed")
+        client = getattr(producer, "client", None) or getattr(producer, "_client", None)
+        if client is None:
+            return False, "unhealthy: no client"
+        # `client.cluster.brokers()` works across the aiokafka 0.x line we target.
+        brokers = list(client.cluster.brokers())
+        if not brokers:
+            return False, "unhealthy: no brokers known"
+        return True, f"healthy: {len(brokers)} broker(s)"
     except Exception as e:  # noqa: BLE001
         return False, f"unhealthy: {e}"
-
 
 def build_health_router(
     settings: Settings,
@@ -72,11 +83,11 @@ def build_health_router(
             "components": {},
         }
         overall_healthy = True
-
         checks: dict[str, Callable[[Request], Awaitable[tuple[bool, str]]]] = {
             "redis": _redis_healthy,
-            "database": lambda req: _db_healthy(engine),
         }
+        if engine is not None:
+            checks["database"] = lambda req: _db_healthy(engine)
         if extra_checks:
             checks.update(extra_checks)
 
@@ -87,6 +98,7 @@ def build_health_router(
                 overall_healthy = False
 
         if not overall_healthy:
+            health_status["status"] = "unhealthy"
             raise HTTPException(status_code=503, detail=health_status)
         return health_status
 

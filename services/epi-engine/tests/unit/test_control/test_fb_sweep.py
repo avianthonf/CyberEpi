@@ -1,6 +1,8 @@
-import pytest
 import numpy as np
+import pytest
+
 from src.control.fb_sweep import forward_backward_sweep
+
 
 @pytest.fixture
 def params():

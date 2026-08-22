@@ -1,4 +1,4 @@
-"""CyberEpi Prescription Service – Configuration."""
+"""CyberEpi Prescription Service - Configuration."""
 
 from __future__ import annotations
 

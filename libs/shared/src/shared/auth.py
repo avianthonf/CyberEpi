@@ -71,6 +71,10 @@ def build_auth_dependency(settings: Settings):
     async def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     ) -> dict[str, Any]:
+        # Dev mode: bypass JWT validation for local testing
+        if settings.dev_auth_mode:
+            return {"sub": "dev-user-id", "realm_access": {"roles": ["patient", "admin"]}}
+
         token = credentials.credentials
         try:
             jwks = await jwks_provider.get_jwks()
@@ -79,7 +83,7 @@ def build_auth_dependency(settings: Settings):
                 jwks,
                 algorithms=["RS256"],
                 audience=settings.keycloak_client_id,
-                options={"verify_aud": False},  # client_id != aud in default Keycloak setups
+                options={"verify_aud": False},
             )
         except JWTError as exc:
             raise HTTPException(

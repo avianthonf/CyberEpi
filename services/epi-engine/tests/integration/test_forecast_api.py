@@ -1,14 +1,15 @@
-import pytest
-import pytest_asyncio
-import httpx
-from testcontainers.postgres import PostgresContainer
-from testcontainers.redis import RedisContainer
 import os
 import uuid
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy import select
 
-from src.db.models import EpiParams, ForecastCache
+import httpx
+import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
+
+from src.db.models import EpiParams
 
 
 @pytest.fixture(scope="session")
@@ -47,12 +48,12 @@ async def api_client(postgres_container, redis_container):
         await conn.run_sync(Base.metadata.create_all)
 
     # Recreate the app engine bound to the same URL and import the app
-    import src.db.connection as db_connection
-    import src.main as main
-
     # Ensure the app's engine targets the test DB (the module-level engine was
     # created from settings at import time, which we just updated).
     from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
+
+    import src.db.connection as db_connection
+    from src import main
 
     db_connection.engine = engine
     db_connection.AsyncSessionLocal = _asm(engine, class_=AsyncSession, expire_on_commit=False)
@@ -61,10 +62,18 @@ async def api_client(postgres_container, redis_container):
 
     main.app.state.redis = aioredis.from_url(redis_url, decode_responses=True)
 
+    from src.auth import get_current_user
+
+    async def _override_auth():
+        return {"sub": str(uuid.uuid4()), "realm_access": {"roles": ["physician", "admin"]}}
+
+    main.app.dependency_overrides[get_current_user] = _override_auth
+
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
 
+    main.app.dependency_overrides.clear()
     await engine.dispose()
 
 

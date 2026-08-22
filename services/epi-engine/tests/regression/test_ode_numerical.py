@@ -1,13 +1,15 @@
-import pytest
-import numpy as np
 import json
 import os
+
+import numpy as np
+import pytest
 from seir_core import SEIRParams, run_seir
+
 
 @pytest.fixture
 def golden_data():
     golden_path = os.path.join(os.path.dirname(__file__), "golden_output.json")
-    with open(golden_path, "r") as f:
+    with open(golden_path) as f:
         return json.load(f)
 
 def test_ode_numerical_regression(golden_data):
@@ -22,9 +24,9 @@ def test_ode_numerical_regression(golden_data):
     y0 = np.array([999990, 10, 0, 0, 0, 0, 0, 0, 0])
     t_span = (0, 30)
     t_eval = np.linspace(0, 30, 31)
-    
+
     res = run_seir(y0, t_span, t_eval, params)
-    
+
     # Assert max absolute error < 1e-6 vs. golden
     golden_y = np.array(golden_data["y"])
     max_err = np.max(np.abs(res.y - golden_y))

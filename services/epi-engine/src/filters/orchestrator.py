@@ -1,6 +1,6 @@
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -12,6 +12,7 @@ from seir_core import SEIRParams
 from ..config import settings
 from .ekf import SEIR_EKF
 from .particle_filter import ParticleFilter
+from .persistent_state import PersistentFilterState
 
 logger = structlog.get_logger()
 
@@ -53,11 +54,11 @@ class FilterService:
     @staticmethod
     def get_noise_matrices(x: np.ndarray, params: SEIRParams, y_obs: np.ndarray, meta: dict[str, Any]):
         Q = np.zeros((12, 12))
-        sigmas = [0.01*params.N_pop, 0.01*params.N_pop, 0.005*params.N_pop, 0.005*params.N_pop, 
-                  0.002*params.N_pop, 0.001*params.N_pop, 0.001*params.N_pop, 0.01*params.N_pop, 
+        sigmas = [0.01*params.N_pop, 0.01*params.N_pop, 0.005*params.N_pop, 0.005*params.N_pop,
+                  0.002*params.N_pop, 0.001*params.N_pop, 0.001*params.N_pop, 0.01*params.N_pop,
                   0.0001*params.N_pop, 0.001, 0.001, 0.00001]
         np.fill_diagonal(Q, np.array(sigmas)**2)
-        
+
         cusum = meta.get('cusum', 0.0)
         if cusum > 1.0:
             Q *= np.exp(cusum / 10.0)
@@ -65,23 +66,36 @@ class FilterService:
         # R: 5x5 observation noise
         R = np.zeros((5, 5))
         R_vals = [
-            (0.3*max(1, y_obs[0]))**2, 
-            (0.2*max(1, y_obs[1]))**2, 
-            (0.1*max(1, y_obs[2]))**2, 
+            (0.3*max(1, y_obs[0]))**2,
+            (0.2*max(1, y_obs[1]))**2,
+            (0.1*max(1, y_obs[2]))**2,
             (0.5*max(1, y_obs[3]))**2,
             (0.4*max(1, y_obs[4]))**2  # wastewater noise
         ]
-        
+
         # Replace NaN with a default high variance
         R_vals = [v if not np.isnan(v) else 1e9 for v in R_vals]
         np.fill_diagonal(R, R_vals)
         return Q, R
 
 class FilterOrchestrator:
-    def __init__(self, region_id: str, redis_client: aioredis.Redis, kafka_producer: AIOKafkaProducer):
+    def __init__(
+        self,
+        region_id: str,
+        redis_client: aioredis.Redis,
+        kafka_producer: AIOKafkaProducer,
+        session_maker=None,
+    ):
         self.region_id = region_id
         self.redis = redis_client
         self.producer = kafka_producer
+        self.session_maker = session_maker
+        # Persistent state (Postgres source-of-truth, Redis cache)
+        self.persistent_state = (
+            PersistentFilterState(redis_client, session_maker)
+            if session_maker is not None
+            else None
+        )
         self.ekf_threshold = 13.28
         self.cusum_threshold = 5.0
         self.failure_limit = 3
@@ -91,20 +105,43 @@ class FilterOrchestrator:
         return f"filter_state:{self.region_id}"
 
     async def load_state(self) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+        """Load filter state. Uses PersistentFilterState (Postgres+Redis) if available,
+        else falls back to Redis-only."""
+        if self.persistent_state is not None:
+            return await self.persistent_state.load(self.region_id)
+        # Fallback: Redis-only
         data = await self.redis.get(self._get_redis_key())
         if not data:
             return None, None, {}
         state_data = json.loads(data)
-        return (np.array(state_data['x']), 
-                np.array(state_data['P']), 
-                state_data.get('meta', {}))
+        return (
+            np.array(state_data['x']),
+            np.array(state_data['P']),
+            state_data.get('meta', {}),
+        )
 
-    async def save_state(self, x: np.ndarray, P: np.ndarray, meta: dict[str, Any]):
+    async def save_state(
+        self,
+        x: np.ndarray,
+        P: np.ndarray,
+        meta: dict[str, Any],
+        y_obs: np.ndarray | None = None,
+        innovation: np.ndarray | None = None,
+        chi2: float | None = None,
+    ):
+        """Save filter state. Uses PersistentFilterState (Postgres+Redis) if available,
+        else falls back to Redis-only."""
+        if self.persistent_state is not None:
+            await self.persistent_state.save(
+                self.region_id, x, P, meta, y_obs, innovation, chi2
+            )
+            return
+        # Fallback: Redis-only
         state_data = {
             'x': x.tolist(),
             'P': P.tolist(),
             'meta': meta,
-            'updated_at': datetime.now(timezone.utc).isoformat()
+            'updated_at': datetime.now(UTC).isoformat(),
         }
         await self.redis.setex(self._get_redis_key(), 604800, json.dumps(state_data))
 
@@ -119,7 +156,7 @@ class FilterOrchestrator:
 
     async def process_observation(self, params: SEIRParams, observations: dict[str, Any]):
         x_est, P, meta = await self.load_state()
-        
+
         if x_est is None:
             x_est, P, meta = self.service.initialize_state(params)
 
@@ -129,19 +166,22 @@ class FilterOrchestrator:
 
         filter_type = meta.get('mode', 'ekf')
         cusum = meta.get('cusum', 0.0)
-        
+        innovation: np.ndarray | None = None
+        chi2: float | None = None
         if filter_type == 'ekf':
             ekf = SEIR_EKF(params, Q, R, H)
             x_upd, P_upd, innovation, chi2 = ekf.step(x_est, P, y_obs)
             nu = chi2 / len(innovation) if len(innovation) > 0 else 0
             new_cusum = max(0, cusum + nu - 0.5)
             fail_count = meta.get('fail_count', 0)
-            if chi2 > self.ekf_threshold: fail_count += 1
-            else: fail_count = 0
+            if chi2 > self.ekf_threshold:
+                fail_count += 1
+            else:
+                fail_count = 0
             if fail_count >= self.failure_limit:
                 filter_type = 'particle'
                 logger.warning("EKF failed, switching to PF", region_id=self.region_id, chi2=chi2)
-        
+
         if filter_type == 'particle':
             pf = ParticleFilter(10000, params, Q, R, H)
             pf.initialize(x_est, P)
@@ -150,14 +190,20 @@ class FilterOrchestrator:
             new_cusum = 0.0
             fail_count = 0
 
-        # Save and publish
+        # Save state (Postgres-backed when session_maker provided; else Redis-only)
         meta.update({'cusum': new_cusum, 'fail_count': fail_count, 'mode': filter_type})
-        await self.save_state(x_upd, P_upd, meta)
-        
+        last_innovation = innovation if filter_type == 'ekf' else None
+        last_chi2 = chi2 if filter_type == 'ekf' else None
+        await self.save_state(
+            x_upd, P_upd, meta,
+            y_obs=y_obs,
+            innovation=last_innovation,
+            chi2=last_chi2,
+        )
         keys = ['S', 'E', 'IA', 'IM', 'IS', 'H', 'ICU', 'R', 'D']
         result = FilterResult(
             region_id=self.region_id,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             filter_type=filter_type,
             state={k: float(x_upd[i]) for i, k in enumerate(keys)},
             variance={k: float(P_upd[i, i]) for i, k in enumerate(keys)},
@@ -165,7 +211,10 @@ class FilterOrchestrator:
             cusum_score=float(new_cusum),
             model_alert=bool(new_cusum > self.cusum_threshold)
         )
-        
-        await self.producer.send_and_wait(settings.kafka_topic_updates, 
-                                         json.dumps(asdict(result)).encode())
+
+        if self.producer is not None:
+            from shared.kafka import publish_kafka
+
+            await publish_kafka(self.producer, settings.kafka_topic_updates,
+                                json.dumps(asdict(result)).encode(), timeout=5.0)
         return result

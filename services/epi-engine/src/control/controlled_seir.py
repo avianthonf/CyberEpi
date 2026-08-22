@@ -6,7 +6,7 @@ import numpy as np
 def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: dict[str, Any]) -> np.ndarray:
     """
     Controlled SEIR ODE system (8-dimensional).
-    
+
     States x:
     [0] S: Susceptible
     [1] E: Exposed
@@ -16,12 +16,12 @@ def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: dict[str, An
     [5] ICU: Intensive Care Unit
     [6] R: Recovered
     [7] D: Deceased
-    
+
     Controls u (all in [0, 1]):
     u[0]: u1 - Social isolation compliance
     u[1]: u2 - Vaccination rate (fraction of S per day)
     u[2]: u3 - Mask mandate compliance
-    
+
     Params:
     beta: Transmission rate
     sigma: 1/Latency period
@@ -39,7 +39,7 @@ def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: dict[str, An
     """
     S, E, IM, IS, H, ICU, R, D = x
     u1, u2, u3 = u
-    
+
     beta = params.get('beta', 0.5)
     sigma = params.get('sigma', 0.2)
     rho = params.get('rho', 1.0)
@@ -55,14 +55,14 @@ def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: dict[str, An
     mu_icu = params.get('mu_icu', 0.15)
     N = params.get('N', 1000000)
     eta = params.get('eta', 0.3)
-    
+
     # Effective transmission rate with controls
     # beta_e = beta0 * (1 - u1) * (1 - eta * u3)
     beta_e = beta * (1.0 - u1) * (1.0 - eta * u3)
-    
+
     # Infection term
     lambda_val = beta_e * (rho * IM + IS) / N if N > 0 else 0.0
-    
+
     # ODE System
     dS = -lambda_val * S - u2 * S # u2 is the vaccination rate
     dE = lambda_val * S - sigma * E
@@ -72,5 +72,5 @@ def seir_controlled(t: float, x: np.ndarray, u: np.ndarray, params: dict[str, An
     dICU = delta * H - (gamma_ICU + mu_icu) * ICU
     dR = gamma_M * IM + gamma_S * IS + gamma_H * H + gamma_ICU * ICU + u2 * S
     dD = mu * H + mu_icu * ICU
-    
+
     return np.array([dS, dE, dIM, dIS, dH, dICU, dR, dD])

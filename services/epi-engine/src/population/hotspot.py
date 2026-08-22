@@ -17,32 +17,32 @@ def detect_hotspots(
     """
     patch_ids = list(patch_states.keys())
     I_values = np.array([patch_states[pid] for pid in patch_ids])
-    
+
     mu_I = np.mean(I_values)
     sigma_I = np.std(I_values)
-    
+
     threshold = mu_I + 2 * sigma_I
-    
+
     results = []
     for pid in patch_ids:
         I_val = patch_states[pid]
         growth = patch_growth_rates[pid]
-        
+
         # Deterministic criteria
         is_hotspot = bool((I_val > threshold) and (growth > 0))
-        
+
         hotspot_prob = 0.0
         if particle_ensembles is not None and pid in particle_ensembles:
             ensemble = particle_ensembles[pid]
             # Prob = fraction of particles satisfying both criteria
             # mu and sigma are spatial, so they apply to the ensemble means?
-            # Or do we recalculate mu/sigma per ensemble realization? 
+            # Or do we recalculate mu/sigma per ensemble realization?
             # Standard way: mu/sigma are population-wide constants for this step.
             count = np.sum((ensemble > threshold) & (growth > 0)) # simplified growth check
             hotspot_prob = float(count / len(ensemble))
         else:
             hotspot_prob = 1.0 if is_hotspot else 0.0
-            
+
         results.append({
             "patch_id": pid,
             "I_estimate": I_val,
@@ -50,7 +50,7 @@ def detect_hotspots(
             "is_hotspot": is_hotspot,
             "growth_rate": growth
         })
-        
+
     return results
 
 async def apply_differential_privacy(I_values: dict[str, float], epsilon: float = 2.0) -> dict[str, float]:
@@ -76,11 +76,11 @@ async def process_hotspot_states(states) -> list[dict[str, Any]]:
     for s in states:
         if s.patch_id not in latest_states:
             latest_states[s.patch_id] = s
-            
+
     # Apply DP to I_estimate
     raw_I = {pid: float(s.I) for pid, s in latest_states.items()}
     noised_I = await apply_differential_privacy(raw_I)
-    
+
     results = []
     for pid, s in latest_states.items():
         results.append({
@@ -89,5 +89,5 @@ async def process_hotspot_states(states) -> list[dict[str, Any]]:
             "I_estimate": noised_I[pid],
             "is_hotspot": s.hotspot_prob > 0.8 # Threshold
         })
-        
+
     return results

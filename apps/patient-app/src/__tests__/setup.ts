@@ -95,15 +95,19 @@ jest.mock('@react-native-community/netinfo', () => ({
 }));
 
 // Mock react-native-svg
-jest.mock('react-native-svg', () => ({
-  Svg: 'Svg',
-  Circle: 'Circle',
-  Line: 'Line',
-  Path: 'Path',
-  Defs: 'Defs',
-  LinearGradient: 'LinearGradient',
-  Stop: 'Stop',
-}));
+jest.mock("react-native-svg", () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: (props: any) => React.createElement('Svg', props),
+    Svg: (props: any) => React.createElement('Svg', props),
+    Path: (props: any) => React.createElement('Path', props),
+    Circle: (props: any) => React.createElement('Circle', props),
+    Defs: (props: any) => React.createElement('Defs', props),
+    LinearGradient: (props: any) => React.createElement('LinearGradient', props),
+    Stop: (props: any) => React.createElement('Stop', props),
+  };
+});
 
 // Mock react-native-reanimated
 jest.mock('react-native-reanimated', () => {

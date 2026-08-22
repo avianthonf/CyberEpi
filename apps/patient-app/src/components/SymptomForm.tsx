@@ -164,7 +164,7 @@ export function SymptomForm({ onSubmit, onCancel }: SymptomFormProps) {
     if (formData.dyspnoea) symptoms.push('dyspnoea');
     if (formData.fatigue_severity > 0) symptoms.push('fatigue');
     if (formData.sore_throat) symptoms.push('sore_throat');
-    if (formData.diarrhoea) symptoms.push('diarrhoea');
+    if (formData.diarrhoea) symptoms.push('diarrhea');
     if (formData.anosmia) symptoms.push('anosmia');
 
     // Create final report in the backend's expected shape

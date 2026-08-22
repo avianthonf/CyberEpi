@@ -1,0 +1,53 @@
+# Environment — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / Expo
+node_modules/
+.expo/
+.expo-shared/
+web-build/
+dist/
+*.tsbuildinfo
+
+# Test / debug scratch output
+*_out.txt
+*_debug.txt
+*_errors.txt
+pytest_out.txt
+pyout.txt
+tests_output.txt
+
+# Deploy artifacts
+deploy/prod/
+
+# IDE
+.vscode/
+.idea/
+
+# Runtime logs & local DBs
+logs/
+*.log
+*.db
+*.sqlite3
+
+# Local datasets & analysis outputs (too large for git; re-fetchable)
+data/
+backtest/out/
+*.jsonl

@@ -1,6 +1,6 @@
 import os
 import sys
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 # Force TESTING environment for all tests
 os.environ["TESTING"] = "1"
@@ -15,9 +15,15 @@ mock_instance.send_and_wait = AsyncMock()
 # Mock the entire aiokafka module before anything else imports it
 aiokafka_mock = MagicMock()
 aiokafka_mock.AIOKafkaProducer = mock_producer_class
+# `from aiokafka.errors import KafkaError` needs a real submodule whose
+# names are usable in `except` clauses.
+aiokafka_errors_mock = MagicMock()
+aiokafka_errors_mock.KafkaError = type("KafkaError", (Exception,), {})
 sys.modules["aiokafka"] = aiokafka_mock
+sys.modules["aiokafka.errors"] = aiokafka_errors_mock
 
 import pytest
+
 
 @pytest.fixture(autouse=True)
 def mock_kafka_fixture():

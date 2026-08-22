@@ -1,4 +1,4 @@
-"""CyberEpi Notification Service – Configuration."""
+"""CyberEpi Notification Service - Configuration."""
 
 from __future__ import annotations
 

@@ -1,11 +1,11 @@
+import uuid
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from fastapi import HTTPException
-from unittest.mock import MagicMock, AsyncMock
-import uuid
 
 # Test JWT Signature Verification Logic (user-service)
 from src.auth import get_current_user
-from src.config import settings
 
 
 @pytest.mark.asyncio
@@ -16,7 +16,6 @@ async def test_jwt_verification_failure(monkeypatch):
 
     # The shared auth closure captures a JWKSProvider; mock its fetch so the
     # token decode fails against an empty key set → 401.
-    import src.auth as auth_module
 
     # Find the JWKS provider bound in the get_current_user closure.
     # We patch the module-level auth functions indirectly: easiest is to build

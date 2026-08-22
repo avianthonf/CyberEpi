@@ -17,6 +17,7 @@ jest.mock('@/services/auth', () => ({
     logout: jest.fn(),
     getStoredTokens: jest.fn(),
     getUserProfile: jest.fn(),
+    refreshAccessToken: jest.fn(),
   },
 }));
 
@@ -130,7 +131,7 @@ describe('AuthStore', () => {
         token_type: 'Bearer' as const,
       };
 
-      (authService.getStoredTokens as jest.Mock).mockResolvedValue(mockTokens);
+      (authService.refreshAccessToken as jest.Mock).mockResolvedValue(mockTokens);
 
       const { result } = renderHook(() => useAuthStore());
 

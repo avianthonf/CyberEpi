@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 from sqlalchemy import Date, DateTime, String, Text, func
@@ -19,7 +19,9 @@ class Prescription(Base):
     __tablename__ = "prescriptions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), sa.ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
+    )
     physician_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     drug_name: Mapped[str] = mapped_column(String(200), nullable=False)
     ndc_code: Mapped[str | None] = mapped_column(String(50))
@@ -45,7 +47,7 @@ class Prescription(Base):
         return value
 
     def is_active(self) -> bool:
-        return self.status == "active" and (self.end_date is None or self.end_date >= date.today())
+        return self.status == "active" and (self.end_date is None or self.end_date >= datetime.now(UTC).date())
 
 
 
@@ -53,5 +55,6 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    keycloak_id: Mapped[str | None] = mapped_column(String(100), unique=True)
     first_name: Mapped[str | None] = mapped_column(String(100))
     last_name: Mapped[str | None] = mapped_column(String(100))

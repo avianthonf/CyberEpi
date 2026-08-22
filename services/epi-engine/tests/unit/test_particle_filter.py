@@ -1,7 +1,9 @@
-import pytest
 import numpy as np
-from src.filters.particle_filter import ParticleFilter
+import pytest
 from seir_core import SEIRParams
+
+from src.filters.particle_filter import ParticleFilter
+
 
 @pytest.fixture
 def pf_setup():

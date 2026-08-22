@@ -57,8 +57,20 @@ async def disconnect_redis(client: aioredis.Redis | None, timeout: float = 5.0) 
         return
     try:
         await asyncio.wait_for(client.aclose(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Redis shutdown timed out")
+
+
+async def publish_kafka(
+    producer: AIOKafkaProducer,
+    topic: str,
+    value: bytes,
+    timeout: float = 5.0,
+) -> None:
+    """Send-and-wait with a hard timeout so a dead broker can never wedge a
+    request handler. Raises TimeoutError or the underlying producer error;
+    callers decide whether to tolerate it."""
+    await asyncio.wait_for(producer.send_and_wait(topic, value), timeout=timeout)
 
 
 async def disconnect_kafka(producer: AIOKafkaProducer | None, timeout: float = 10.0) -> None:
@@ -66,5 +78,5 @@ async def disconnect_kafka(producer: AIOKafkaProducer | None, timeout: float = 1
         return
     try:
         await asyncio.wait_for(producer.stop(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Kafka shutdown timed out")

@@ -1,5 +1,6 @@
 
 import numpy as np
+
 from src.dp.mechanisms import vector_gaussian_mechanism
 
 
@@ -23,6 +24,8 @@ class FedAvgAggregator:
             raise ValueError(
                 f"Gradient dimension mismatch. Expected {self.model_dim}, got {gradient.shape[0]}"
             )
+        if not np.all(np.isfinite(gradient)):
+            raise ValueError("Gradient contains non-finite values (NaN or inf)")
         self.current_round_gradients.append(gradient)
 
     def aggregate(self, C: float = 1.0, epsilon: float = 0.5, delta: float = 1e-5) -> np.ndarray:
@@ -36,7 +39,7 @@ class FedAvgAggregator:
         K = len(self.current_round_gradients)
         if K == 0:
             return np.zeros(self.model_dim)
-        if K < self.min_clients:
+        if self.min_clients > K:
             raise ValueError(
                 f"Not enough gradients to aggregate: {K} < min_clients {self.min_clients}"
             )

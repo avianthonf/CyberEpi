@@ -22,6 +22,7 @@ dependencies = [
     "alembic>=1.13.1",
     "h3>=3.7.6",
     "pandas>=2.2.0",
+    "httpx>=0.27.0",
     "python-multipart>=0.0.9",
     "cyberepi-shared>=0.1.0",
 ]
@@ -38,8 +39,20 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.6.0",
     "testcontainers[postgres,redis]>=4.0.0",
+    "pytest-mock>=3.14.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.pytest.ini_options]
+# integration tests need testcontainers and a live DB+Redis. Run them with
+# `pytest tests/integration` after `pip install -e ".[dev]"`. The default
+# `pytest` invocation picks up unit + regression suites only.
+addopts = "--ignore=tests/integration"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+extend = "../../ruff.toml"

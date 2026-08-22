@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 
 from shared.db import create_session_factory
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.config import settings
 
 engine, AsyncSessionLocal = create_session_factory(settings)

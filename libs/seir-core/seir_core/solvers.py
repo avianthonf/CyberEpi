@@ -1,17 +1,18 @@
-import numpy as np
-from scipy.integrate import solve_ivp
-from typing import Tuple, Optional
+import time
 from dataclasses import dataclass
+
+import numpy as np
+from prometheus_client import Histogram
+from scipy.integrate import solve_ivp
+
 from .seir import SEIRParams, seir_extended
+
 
 @dataclass
 class SolverResult:
     t: np.ndarray
     y: np.ndarray
     message: str
-
-from prometheus_client import Histogram
-import time
 
 ODE_SOLVE_DURATION = Histogram(
     "ode_solve_duration_seconds",
@@ -21,8 +22,8 @@ ODE_SOLVE_DURATION = Histogram(
 
 def run_seir(
     y0: np.ndarray,
-    t_span: Tuple[float, float],
-    t_eval: Optional[np.ndarray],
+    t_span: tuple[float, float],
+    t_eval: np.ndarray | None,
     params: SEIRParams
 ) -> SolverResult:
     """
@@ -42,7 +43,7 @@ def run_seir(
             t_eval=t_eval
         )
     except Exception as e:
-        raise RuntimeError(f"Solver failed with exception: {str(e)}") from e
+        raise RuntimeError(f"Solver failed with exception: {e!s}") from e
     finally:
         ODE_SOLVE_DURATION.observe(time.perf_counter() - start_time)
 

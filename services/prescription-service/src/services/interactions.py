@@ -8,11 +8,9 @@ from typing import Any
 import httpx
 import redis.asyncio as aioredis
 import structlog
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.db.models import Prescription
 
 logger = structlog.get_logger()
 
@@ -55,7 +53,7 @@ async def cached_fda_lookup(
                 if result:
                     await redis_client.setex(cache_key, settings.fda_cache_ttl, json.dumps(result))
                 return result
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — external API boundary: degrades to None on any network/parse failure
         logger.error("OpenFDA lookup failed persistently", ndc=ndc_code, error=str(e))
     return None
 
@@ -63,9 +61,11 @@ async def rxnorm_lookup(drug_name: str) -> str | None:
     """Get RxNorm ID for a drug name."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
+            url = f"{settings.rxnorm_api_url}/rxcui.json"
+            logger.info("Calling RxNorm API", url=url, drug_name=drug_name)
             resp = await _retry_get(
                 client,
-                f"{settings.rxnorm_api_url}/rxcui.json",
+                url,
                 params={"name": drug_name}
             )
             if resp and resp.status_code == 200:
@@ -73,83 +73,24 @@ async def rxnorm_lookup(drug_name: str) -> str | None:
                 id_group = data.get("idGroup", {})
                 rxnorm_ids = id_group.get("rxnormId", [])
                 return rxnorm_ids[0] if rxnorm_ids else None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — external API boundary: degrades to None on any network/parse failure
         logger.error("RxNorm lookup failed persistently", drug_name=drug_name, error=str(e))
+    logger.warning("RxNorm lookup failed to find drug", drug_name=drug_name)
     return None
 
 async def check_interactions(
-    redis_client: aioredis.Redis,
-    rxnorm_id: str,
-    patient_id: uuid.UUID,
     db: AsyncSession,
+    patient_id: uuid.UUID,
+    new_drug_name: str,
 ) -> list[dict[str, Any]]:
-    """Check drug interactions against patient's active prescriptions (optimized)."""
-    result = await db.execute(
-        select(Prescription).where(
-            Prescription.patient_id == patient_id,
-            Prescription.status == "active",
-        )
-    )
-    active_rxs = [rx for rx in result.scalars().all() if rx.rxnorm_id and rx.rxnorm_id != rxnorm_id]
-    if not active_rxs:
-        return []
-
-    # Prepare cache keys
-    id_pairs = [(min(rxnorm_id, rx.rxnorm_id), max(rxnorm_id, rx.rxnorm_id), rx) for rx in active_rxs]
-    cache_keys = [f"fda:interaction:{p[0]}:{p[1]}" for p in id_pairs]
-
-    # Batch Redis lookup
-    cached_responses = await redis_client.mget(*cache_keys)
-
-    interactions: list[dict[str, Any]] = []
-    missing_pairs = []
-
-    for i, cached in enumerate(cached_responses):
-        if cached:
-            cached_data = json.loads(cached)
-            if cached_data:
-                interactions.extend(cached_data)
-        else:
-            missing_pairs.append(id_pairs[i])
-
-    if not missing_pairs:
-        return interactions
-
-    # Parallel API calls for missing pairs
-    async def fetch_and_cache(p_info):
-        drug_a, drug_b, rx = p_info
-        key = f"fda:interaction:{drug_a}:{drug_b}"
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await _retry_get(
-                    client,
-                    f"{settings.rxnorm_api_url}/interaction/list.json",
-                    params={"rxcuis": f"{drug_a}+{drug_b}"}
-                )
-                if resp and resp.status_code == 200:
-                    data = resp.json()
-                    pairs = data.get("fullInteractionTypeGroup", [])
-                    found: list[dict[str, Any]] = []
-                    for group in pairs:
-                        for itype in group.get("fullInteractionType", []):
-                            for pair in itype.get("interactionPair", []):
-                                found.append(
-                                    {
-                                        "severity": pair.get("severity", "unknown"),
-                                        "description": pair.get("description", ""),
-                                        "drug_a": drug_a,
-                                        "drug_b": drug_b,
-                                        "drug_b_name": rx.drug_name,
-                                    }
-                                )
-                    await redis_client.setex(key, settings.fda_cache_ttl, json.dumps(found))
-                    return found
-        except Exception as e:
-            logger.error("Interaction check failed persistently", rxnorm_id=drug_a, other_rxnorm_id=drug_b, error=str(e))
-        return []
-
-    results = await asyncio.gather(*(fetch_and_cache(p) for p in missing_pairs))
-    for res in results:
-        interactions.extend(res)
-
-    return interactions
+    """
+    Interaction checks are currently disabled due to RxNorm DDI API deprecation.
+    """
+    logger.warning("Interaction check skipped: RxNorm DDI API deprecated")
+    return [
+        {
+            "severity": "info",
+            "description": "Drug interaction checking is currently unavailable (API deprecated).",
+            "drugs": [new_drug_name]
+        }
+    ]

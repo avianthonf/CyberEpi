@@ -34,15 +34,15 @@ def compute_cost(
     H = x[4, :]
     ICU = x[5, :]
     D = x[7, :]
-    
+
     # Running cost
     L = C1 * (IM + IS)**2 + C2 * (H + ICU)
-    
+
     # Control cost
     # u is (3, n_steps). Cost is u.T @ (C3*W) @ u
     # We can do this element-wise for diagonal W
     u_cost = C3 * (W[0,0]*u[0,:]**2 + W[1,1]*u[1,:]**2 + W[2,2]*u[2,:]**2)
-    
+
     total_J = np.sum(L + u_cost) * dt + C4 * D[-1]
     return float(total_J)
 
@@ -65,62 +65,64 @@ def forward_backward_sweep(
     n_steps = len(t_eval)
     dim_x = 8
     dim_u = 3
-    
+
     # Initialize control
     u = np.zeros((dim_u, n_steps))
     x = np.zeros((dim_x, n_steps))
     lam = np.zeros((dim_x, n_steps))
-    
+
     lr = 0.01 # Learning rate for control update
     C4 = params.get('C4', 10.0)
-    
+
     converged = False
-    
+    iterations_run = 0
+
     for iteration in range(n_iter):
         u_old = u.copy()
-        
+
         # 1. Forward Sweep: integrate state
-        def f_forward(t, y):
+        def f_forward(t, y, u=u, dt=dt, n_steps=n_steps, params=params):
             # Interpolate u at t
-            idx = int(round(t / dt))
+            idx = round(t / dt)
             idx = min(idx, n_steps - 1)
             u_current = u[:, idx]
             return seir_controlled(t, y, u_current, params)
-        
+
         sol_x = solve_ivp(f_forward, (0, T), x0, t_eval=t_eval, method='RK45', rtol=1e-3, atol=1e-3)
         x = sol_x.y
-        
+
         # 2. Backward Sweep: integrate costate
         # lam(T) = [0, 0, 0, 0, 0, 0, 0, C4]
         lam_T = np.zeros(dim_x)
         lam_T[7] = C4
-        
-        def f_backward(t, y):
+
+        def f_backward(t, y, x=x, u=u, dt=dt, n_steps=n_steps, C1=C1, C2=C2, params=params):
             # Backward: t goes from T to 0
             # Interpolate x and u at t
-            idx = int(round(t / dt))
+            idx = round(t / dt)
             idx = min(idx, n_steps - 1)
             x_current = x[:, idx]
             u_current = u[:, idx]
             return compute_dH_dx(x_current, y, u_current, C1, C2, params, t)
-        
+
         # We integrate from T to 0. solve_ivp can handle this.
         sol_lam = solve_ivp(f_backward, (T, 0), lam_T, t_eval=t_eval[::-1], method='RK45', rtol=1e-3, atol=1e-3)
         # sol_lam.y is in reverse time [T, ..., 0]
         lam = sol_lam.y[:, ::-1] # Flip back to [0, ..., T]
-        
+
         # 3. Update Control
         # u[k] = clip(u[k] - lr * dH/du[k], 0, 1)
         for k in range(n_steps):
             dH_du = compute_dH_du(x[:, k], lam[:, k], u[:, k], C3, W, params, t_eval[k])
             u[:, k] = np.clip(u[:, k] - lr * dH_du, 0, 1)
-            
+
         # 4. Check Convergence
+        iterations_run = iteration + 1
         diff = np.max(np.abs(u - u_old))
         if diff < tol:
             converged = True
             break
-            
+
     final_cost = compute_cost(x, u, C1, C2, C3, W, C4, dt)
-    
-    return SweepResult(t_eval, x, u, lam, converged, iteration + 1, final_cost)
+
+    return SweepResult(t_eval, x, u, lam, converged, iterations_run, final_cost)

@@ -64,17 +64,17 @@ def compute_dH_dx(
     x = [S, E, IM, IS, H, ICU, R, D]
     """
     S, E, IM, IS, H, ICU, R, D = x
-    
+
     # partial L / partial x
     dL_dx = np.zeros(8)
     dL_dx[2] = 2 * C1 * (IM + IS)  # IM
     dL_dx[3] = 2 * C1 * (IM + IS)  # IS
     dL_dx[4] = C2                 # H
     dL_dx[5] = C2                 # ICU
-    
+
     # partial F / partial x
     dF_dx = compute_jacobian_x(seir_controlled, t, x, u, params)
-    
+
     # -dH/dx = -(dL/dx + lam.T @ dF/dx)
     return -(dL_dx + lam @ dF_dx)
 
@@ -95,9 +95,9 @@ def compute_dH_du(
     # L_u = C3 * (w1*u1^2 + w2*u2^2 + w3*u3^2)
     # dL/du = 2 * C3 * W @ u
     dL_du = 2 * C3 * W @ u
-    
+
     # partial F / partial u
     dF_du = compute_jacobian_u(seir_controlled, t, x, u, params)
-    
+
     # dH/du = dL/du + dF_du.T @ lam
     return dL_du + dF_du.T @ lam

@@ -1,4 +1,4 @@
-"""Prescription-service API – CRUD, drug interactions via OpenFDA/RxNorm."""
+"""Prescription-service API - CRUD, drug interactions via OpenFDA/RxNorm."""
 
 from __future__ import annotations
 
@@ -27,14 +27,14 @@ router = APIRouter()
 # ─── Schemas ──────────────────────────────────────────────────────
 class PrescriptionCreate(BaseModel):
     patient_id: uuid.UUID
-    drug_name: str
-    ndc_code: str | None = None
-    rxnorm_id: str | None = None
-    dosage: str | None = None
-    frequency: str | None = None
+    drug_name: str = Field(..., min_length=1, max_length=200)
+    ndc_code: str | None = Field(None, max_length=50)
+    rxnorm_id: str | None = Field(None, max_length=50)
+    dosage: str | None = Field(None, max_length=100)
+    frequency: str | None = Field(None, max_length=100)
     start_date: date
     end_date: date | None = None
-    notes: str | None = None
+    notes: str | None = Field(None, max_length=10000)
 
 
 class PrescriptionResponse(BaseModel):
@@ -59,8 +59,8 @@ class StatusUpdate(BaseModel):
 
 
 class MedicationScanRequest(BaseModel):
-    ocr_text: str
-    patient_id: uuid.UUID | None = None
+    ocr_text: str = Field(..., min_length=1, max_length=4096)
+    patient_id: uuid.UUID
 
 
 class MedicationScanResponse(BaseModel):
@@ -84,13 +84,15 @@ async def create_prescription(
 ) -> PrescriptionResponse:
     """Create a prescription and check for drug interactions."""
     # Authorization: Patient can only create for themselves.
-    user_id = user.get("sub")
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        if str(body.patient_id) != user_id:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, user)
+        if own_patient_id is None or body.patient_id != own_patient_id:
             raise HTTPException(
                 status_code=403,
-                detail="Access denied: Patients can only create prescriptions for themselves."
+                detail="Access denied: Patients can only create prescriptions for themselves.",
             )
     # Verify patient exists
     patient = await db.execute(select(Patient).where(Patient.id == body.patient_id))
@@ -104,11 +106,10 @@ async def create_prescription(
     if not rxnorm_id:
         rxnorm_id = await rxnorm_lookup(body.drug_name)
 
-    # Check interactions
+    # Check interactions (function takes db, patient_id, drug_name)
     interactions: list[dict[str, Any]] = []
     if rxnorm_id:
-        interactions = await check_interactions(redis_client, rxnorm_id, body.patient_id, db)
-
+        interactions = await check_interactions(db, body.patient_id, body.drug_name)
     # FDA lookup
     if body.ndc_code:
         await cached_fda_lookup(redis_client, body.ndc_code)
@@ -145,13 +146,15 @@ async def get_prescription(
         raise HTTPException(status_code=404, detail="Prescription not found")
 
     # Authorization
-    user_id = user.get("sub")
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        if str(rx.patient_id) != user_id:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, user)
+        if own_patient_id is None or rx.patient_id != own_patient_id:
             raise HTTPException(
                 status_code=403,
-                detail="Access denied: Patients can only view their own prescriptions."
+                detail="Access denied: Patients can only view their own prescriptions.",
             )
 
     return PrescriptionResponse.model_validate(rx)
@@ -164,13 +167,15 @@ async def list_prescriptions(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[PrescriptionResponse]:
     # Authorization
-    user_id = user.get("sub")
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        if str(patient_id) != user_id:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, user)
+        if own_patient_id is None or patient_id != own_patient_id:
             raise HTTPException(
                 status_code=403,
-                detail="Access denied: Patients can only list their own prescriptions."
+                detail="Access denied: Patients can only list their own prescriptions.",
             )
     result = await db.execute(
         select(Prescription).where(
@@ -194,13 +199,15 @@ async def update_prescription_status(
         raise HTTPException(status_code=404, detail="Prescription not found")
 
     # Authorization
-    user_id = user.get("sub")
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        if str(rx.patient_id) != user_id:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, user)
+        if own_patient_id is None or rx.patient_id != own_patient_id:
             raise HTTPException(
                 status_code=403,
-                detail="Access denied: Patients can only update their own prescriptions."
+                detail="Access denied: Patients can only update their own prescriptions.",
             )
     rx.status = body.status
     await db.flush()
@@ -219,7 +226,8 @@ async def scan_medication(
     redis_client: aioredis.Redis = request.app.state.redis
 
     # Extract drug name from OCR text (simplified: use first line or full text)
-    drug_name = body.ocr_text.strip().split("\n")[0].strip()
+    import re
+    drug_name = re.sub(r'\s+\d+\s*(mg|mcg|g|ml).*', '', body.ocr_text.strip().split("\n")[0].strip(), flags=re.IGNORECASE)
 
     # RxNorm lookup
     rxnorm_id = await rxnorm_lookup(drug_name)
@@ -239,10 +247,9 @@ async def scan_medication(
             drug_name = fda_result.get("brand_name", drug_name)
 
     # Check interactions if patient provided
-    interactions: list[dict[str, Any]] = []
+    interactions = []
     if rxnorm_id and body.patient_id:
-        interactions = await check_interactions(redis_client, rxnorm_id, body.patient_id, db)
-
+        interactions = await check_interactions(db, body.patient_id, drug_name)
     return MedicationScanResponse(
         drug_name=drug_name,
         ndc_code=ndc_code,

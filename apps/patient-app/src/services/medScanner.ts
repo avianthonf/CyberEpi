@@ -123,6 +123,12 @@ export class MedScannerService {
 
     return null;
   }
+  // Extract drug name from OCR text using regex
+  extractDrugName(text: string): string | null {
+    const match = text.match(/^([A-Za-z\s]+)\s+\d+mg/i);
+    return (match && match[1]) ? match[1].trim() : null;
+  }
+
 
   // Scan medication from OCR text and send to API.
   // OCR itself (image → text) requires ML Kit, which is not wired up yet;

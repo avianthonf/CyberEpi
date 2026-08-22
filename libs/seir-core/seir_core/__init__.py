@@ -1,15 +1,15 @@
-from .seir import SEIRParams, seir_extended, seir_base, seir_metapopulation
-from .solvers import run_seir, SolverResult
+from .seir import SEIRParams, seir_base, seir_extended, seir_metapopulation
+from .solvers import SolverResult, run_seir
 from .utils import compute_load, compute_R0, compute_Rt
 
 __all__ = [
     "SEIRParams",
-    "seir_extended",
-    "seir_base",
-    "seir_metapopulation",
-    "run_seir",
     "SolverResult",
-    "compute_load",
     "compute_R0",
     "compute_Rt",
+    "compute_load",
+    "run_seir",
+    "seir_base",
+    "seir_extended",
+    "seir_metapopulation",
 ]

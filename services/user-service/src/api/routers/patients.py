@@ -1,4 +1,4 @@
-"""User-service API routers – registration, patient CRUD, push tokens, risk."""
+"""User-service API routers - registration, patient CRUD, push tokens, risk."""
 
 from __future__ import annotations
 
@@ -8,12 +8,13 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
+from shared.models import Patient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user
 from src.config import settings
-from src.db.models import Patient, PushToken
+from src.db.models import PushToken
 from src.db.session import get_db
 
 router = APIRouter()
@@ -21,12 +22,12 @@ router = APIRouter()
 
 # ─── Pydantic Schemas ────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    first_name: str
-    last_name: str
-    region_id: str | None = None
-    patch_id: str | None = None
+    email: EmailStr = Field(..., max_length=200)
+    password: str = Field(..., min_length=8, max_length=128)
+    first_name: str = Field(..., max_length=100)
+    last_name: str = Field(..., max_length=100)
+    region_id: str | None = Field(None, max_length=50)
+    patch_id: str | None = Field(None, max_length=20)
 
 
 class RegisterResponse(BaseModel):
@@ -52,19 +53,17 @@ class PatientResponse(BaseModel):
 
 
 class PatientUpdateRequest(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    date_of_birth: str | None = None
-    gender: str | None = None
-    region_id: str | None = None
-    patch_id: str | None = None
-    phone: str | None = None
-
+    first_name: str | None = Field(None, max_length=100)
+    last_name: str | None = Field(None, max_length=100)
+    date_of_birth: str | None = Field(None, max_length=20)
+    gender: str | None = Field(None, max_length=20)
+    region_id: str | None = Field(None, max_length=50)
+    patch_id: str | None = Field(None, max_length=20)
+    phone: str | None = Field(None, max_length=30)
 
 class PushTokenRequest(BaseModel):
-    token: str
+    token: str = Field(..., max_length=200)
     platform: str = Field(..., pattern=r"^(ios|android|web)$")
-
 
 class RiskResponse(BaseModel):
     patient_id: uuid.UUID
@@ -86,18 +85,19 @@ async def register_patient(
     keycloak_id = ""
     try:
         async with httpx.AsyncClient() as client:
-            # Get admin token
+            # Get admin token via master realm admin-cli
+            admin_realm = settings.keycloak_admin_realm
             token_resp = await client.post(
-                settings.keycloak_token_url,
+                f"{settings.keycloak_url}/realms/{admin_realm}/protocol/openid-connect/token",
                 data={
-                    "grant_type": "client_credentials",
-                    "client_id": settings.keycloak_client_id,
-                    "client_secret": settings.keycloak_client_secret,
+                    "grant_type": "password",
+                    "client_id": settings.keycloak_admin_client_id,
+                    "username": settings.keycloak_admin_username,
+                    "password": settings.keycloak_admin_password,
                 },
             )
             if token_resp.status_code == 200:
                 admin_token = token_resp.json().get("access_token", "")
-                # Create user
                 create_resp = await client.post(
                     f"{settings.keycloak_admin_url}/users",
                     json={
@@ -113,9 +113,17 @@ async def register_patient(
                 if create_resp.status_code == 201:
                     location = create_resp.headers.get("Location", "")
                     keycloak_id = location.rsplit("/", 1)[-1] if location else ""
+                elif create_resp.status_code == 409:
+                    search_resp = await client.get(
+                        f"{settings.keycloak_admin_url}/users",
+                        params={"email": body.email, "exact": "true"},
+                        headers={"Authorization": f"Bearer {admin_token}"},
+                    )
+                    if search_resp.status_code == 200:
+                        users = search_resp.json()
+                        if users:
+                            keycloak_id = users[0]["id"]
     except httpx.HTTPError as exc:
-        # Only fall back to a fake Keycloak ID in dev; in prod this must fail
-        # loudly rather than silently creating patients who can never log in.
         if not settings.debug:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -131,18 +139,21 @@ async def register_patient(
             )
         keycloak_id = str(uuid.uuid4())
 
-    # Create patient record
-    patient = Patient(
-        keycloak_id=keycloak_id,
-        first_name=body.first_name,
-        last_name=body.last_name,
-        email=body.email,
-        region_id=body.region_id,
-        patch_id=body.patch_id,
-    )
-    db.add(patient)
-    await db.flush()
-    await db.commit()
+    # Look up by keycloak_id first so re-registration is idempotent.
+    result = await db.execute(select(Patient).where(Patient.keycloak_id == keycloak_id))
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        patient = Patient(
+            keycloak_id=keycloak_id,
+            first_name=body.first_name,
+            last_name=body.last_name,
+            email=body.email,
+            region_id=body.region_id,
+            patch_id=body.patch_id,
+        )
+        db.add(patient)
+        await db.flush()
+        await db.commit()
 
     return RegisterResponse(id=patient.id, keycloak_id=keycloak_id)
 

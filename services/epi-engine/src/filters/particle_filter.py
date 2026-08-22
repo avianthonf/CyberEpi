@@ -37,11 +37,11 @@ class ParticleFilter:
             )
             if sol.success:
                 self.particles[i, :9] = sol.y[:, -1]
-            
+
             # Add process noise
             noise = np.random.multivariate_normal(np.zeros(self.dim), self.Q)
             self.particles[i] += noise
-            
+
         self.particles = np.clip(self.particles, 0, None)
 
     def weight(self, y_obs: np.ndarray):
@@ -50,7 +50,7 @@ class ParticleFilter:
         y_active = y_obs[mask]
         H_active = self.H_obs[mask]
         R_active = self.R_obs[np.ix_(mask, mask)]
-        
+
         log_weights = np.zeros(self.Np)
         for i in range(self.Np):
             y_pred = H_active @ self.particles[i]
@@ -60,7 +60,7 @@ class ParticleFilter:
             var = np.diag(R_active)
             log_lik = -0.5 * np.sum((diff**2) / var + np.log(2 * np.pi * var))
             log_weights[i] = log_lik
-            
+
         # Avoid overflow: subtract max log_weight
         max_log = np.max(log_weights)
         self.weights = np.exp(log_weights - max_log)
@@ -78,7 +78,7 @@ class ParticleFilter:
         cumulative_weights = np.cumsum(self.weights)
         u = (np.arange(self.Np) + np.random.rand(self.Np)) / self.Np
         indices = np.searchsorted(cumulative_weights, u)
-        
+
         self.particles = self.particles[indices]
         self.weights = np.ones(self.Np) / self.Np
 
@@ -88,12 +88,12 @@ class ParticleFilter:
         param_idx = [9, 10, 11]
         m = np.average(self.particles[:, param_idx], axis=0, weights=self.weights)
         V = np.cov(self.particles[:, param_idx], rowvar=False, aweights=self.weights)
-        
+
         h2 = 1 - a**2
         for i in range(self.Np):
             mu_i = a * self.particles[i, param_idx] + (1 - a) * m
             self.particles[i, param_idx] = np.random.multivariate_normal(mu_i, h2 * V)
-            
+
         self.particles = np.clip(self.particles, 0, None)
 
     def estimate(self) -> tuple[np.ndarray, np.ndarray]:

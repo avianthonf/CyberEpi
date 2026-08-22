@@ -18,14 +18,14 @@ class BudgetTracker:
         Consumes budget for a user. Returns True if successful.
         """
         key = f"dp_budget:{user_id}"
-        
+
         # Use Redis Lua script for atomic check-and-set
         lua_script = """
         local key = KEYS[1]
         local epsilon = tonumber(ARGV[1])
         local max_budget = tonumber(ARGV[2])
         local current = tonumber(redis.call('GET', key) or "0")
-        
+
         if current + epsilon <= max_budget then
             redis.call('SET', key, tostring(current + epsilon))
             return 1

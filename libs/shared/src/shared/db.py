@@ -73,3 +73,34 @@ class SessionProvider:
             except Exception:
                 await session.rollback()
                 raise
+
+
+async def create_all_on_startup(engine: AsyncEngine, base) -> None:
+    """Create every table owned by ``base.metadata`` if it doesn't exist.
+
+    This is a dev-time convenience so the API doesn't 500 on first boot. In
+    production each service should run `alembic upgrade head` instead and
+    skip this helper.
+    """
+    async with engine.begin() as conn:
+        await conn.run_sync(base.metadata.create_all)
+
+
+async def _db_outage_handler(request, exc):
+    """Database connectivity failure -> 503 (dependency outage), not 500 (bug).
+
+    Only ``OperationalError`` (connect refused, timeout, lost connection) is
+    mapped. ``IntegrityError``/``DataError``/``ProgrammingError`` are input or
+    bug signals and must keep surfacing as their normal 500/4xx responses.
+    The response stays detail-free about the underlying connection error.
+    """
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=503, content={"detail": "Database temporarily unavailable"})
+
+
+def install_db_outage_handler(app) -> None:
+    """Map connection-level DB failures to a clean 503."""
+    from sqlalchemy.exc import OperationalError
+
+    app.add_exception_handler(OperationalError, _db_outage_handler)

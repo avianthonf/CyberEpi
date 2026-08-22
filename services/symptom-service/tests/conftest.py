@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import os
+
+# Deterministic unit-test env: parse-only URLs (engine creation is lazy).
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost:5432/test")
+
 import base64
 import json
 import time
@@ -50,9 +55,13 @@ def mock_redis():
 
 @pytest.fixture
 def mock_kafka_producer():
-    producer = AsyncMock()
-    producer.send_and_wait = AsyncMock()
-    # Mimic aiokafka's internal client so health checks see it as connected
-    producer._client = MagicMock()
-    producer._client._closed = False
+    """Stand-in for AIOKafkaProducer that satisfies the health probe.
+
+    The probe does `client.cluster.brokers()` (sync iteration). Using an
+    AsyncMock here would auto-create coroutine-returning children. So we
+    hand-build a plain object with MagicMock attributes instead.
+    """
+    from types import SimpleNamespace
+    client = SimpleNamespace(_closed=False, cluster=SimpleNamespace(brokers=lambda: [("127.0.0.1", 9092)]))
+    producer = SimpleNamespace(_client=client)
     return producer
