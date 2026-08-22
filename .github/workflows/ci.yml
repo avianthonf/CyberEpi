@@ -78,7 +78,7 @@ jobs:
           PGUSER: cyberepi
           PGPASSWORD: devpassword
           PGDATABASE: cyberepi
-        run: psql -f infra/postgres-init/01-init.sql
+        run: psql -v ON_ERROR_STOP=1 -f infra/postgres-init/00-init.sql
 
       - name: Run tests
         working-directory: services/${{ matrix.service }}

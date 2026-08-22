@@ -5,11 +5,10 @@ BEGIN
    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'cyberepi') THEN
       CREATE USER cyberepi WITH PASSWORD 'devpassword';
    END IF;
-   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cyberepi') THEN
-      CREATE DATABASE cyberepi;
-   END IF;
 END
 $do$;
+SELECT 'CREATE DATABASE cyberepi OWNER cyberepi'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cyberepi')\gexec
 GRANT ALL PRIVILEGES ON DATABASE cyberepi TO cyberepi;
 
 -- CyberEpi – Idempotent Database Initialization

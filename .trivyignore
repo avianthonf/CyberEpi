@@ -1,0 +1,7 @@
+# Unfixed upstream CVEs (no patched release exists as of 2026-08-22).
+# image-size: DoS via crafted ICNS/JXL/HEIF buffers; affects all releases
+# through latest (2.0.2). Transitive dev/build dependency of the Expo/Metro
+# toolchain in apps/patient-app; not reachable from runtime request paths.
+# Revisit when image-size publishes a fix. Ref: GHSA-w3rx-r6r6-pgpr
+CVE-2025-71329
+CVE-2025-71330
