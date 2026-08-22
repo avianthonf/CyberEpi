@@ -51,3 +51,7 @@ logs/
 data/
 backtest/out/
 *.jsonl
+# ...but this bundled lookup table is a runtime dependency of
+# services/epi-engine src/tasks/surveillance_ingest.py and must be tracked.
+!services/epi-engine/src/tasks/data/
+!services/epi-engine/src/tasks/data/**
