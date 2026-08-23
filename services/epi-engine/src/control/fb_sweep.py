@@ -71,15 +71,14 @@ def forward_backward_sweep(
     x = np.zeros((dim_x, n_steps))
     lam = np.zeros((dim_x, n_steps))
 
-    lr = 0.01 # Learning rate for control update
+    lr = 0.01  # initial step size; adapted by backtracking line search
     C4 = params.get('C4', 10.0)
 
     converged = False
     iterations_run = 0
+    best_cost = np.inf
 
     for iteration in range(n_iter):
-        u_old = u.copy()
-
         # 1. Forward Sweep: integrate state
         def f_forward(t, y, u=u, dt=dt, n_steps=n_steps, params=params):
             # Interpolate u at t
@@ -110,15 +109,30 @@ def forward_backward_sweep(
         # sol_lam.y is in reverse time [T, ..., 0]
         lam = sol_lam.y[:, ::-1] # Flip back to [0, ..., T]
 
-        # 3. Update Control
-        # u[k] = clip(u[k] - lr * dH/du[k], 0, 1)
+        # 3. Update Control (gradient step with backtracking line search)
+        u_new = u.copy()
         for k in range(n_steps):
-            dH_du = compute_dH_du(x[:, k], lam[:, k], u[:, k], C3, W, params, t_eval[k])
-            u[:, k] = np.clip(u[:, k] - lr * dH_du, 0, 1)
+            dH_du = compute_dH_du(x[:, k], lam[:, k], u_new[:, k], C3, W, params, t_eval[k])
+            u_new[:, k] = np.clip(u_new[:, k] - lr * dH_du, 0, 1)
+
+        cost_new = compute_cost(x, u_new, C1, C2, C3, W, C4, dt)
+        if cost_new <= best_cost:
+            accepted_step = u_new - u
+            u = u_new
+            best_cost = cost_new
+            lr = min(lr * 1.2, 0.5)
+        else:
+            # reject step, keep previous control, shrink step size
+            accepted_step = np.zeros_like(u)
+            lr *= 0.5
+            if lr < 1e-8:
+                converged = True
+                iterations_run = iteration + 1
+                break
 
         # 4. Check Convergence
         iterations_run = iteration + 1
-        diff = np.max(np.abs(u - u_old))
+        diff = np.max(np.abs(accepted_step))
         if diff < tol:
             converged = True
             break
