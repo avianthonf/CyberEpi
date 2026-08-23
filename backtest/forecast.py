@@ -71,7 +71,8 @@ def emit_rows(
             "reference_date": str(ref), "target": PRIMARY_TARGET, "horizon": -1,
             "location": location, "target_end_date": ted,
             "output_type": "quantile", "output_type_id": f"{lev:g}",
-            "value": float(max(round(v), 0)),
+            # hub requires integer values for wk inc flu hosp
+            "value": max(int(round(v)), 0),
         } for lev, v in zip(STANDARD_QUANTILES, q_neg1))
 
     for h, q in qs.items():
@@ -80,6 +81,6 @@ def emit_rows(
             "reference_date": str(ref), "target": PRIMARY_TARGET, "horizon": h,
             "location": location, "target_end_date": ted,
             "output_type": "quantile", "output_type_id": f"{lev:g}",
-            "value": float(max(round(v), 0)),
+            "value": max(int(round(v)), 0),
         } for lev, v in zip(STANDARD_QUANTILES, q))
     return rows
