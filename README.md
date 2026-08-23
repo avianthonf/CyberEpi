@@ -101,11 +101,11 @@ cd apps/patient-app && npx tsc --noEmit && npm test
 The epi-engine's SEIHDR + EAKF forecaster is backtested against CDC
 hospitalization targets (see [BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md)):
 
-- **Pooled relWIS 0.707** vs the CDC persistence baseline (per-season
-  0.64–0.80), across 3 FluSight seasons, 53 locations, 22,525 scored
-  forecasts.
-- Interval coverage: cov90 ≈ 0.85–0.90, cov50 ≈ 0.55–0.61 (calibrated
-  near nominal).
+- **Pooled relWIS 0.714** vs the CDC persistence baseline (per-season
+  0.66–0.86), across 3 FluSight seasons, 53 locations, 18,020 scored
+  forecasts (h=0..3, FluSight scoring convention).
+- Interval coverage: cov90 ≈ 0.85–0.91, cov50 ≈ 0.44–0.53 (near nominal
+  at 0.5 and 0.9).
 - Retrospective scoring by the in-repo harness; hub verification is the
   next step (`backtest/package_submission.py` emits hub-conformant
   quantile files + `model-metadata`).
