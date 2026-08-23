@@ -3,7 +3,7 @@
 **Date**: 2026-08-21
 **Benchmark**: FluSight-style scoring (US national + 52 HHS/state locations), seasons 2023-24, 2024-25, 2025-26
 **Baseline**: naive surveillance-persistence baseline model shipped with the FluSight eval harness (`wis_baseline_mean`)
-**Model**: CyberEpi EAKF — ensemble-adjusted Kalman filter over SEIHDR with nonlinear ILI-visit observation
+**Model**: CyberEpi EAKF — ensemble-adjusted Kalman filter over SEIHDR with nonlinear ILI-visit observation (model/inference details: [backtest/METHODS.md](./backtest/METHODS.md))
 **Final config artifact**: `backtest/out/flu/summary-EAKF-final.json` (+ `rows-EAKF-final.csv`)
 
 ## Headline

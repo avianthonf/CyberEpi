@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +33,9 @@ async def _cache_set(redis: aioredis.Redis, key: str, ttl: int, value: str) -> N
 @router.get("/{id}/forecast", response_model=ForecastResponse)
 async def get_region_forecast(
     id: str,
-    horizon_days: int = 14,
+    # Unbounded horizons are a compute-DoS vector: integration cost scales
+    # linearly with horizon. Public-health uses need at most ~6 weeks.
+    horizon_days: int = Query(default=14, ge=1, le=42),
     db: AsyncSession = Depends(get_db),
     request: Request = None,
     user: dict[str, Any] = Depends(get_current_user),
