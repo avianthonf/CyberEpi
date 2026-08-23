@@ -46,6 +46,14 @@ SEASONS = {
 WARMUP_WEEKS = 8
 
 
+def _q_lookup(ql: np.ndarray, qv: np.ndarray, lev: float) -> float:
+    """Exact quantile lookup; np.interp fallback for non-standard grids."""
+    idx = np.nonzero(np.isclose(ql, lev))[0]
+    if len(idx):
+        return float(qv[idx[0]])
+    return float(np.interp(lev, ql, qv))
+
+
 def season_origins(baseline: pd.DataFrame, season: str) -> np.ndarray:
     lo, hi = SEASONS[season]
     rd = baseline["reference_date"]
@@ -115,12 +123,12 @@ def summarize(rows: pd.DataFrame, oracle: pd.DataFrame,
             qv = g["value"].to_numpy(float)
             y = float(g["oracle_value"].iloc[0])
             wis = float(weighted_interval_score(ql, qv, y))
-            med = np.interp(0.5, ql, qv)
+            med = _q_lookup(ql, qv, 0.5)
             recs.append({"location": loc, "reference_date": ref, "horizon": h,
                          "observed": y, "median": med, "wis": wis,
-                         "cov50": float(np.interp(0.25, ql, qv) <= y <= np.interp(0.75, ql, qv)),
-                         "cov90": float(np.interp(0.05, ql, qv) <= y <= np.interp(0.95, ql, qv)),
-                         "cov95": float(np.interp(0.025, ql, qv) <= y <= np.interp(0.975, ql, qv))})
+                         "cov50": float(_q_lookup(ql, qv, 0.25) <= y <= _q_lookup(ql, qv, 0.75)),
+                         "cov90": float(_q_lookup(ql, qv, 0.05) <= y <= _q_lookup(ql, qv, 0.95)),
+                         "cov95": float(_q_lookup(ql, qv, 0.025) <= y <= _q_lookup(ql, qv, 0.975))})
         out = pd.DataFrame(recs)
         out["model"] = name
         return out
