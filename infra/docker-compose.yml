@@ -31,6 +31,32 @@ services:
     networks:
       - cyberepi-net
 
+  # API gateway (DB-less/declarative mode) — config in infra/kong/kong.yml
+  kong:
+    <<: *common
+    image: kong:3.7
+    container_name: cyberepi-kong
+    depends_on:
+      - redis
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8002"
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+    volumes:
+      - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+    ports:
+      - "8000:8000"   # proxy
+      - "8002:8002"   # admin API (dev only; do not expose publicly)
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cyberepi-net
+
   # Kafka in Kraft mode (no Zookeeper)
   kafka:
     <<: *common

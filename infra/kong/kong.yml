@@ -9,6 +9,15 @@ services:
         paths:
           - /api/v1/auth
         strip_path: false
+        # credential-stuffing surface: much tighter than the global limit
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: redis
+              redis_host: redis
+              redis_port: 6379
+              limit_by: ip
       - name: patient-routes
         paths:
           - /api/v1/patients
@@ -76,18 +85,20 @@ services:
       # /internal/dp is deliberately not exposed through the gateway.
 
 plugins:
-  - name: jwt
-    config:
-      uri_param_names:
-        - jwt
-      cookie_names: []
-      claims_to_verify:
-        - exp
+  # No gateway-level jwt plugin: Kong's bundled jwt plugin authenticates
+  # against Kong consumer credentials, not Keycloak RS256 token issuers,
+  # and would 401 every public route (auth/register) as well. AuthN/AuthZ
+  # is enforced per service via Keycloak JWKS (libs/shared auth middleware);
+  # the gateway handles routing, rate limiting, metrics and CORS only.
 
   - name: rate-limiting
     config:
       minute: 100
-      policy: local
+      # redis policy: counters shared across Kong replicas and surviving
+      # restarts, so the limit is actually global rather than per-node.
+      policy: redis
+      redis_host: redis
+      redis_port: 6379
       fault_tolerant: true
       hide_client_headers: false
 
