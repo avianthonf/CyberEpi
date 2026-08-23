@@ -96,6 +96,34 @@ cd apps/patient-app && npx tsc --noEmit && npm test
 - **security-scan** — Trivy FS + pip-audit
 - **build-images** — docker build for all 6 services (main branch)
 
+## Forecast Validation (CDC FluSight targets)
+
+The epi-engine's SEIHDR + EAKF forecaster is backtested against CDC
+hospitalization targets (see [BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md)):
+
+- **Pooled relWIS 0.707** vs the CDC persistence baseline (per-season
+  0.64–0.80), across 3 FluSight seasons, 53 locations, 22,525 scored
+  forecasts.
+- Interval coverage: cov90 ≈ 0.85–0.90, cov50 ≈ 0.55–0.61 (calibrated
+  near nominal).
+- Retrospective scoring by the in-repo harness; hub verification is the
+  next step (`backtest/package_submission.py` emits hub-conformant
+  quantile files + `model-metadata`).
+
+One-command reproduction:
+
+```bash
+python3 backtest/run_flusight.py \
+  --seasons 2023-24,2024-25,2025-26 \
+  --locations US,01,02,04,05,06,08,09,10,11,12,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,44,45,46,47,48,49,50,51,53,54,55,56,72 \
+  --ncpus 8 --label EAKF-final
+```
+
+Single-origin prospective mode: `python3 backtest/run_flusight.py
+--reference-date YYYY-MM-DD` runs the filter through week R−7 and
+forecasts a 4-week horizon exactly once — hub submission format via
+`backtest/package_submission.py`, checked by `backtest/validate_submission.py`.
+
 ## Key API Contracts
 
 | Endpoint | Service | Description |
@@ -115,12 +143,21 @@ All endpoints except registration require a Keycloak-issued Bearer token (RS256,
 - Services share code via `libs/shared` — add shared functionality there, not per-service copies.
 - Backend changes need tests; frontend changes need `tsc --noEmit` clean.
 - Run `ruff check services/ libs/` before pushing.
-## Local Development (Re-initialized)
+## Local Development
 
-1. Run `bash scripts/setup-venv.sh`
-2. Run `make up` to start all infra and services.
-3. Run `make smoke` to verify all services are healthy.
-4. Run `make status` to check service container status.
-5. Run `make down` to stop and remove all service containers.
+The repo ships a one-shot path (used by the verification reports):
+
+```bash
+bash scripts/setup-venv.sh   # one-time: .venv with all deps
+make up                      # infra + services
+make smoke                   # verify all services healthy
+make status                  # container status
+make down                    # stop and remove containers
+```
 
 All services share `libs/shared` and `libs/seir-core`.
+
+## License & Citation
+
+MIT — see [LICENSE](./LICENSE). If you use this software in research,
+please cite it; see [CITATION.cff](./CITATION.cff).
