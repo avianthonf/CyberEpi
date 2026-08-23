@@ -19,6 +19,9 @@ import pandas as pd
 COLUMNS = ["reference_date", "target", "horizon", "target_end_date",
            "location", "output_type", "output_type_id", "value"]
 
+DATA_INPUTS = ("NHSN weekly confirmed influenza hospital admissions "
+               "(target data); NSSP emergency department influenza visit "
+               "fraction.")
 METHODS = ("SEIHDR mechanistic model, ensemble square-root filter "
            "assimilation, stochastic transmission and observation noise.")
 METHODS_LONG = (
@@ -46,7 +49,7 @@ model_contributors: [
 ]
 license: cc-by-4.0
 designated_model: true
-data_inputs: "NHSN weekly confirmed influenza hospital admissions (target data); NSSP emergency department influenza visit fraction."
+data_inputs: "{data_inputs}"
 methods: "{methods}"
 methods_long: "{methods_long}"
 ensemble_of_models: false
@@ -103,6 +106,7 @@ def main() -> None:
             model_name=args.model_name, model=args.model,
             name=args.name, affiliation=args.affiliation, email=args.email,
             methods=METHODS, methods_long=METHODS_LONG,
+            data_inputs=DATA_INPUTS,
             website=args.website, repo=args.repo))
 
     print(f"wrote {out_csv} ({len(df)} rows) and {out_yml}")

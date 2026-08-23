@@ -8,9 +8,12 @@ from typing import Any
 import httpx
 import redis.asyncio as aioredis
 import structlog
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.db.models import Prescription
+from src.services.ddi_data import find_interactions
 
 logger = structlog.get_logger()
 
@@ -83,14 +86,18 @@ async def check_interactions(
     patient_id: uuid.UUID,
     new_drug_name: str,
 ) -> list[dict[str, Any]]:
+    """Check new drug against patient's active prescriptions.
+
+    Uses the bundled high-priority DDI table (`ddi_data`), replacing the
+    discontinued NLM/RxNav interaction API. Local, deterministic, offline.
     """
-    Interaction checks are currently disabled due to RxNorm DDI API deprecation.
-    """
-    logger.warning("Interaction check skipped: RxNorm DDI API deprecated")
-    return [
-        {
-            "severity": "info",
-            "description": "Drug interaction checking is currently unavailable (API deprecated).",
-            "drugs": [new_drug_name]
-        }
-    ]
+    result = await db.execute(
+        select(Prescription.drug_name).where(
+            Prescription.patient_id == patient_id,
+            Prescription.status == "active",
+        )
+    )
+    active = [row[0] for row in result.all()]
+    interactions = find_interactions([*active, new_drug_name])
+    # only interactions involving the new drug are actionable here
+    return [i for i in interactions if new_drug_name in i["drugs"]]
