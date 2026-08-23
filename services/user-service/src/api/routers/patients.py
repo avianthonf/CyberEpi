@@ -12,6 +12,7 @@ from shared.models import Patient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import record_audit
 from src.auth import get_current_user
 from src.config import settings
 from src.db.models import PushToken
@@ -154,6 +155,8 @@ async def register_patient(
         db.add(patient)
         await db.flush()
         await db.commit()
+        await record_audit(db, actor_sub=keycloak_id, action="patient.register",
+                           patient_id=patient.id)
 
     return RegisterResponse(id=patient.id, keycloak_id=keycloak_id)
 
@@ -182,6 +185,8 @@ async def get_patient(
             detail="You do not have permission to access this profile",
         )
 
+    await record_audit(db, actor_sub=str(current_keycloak_id), action="patient.read",
+                       patient_id=patient_id)
     return PatientResponse.model_validate(patient)
 
 
@@ -215,6 +220,8 @@ async def update_patient(
 
     await db.flush()
     await db.commit()
+    await record_audit(db, actor_sub=str(_user.get("sub")), action="patient.update",
+                       patient_id=patient_id)
     return PatientResponse.model_validate(patient)
 
 
@@ -296,6 +303,8 @@ async def get_patient_risk(
         {"pid": str(patient_id)},
     )
     row = result.first()
+    await record_audit(db, actor_sub=str(_user.get("sub")), action="risk.read",
+                       patient_id=patient_id)
     if row and row.risk_score is not None:
         return RiskResponse(
             patient_id=patient_id,
