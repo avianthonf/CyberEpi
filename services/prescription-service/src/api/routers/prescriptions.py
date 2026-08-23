@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -163,6 +163,8 @@ async def get_prescription(
 @router.get("/api/v1/patients/{patient_id}/prescriptions", response_model=list[PrescriptionResponse])
 async def list_prescriptions(
     patient_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[PrescriptionResponse]:
@@ -178,10 +180,14 @@ async def list_prescriptions(
                 detail="Access denied: Patients can only list their own prescriptions.",
             )
     result = await db.execute(
-        select(Prescription).where(
+        select(Prescription)
+        .where(
             Prescription.patient_id == patient_id,
             Prescription.status == "active",
         )
+        .order_by(Prescription.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return [PrescriptionResponse.model_validate(rx) for rx in result.scalars().all()]
 
