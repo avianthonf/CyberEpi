@@ -14,6 +14,7 @@ processed truth week w, if w+7 is an origin we emit forecasts for that origin.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -29,6 +30,13 @@ from hub_data import (load_locations, load_model_output, load_oracle,
                       load_truth, nssp_ili_by_location)
 from seir_fast import FluParams
 from wis import weighted_interval_score
+
+
+def _stable_seed(*parts: object) -> int:
+    """Deterministic cross-run seed (Python's built-in `hash()` is salted)."""
+    h = hashlib.sha256(b"|".join(str(p).encode() for p in parts)).digest()
+    return int.from_bytes(h[:4], "big") % 10_000
+
 
 SEASONS = {
     "2023-24": ("2023-10-01", "2024-06-30"),
@@ -84,10 +92,15 @@ def run_location(
 
 def summarize(rows: pd.DataFrame, oracle: pd.DataFrame,
               baseline: pd.DataFrame, label: str) -> dict:
-    """Compute WIS per (loc, ref, horizon) for our rows and the baseline."""
+    """Compute WIS per (loc, ref, horizon) for our rows and the baseline.
+
+    Scoring follows FluSight practice: horizons 0..3 only. Horizon -1 rows
+    (nowcast of the already-reported week) are emitted for calibration
+    diagnostics but excluded from WIS/relWIS, matching the hub's policy.
+    """
+    rows = rows[rows["horizon"] >= 0].copy()
     o = (oracle[["location", "target_end_date", "oracle_value"]]
          .drop_duplicates(["location", "target_end_date"]))
-    rows = rows.copy()
     rows["reference_date"] = pd.to_datetime(rows["reference_date"], errors="coerce")
     baseline = baseline.copy()
     baseline["reference_date"] = pd.to_datetime(baseline["reference_date"], errors="coerce")
@@ -139,6 +152,41 @@ def summarize(rows: pd.DataFrame, oracle: pd.DataFrame,
     return summary, cmp_tab
 
 
+def _run_job(job: dict) -> dict:
+    """Worker: run one (season, location) filter + forecast job.
+
+    Module-level so it is picklable for multiprocessing. Loads shared
+    inputs from the module-level lru_cache-backed loaders (cheap under fork).
+    """
+    truth = load_truth()
+    locs = load_locations().set_index("location")
+    ili_all = nssp_ili_by_location()
+    ili_maps = {loc: dict(zip(sub["week_end"].values, sub["ili_frac"].values))
+                for loc, sub in ili_all.groupby("location")}
+    season, loc, a = job["season"], job["loc"], job["args"]
+    if loc not in locs.index:
+        return {"status": "skipped", "reason": "unknown location",
+                "season": season, "loc": loc}
+    pop = float(locs.loc[loc, "population"])
+    tw = truth[truth["location"] == loc].set_index("date")["value"]
+    if len(tw) < 30:
+        return {"status": "skipped", "reason": "thin truth",
+                "season": season, "loc": loc}
+    origins = set(season_origins(load_model_output("FluSight-baseline"), season))
+    cfg = EakfConfig(n_members=a["members"], sd_beta=a["sd_beta"],
+                     sd_hir=a["sd_hir"], r_rel=a["r_rel"],
+                     r_ili_rel=a["r_ili_rel"], sd_lc=a["sd_lc"],
+                     inflation=a["inflation"], s_obs=a["s_obs"],
+                     use_ili=not a["no_ili"],
+                     sd_beta_fwd=a["sd_beta_fwd"], seed=a["seed"])
+    rows, trace = run_location(
+        loc, pop, tw, cfg, origins, SEASONS[season][0], SEASONS[season][1],
+        ili_map=ili_maps.get(loc),
+        run_rng_seed=a["seed"] + _stable_seed(loc, season))
+    return {"status": "ok", "season": season, "loc": loc,
+            "rows": rows, "trace": trace}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--locations", default="US,06,12,36,48")
@@ -154,50 +202,51 @@ def main() -> None:
     ap.add_argument("--r-ili-rel", type=float, default=0.10)
     ap.add_argument("--no-ili", action="store_true")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--ncpus", type=int, default=1,
+                    help="parallel workers over (season, location) jobs")
     ap.add_argument("--out", default="backtest/out/flu")
     ap.add_argument("--label", default="CyberEpi-EAKF")
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    truth = load_truth()
     oracle = load_oracle()
     baseline = load_model_output("FluSight-baseline")
     baseline["output_type_id"] = baseline["output_type_id"].astype(float)
-    locs = load_locations().set_index("location")
+
+    job_args = {
+        "members": args.members, "sd_beta": args.sd_beta,
+        "sd_hir": args.sd_hir, "r_rel": args.r_rel,
+        "r_ili_rel": args.r_ili_rel, "sd_lc": args.sd_lc,
+        "inflation": args.inflation, "s_obs": args.s_obs,
+        "sd_beta_fwd": args.sd_beta_fwd, "seed": args.seed,
+        "no_ili": args.no_ili,
+    }
+    jobs = [{"season": s, "loc": l, "args": job_args}
+            for s in args.seasons.split(",")
+            for l in args.locations.split(",")]
+    if args.ncpus > 1:
+        import multiprocessing as mp
+        ctx = mp.get_context("fork")
+        with ctx.Pool(processes=args.ncpus) as pool:
+            results = pool.map(_run_job, jobs)
+    else:
+        results = [_run_job(j) for j in jobs]
 
     all_rows: list[pd.DataFrame] = []
     all_trace: list[pd.DataFrame] = []
-    summaries = {}
-    ili_all = nssp_ili_by_location()
-    ili_maps = {loc: dict(zip(sub["week_end"].values, sub["ili_frac"].values))
-                for loc, sub in ili_all.groupby("location")}
-    for season in args.seasons.split(","):
-        origins = set(season_origins(baseline, season))
-        for loc in args.locations.split(","):
-            if loc not in locs.index:
-                print(f"[warn] unknown location {loc}; skipped"); continue
-            pop = float(locs.loc[loc, "population"])
-            tw = truth[truth["location"] == loc].set_index("date")["value"]
-            if len(tw) < 30:
-                print(f"[warn] thin truth for {loc}; skipped"); continue
-            cfg = EakfConfig(n_members=args.members, sd_beta=args.sd_beta,
-                             sd_hir=args.sd_hir, r_rel=args.r_rel,
-                             r_ili_rel=args.r_ili_rel, sd_lc=args.sd_lc,
-                             inflation=args.inflation, s_obs=args.s_obs,
-                             use_ili=not args.no_ili,
-                             sd_beta_fwd=args.sd_beta_fwd, seed=args.seed)
-            rows, trace = run_location(loc, pop, tw, cfg, origins,
-                                       SEASONS[season][0], SEASONS[season][1],
-                                       ili_map=ili_maps.get(loc),
-                                       run_rng_seed=args.seed + hash((loc, season)) % 10_000)
-            if not rows:
-                continue
-            rdf = pd.DataFrame(rows)
-            rdf["season"] = season
-            all_rows.append(rdf); all_trace.append(pd.DataFrame(trace).assign(season=season))
-            tdf = pd.DataFrame(trace)
-            print(f"{season} {loc}: origins={len(tdf)} "
-                  f"rt_final={tdf.rt.iloc[-1]:.3f} hir_final={tdf.hir.iloc[-1]:.5f}")
+    for r in results:
+        if r.get("status") != "ok":
+            print(f"[warn] {r.get('season')} {r.get('loc')}: "
+                  f"{r.get('reason', r.get('status'))}")
+            continue
+        if not r["rows"]:
+            continue
+        rdf = pd.DataFrame(r["rows"]); rdf["season"] = r["season"]
+        all_rows.append(rdf)
+        all_trace.append(pd.DataFrame(r["trace"]).assign(season=r["season"]))
+        tdf = pd.DataFrame(r["trace"])
+        print(f"{r['season']} {r['loc']}: origins={len(tdf)} "
+              f"rt_final={tdf.rt.iloc[-1]:.3f} hir_final={tdf.hir.iloc[-1]:.5f}")
 
     if not all_rows:
         print("no forecasts produced"); return
@@ -206,8 +255,11 @@ def main() -> None:
     pd.concat(all_trace, ignore_index=True).to_csv(
         os.path.join(args.out, f"trace-{args.label}.csv"), index=False)
 
+    summaries = {}
     for season in args.seasons.split(","):
         rs = rows[rows["season"] == season]
+        if rs.empty:
+            continue
         summ, cmp_tab = summarize(rs, oracle, baseline, args.label)
         summaries[season] = summ
         cmp_tab.to_csv(os.path.join(args.out, f"cmp-{args.label}-{season}.csv"), index=False)
