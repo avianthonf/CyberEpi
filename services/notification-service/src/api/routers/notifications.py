@@ -9,7 +9,7 @@ from typing import Any
 
 import redis.asyncio as aioredis
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,6 +131,15 @@ async def send_notification(
             success = await _send_apns(pt.token, body.title, body.body, body.data)
         if success:
             platforms_sent.append(pt.platform)
+
+    if not platforms_sent:
+        # Every delivery attempt failed (e.g. FCM/APNs not configured).
+        # Returning 200 with an empty list made callers believe the message
+        # was delivered.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to deliver notification to any registered device",
+        )
 
     return SendNotificationResponse(
         patient_id=body.patient_id,
