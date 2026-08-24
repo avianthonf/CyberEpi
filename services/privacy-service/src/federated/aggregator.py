@@ -9,10 +9,16 @@ class FedAvgAggregator:
         self.model_dim = model_dim
         self.min_clients = min_clients
         self.current_round_gradients: list[np.ndarray] = []
+        self.current_round_clients: set[str] = set()
         self.global_model: np.ndarray | None = np.zeros(model_dim)
 
     def start_new_round(self):
         self.current_round_gradients = []
+        self.current_round_clients = set()
+
+    def has_submitted(self, client_id: str) -> bool:
+        """True if this client already uploaded in the current round."""
+        return client_id in self.current_round_clients
 
     def validate_gradient(self, gradient: np.ndarray):
         """Pure validation. Raises ValueError on malformed input. No mutation."""
@@ -23,7 +29,7 @@ class FedAvgAggregator:
         if not np.all(np.isfinite(gradient)):
             raise ValueError("Gradient contains non-finite values (NaN or inf)")
 
-    def receive_gradient(self, gradient: np.ndarray):
+    def receive_gradient(self, gradient: np.ndarray, client_id: str | None = None):
         """
         Receives a raw gradient update from a client.
         In a real scenario, this would be clipped and noised on the client
@@ -31,6 +37,8 @@ class FedAvgAggregator:
         """
         self.validate_gradient(gradient)
         self.current_round_gradients.append(gradient)
+        if client_id is not None:
+            self.current_round_clients.add(client_id)
 
     def aggregate(self, C: float = 1.0, epsilon: float = 0.5, delta: float = 1e-5) -> np.ndarray:
         """

@@ -40,19 +40,27 @@ async def upload_gradient(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
-    # 3. Check and consume budget
+    # 3. Reject duplicate submissions: one gradient per client per round.
+    #    Keyed on the declared FL client id (an account may operate several
+    #    clients). Checked BEFORE consuming budget so a rejected retry is free.
+    if aggregator.has_submitted(req.user_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Gradient already submitted for this round",
+        )
+
+    # 4. Check and consume budget
     budget_tracker = request.app.state.budget_tracker
     user_id = user.get("sub")
-
     epsilon_per_upload = 0.1
     success = await budget_tracker.consume(user_id, epsilon_per_upload)
     if not success:
         raise HTTPException(status_code=403, detail="Privacy budget exceeded for this round")
 
-    # 4. Append only after budget success. Appending late avoids a
+    # 5. Append only after budget success. Appending late avoids a
     #    concurrency hazard where a budget-rejected uploader would have to
     #    pop() its gradient out from under concurrent accepted uploads.
-    aggregator.receive_gradient(np.array(req.gradient))
+    aggregator.receive_gradient(np.array(req.gradient), client_id=req.user_id)
 
     return {
         "accepted": True,

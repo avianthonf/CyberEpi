@@ -56,15 +56,24 @@ def test_dp_publish_endpoint(auth_client):
 def test_fl_upload_pipeline(auth_client):
     client = auth_client
 
-    # 1. Upload 3 gradients (min_clients=3)
-    for _ in range(3):
+    # 1. Upload 3 gradients from distinct clients (min_clients=3)
+    for i in range(3):
         res = client.post("/api/v1/fl/upload_gradient", json={
             "round_id": 1,
             "gradient": [0.1] * 10,
             "n_samples": 100,
-            "user_id": "user_abc"
+            "user_id": f"user_{i}",
         })
         assert res.status_code == 200
+
+    # Duplicate submission from the same client in the same round is rejected.
+    res = client.post("/api/v1/fl/upload_gradient", json={
+        "round_id": 1,
+        "gradient": [0.1] * 10,
+        "n_samples": 100,
+        "user_id": "user_0",
+    })
+    assert res.status_code == 409
 
     # 2. Trigger aggregation
     res = client.post("/api/v1/fl/trigger_aggregation")
