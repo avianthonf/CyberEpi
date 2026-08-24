@@ -50,10 +50,7 @@
         "client.secret.creation.time": "0"
       },
       "redirectUris": ["*"],
-      "webOrigins": ["*"],
-      "serviceAccountsRoles": {
-        "realm-management": ["manage-users", "view-users"]
-      }
+      "webOrigins": ["*"]
     },
     {
       "clientId": "cyberepi-patient-app",
