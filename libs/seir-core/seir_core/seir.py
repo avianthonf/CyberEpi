@@ -41,7 +41,10 @@ class SEIRParams:
         # per infection event and the post-hoc renormalization in run_seir
         # merely masks the distortion.
         f_sum = self.fA + self.fM + self.fS
-        if abs(f_sum - 1.0) > 1e-9:
+        # 1e-6 tolerance matches the RegionParams API validator; exact float
+        # sums like 0.1 + 0.1 + 0.1 = 0.30000000000000004 must not crash the
+        # surveillance ingest loop.
+        if abs(f_sum - 1.0) > 1e-6:
             raise ValueError(f"Severity fractions must sum to 1, got fA+fM+fS = {f_sum}")
 
 def behavioral_contact_factor(I_frac: float, L: float) -> float:
