@@ -5,16 +5,40 @@ set -euo pipefail
 
 # Trap to handle graceful shutdown
 cleanup() {
-    echo "Shutting down services gracefully..."
-    for pid in "${pids[@]}"; do
+    local reason=$1
+    if [[ $reason == signal ]]; then
+        echo "Shutting down services gracefully..."
+    fi
+    for pid in "${pids[@]:-}"; do
         if kill -0 "$pid" 2>/dev/null; then
             kill -TERM "$pid" 2>/dev/null || true
         fi
     done
     wait
-    echo "All services stopped"
+    if [[ $reason == signal ]]; then
+        echo "All services stopped"
+    fi
 }
-trap cleanup EXIT INT TERM
+trap 'cleanup signal' EXIT INT TERM
+
+# Preflight: refuse to start services until infra is reachable, so a slow or
+# half-up stack produces a clear error instead of six silent startup crashes.
+wait_tcp() {
+  local name=$1 host=$2 port=$3 tries=${4:-30}
+  for _ in $(seq 1 "$tries"); do
+    if (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; then
+      echo "  ok $name reachable at $host:$port"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "error: $name not reachable at $host:$port after $((tries*2))s — run scripts/podman-up.sh first" >&2
+  exit 1
+}
+wait_tcp postgres 127.0.0.1 5432
+wait_tcp redis    127.0.0.1 6379
+wait_tcp kafka    127.0.0.1 9092
+wait_tcp keycloak 127.0.0.1 8080
 
 # Use the established venv
 if [[ ! -f .venv/bin/activate ]]; then
@@ -48,7 +72,7 @@ for svc in "${!PORTS[@]}"; do
   port="${PORTS[$svc]}"
   echo "Starting $svc on :$port"
   (
-    cd "services/$svc"
+    cd "services/$svc" || exit 1
     exec uvicorn src.main:app --host 127.0.0.1 --port "$port"
   ) > "$(pwd)/logs/${svc}.log" 2>&1 &
   pids+=("$!")
@@ -58,5 +82,25 @@ echo "Started PIDs: ${pids[*]}"
 echo "Tail logs with: tail -f logs/*.log"
 echo "Press Ctrl+C to stop all services"
 
-# Wait for all background processes
-wait
+# Give every service a moment, then fail loudly if any died at startup
+# (bad env, DB migration crash, port conflict) instead of "waiting" forever.
+sleep 5
+failed=0
+for i in "${!pids[@]}"; do
+  if ! kill -0 "${pids[$i]}" 2>/dev/null; then
+    echo "error: a service exited during startup — check logs/" >&2
+    failed=1
+  fi
+done
+((failed)) && exit 1
+
+# Wait for all background processes; report which one took the script down.
+set +e
+wait -n; rc=$?
+echo "A service exited (rc=$rc); shutting down the rest. Recent log tails:" >&2
+for svc in "${!PORTS[@]}"; do
+  echo "--- $svc ---" >&2
+  tail -n 5 "logs/${svc}.log" >&2 || true
+done
+exit "$rc"
+
