@@ -29,6 +29,44 @@ class RegisterRequest(BaseModel):
     last_name: str = Field(..., max_length=100)
     region_id: str | None = Field(None, max_length=50)
     patch_id: str | None = Field(None, max_length=20)
+    role: str = Field("patient", pattern=r"^(patient|physician|admin)$")
+
+
+async def _ensure_realm_role(client: httpx.AsyncClient, admin_token: str, role: str) -> str | None:
+    """Return the realm role id for `role`, creating the role if missing."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    resp = await client.get(
+        f"{settings.keycloak_admin_url}/roles/{role}", headers=headers
+    )
+    if resp.status_code == 200:
+        return resp.json().get("id")
+    if resp.status_code == 404:
+        create = await client.post(
+            f"{settings.keycloak_admin_url}/roles",
+            headers=headers,
+            json={"name": role},
+        )
+        if create.status_code == 201:
+            created = await client.get(
+                f"{settings.keycloak_admin_url}/roles/{role}", headers=headers
+            )
+            return created.json().get("id") if created.status_code == 200 else None
+    return None
+
+
+async def _assign_realm_role(
+    client: httpx.AsyncClient, admin_token: str, keycloak_id: str, role: str
+) -> bool:
+    """Assign a realm role to a Keycloak user. Returns True on success."""
+    role_id = await _ensure_realm_role(client, admin_token, role)
+    if not role_id:
+        return False
+    resp = await client.post(
+        f"{settings.keycloak_admin_url}/users/{keycloak_id}/role-mappings/realm",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json=[{"id": role_id, "name": role}],
+    )
+    return resp.status_code in (200, 204)
 
 
 class RegisterResponse(BaseModel):
@@ -124,6 +162,15 @@ async def register_patient(
                         users = search_resp.json()
                         if users:
                             keycloak_id = users[0]["id"]
+                # Assign the requested realm role so downstream services
+                # see it in the token's realm_access.roles.
+                if keycloak_id and not await _assign_realm_role(
+                    client, admin_token, keycloak_id, body.role
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Keycloak role assignment failed for role '{body.role}'",
+                    )
     except httpx.HTTPError as exc:
         if not settings.debug:
             raise HTTPException(
