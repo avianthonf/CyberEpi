@@ -147,6 +147,11 @@ ensure keycloak \
 
 # 4. wait for healthy ──────────────────────────────────────────────────
 bold "waiting for containers to be healthy"
+# Kafka can die at startup with ZooKeeper KeeperException$NodeExistsException
+# for /brokers/ids/1 when a previous broker's ephemeral node outlived its
+# session (hard kill / fast restart). One restart after the ZK session times
+# out clears the stale registration.
+kafka_restarted=0
 for name in postgres redis zookeeper kafka keycloak; do
   printf "  %-12s " "$name"
   for i in {1..150}; do
@@ -156,6 +161,11 @@ for name in postgres redis zookeeper kafka keycloak; do
       break
     fi
     sleep 2
+    if [ "$name" = kafka ] && [ "$kafka_restarted" = 0 ] && [ "$i" = 45 ]; then
+      printf "unhealthy — restarting once (likely stale ZK broker node)\n          "
+      podman restart cyberepi-kafka >/dev/null
+      kafka_restarted=1
+    fi
     if [ "$i" = 150 ]; then
       printf "\033[31mTIMEOUT (last: %s)\033[0m\n" "$status"
       podman logs --tail 50 "cyberepi-$name" || true
