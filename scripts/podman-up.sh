@@ -113,14 +113,16 @@ ensure kafka \
     -v "$KAFKA_VOL":/var/lib/kafka/data \
     -e KAFKA_BROKER_ID=1 \
     -e KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181 \
-    -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 \
-    -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT \
+    -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092 \
+    -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092 \
+    -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT \
+    -e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
     -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=false \
     -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
     -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
     -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
     -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
-    --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092" \
+    --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:29092" \
     --health-interval 10s --health-timeout 5s --health-retries 20 \
     --health-start-period 30s \
     docker.io/confluentinc/cp-kafka:7.6.0
@@ -172,11 +174,13 @@ podman run --rm --network "$NET" \
   docker.io/confluentinc/cp-kafka:7.6.0 \
   bash -c '
     set -e
-    cub kafka-ready -b kafka:9092 1 60
+    until kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
+      echo "  waiting for kafka..."; sleep 3
+    done
     for t in patient.events:6 epi.updates:3 alerts.push:3 symptom-reports:1; do
       name=${t%:*}; parts=${t#*:}
       kafka-topics --create --topic "$name" --partitions "$parts" --replication-factor 1 \
-        --bootstrap-server kafka:9092 --if-not-exists
+        --bootstrap-server kafka:29092 --if-not-exists
       echo "  ✓ $name ($parts partitions)"
     done
   '
