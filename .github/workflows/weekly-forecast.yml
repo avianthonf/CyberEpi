@@ -1,0 +1,105 @@
+# Weekly CDC FluSight forecast (2026-27 season).
+#
+# Runs on Wednesdays after the CDC's midday data release, with a second try
+# in the evening before the 11pm ET deadline. It forecasts, packages and
+# validates. It never submits to the CDC hub: that pull request is opened by
+# the owner (ROADMAP.md, checkpoint B).
+#
+# Repository settings (Settings > Secrets and variables > Actions > Variables):
+#   FORECAST_CONTRIBUTOR_NAME / _EMAIL / _AFFILIATION
+#       contributor details for model-metadata; until set, output is a draft.
+#   COMMIT_FORECASTS = "true"
+#       also commit each week's files to forecasts/ on main, a public,
+#       timestamped record. Off by default.
+name: weekly-forecast
+
+on:
+  schedule:
+    - cron: "30 19 * * 3"   # Wed 19:30 UTC (2:30pm EST)
+    - cron: "30 1 * * 4"    # Thu 01:30 UTC (8:30pm EST Wed), retry before deadline
+  workflow_dispatch:
+    inputs:
+      reference_date:
+        description: "Saturday reference date (default: this week)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install numpy pandas scipy jsonschema pyyaml
+
+      - name: Fetch FluSight hub data
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/cdcepi/FluSight-forecast-hub hub
+          git -C hub sparse-checkout set target-data auxiliary-data hub-config
+
+      - name: Skip if this week is already committed
+        id: done
+        run: |
+          ref="${{ github.event.inputs.reference_date }}"
+          if [ -z "$ref" ]; then
+            ref=$(TZ=America/New_York python3 -c "import datetime as d;t=d.date.today();print(t+d.timedelta(days=(5-t.weekday())%7))")
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          if ls forecasts/model-output/*/"$ref"-*.csv >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "Forecast for $ref already committed; nothing to do."
+          fi
+
+      - name: Forecast, package, validate
+        id: run
+        if: steps.done.outputs.already != 'true'
+        env:
+          FORECAST_CONTRIBUTOR_NAME: ${{ vars.FORECAST_CONTRIBUTOR_NAME }}
+          FORECAST_CONTRIBUTOR_EMAIL: ${{ vars.FORECAST_CONTRIBUTOR_EMAIL }}
+          FORECAST_CONTRIBUTOR_AFFILIATION: ${{ vars.FORECAST_CONTRIBUTOR_AFFILIATION }}
+        run: |
+          set +e
+          python3 backtest/live.py --hub hub --out forecasts \
+            --reference-date "${{ steps.done.outputs.ref }}" --ncpus 4
+          rc=$?
+          set -e
+          if [ $rc -eq 2 ]; then
+            if [ "${{ github.event.schedule }}" = "30 1 * * 4" ]; then
+              echo "::error::CDC data still not released at the evening run; this week's forecast was not made."
+              exit 1
+            fi
+            echo "::warning::CDC data for this week is not released yet; the evening run will retry."
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          rm -rf forecasts/_work
+          exit $rc
+
+      - name: Upload forecast files
+        if: steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-${{ steps.done.outputs.ref }}
+          path: forecasts/
+
+      - name: Commit forecast (opt-in)
+        if: vars.COMMIT_FORECASTS == 'true' && steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add forecasts/
+          git commit -m "forecast: ${{ steps.done.outputs.ref }}"
+          git push

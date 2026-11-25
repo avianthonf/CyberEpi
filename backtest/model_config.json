@@ -1,0 +1,14 @@
+{
+  "_note": "Frozen live settings for 2026-27. Chosen by the pre-registered rule in tune_vintage.py on 2023-24 only (backtest/results/honest/tune-selection-2023-24.json). Change only via a commit that says why; live scores judge any change.",
+  "members": 300,
+  "sd_beta": 0.03,
+  "sd_hir": 0.005,
+  "r_rel": 0.15,
+  "inflation": 1.03,
+  "s_obs": 0.10,
+  "sd_beta_fwd": 0.03,
+  "sd_lc": 0.01,
+  "r_ili_rel": 0.10,
+  "seed": 1,
+  "no_ili": false
+}

@@ -47,7 +47,7 @@ model_contributors: [
     "email": "{email}"
   }}
 ]
-license: cc-by-4.0
+license: CC-BY-4.0
 designated_model: true
 data_inputs: "{data_inputs}"
 methods: "{methods}"

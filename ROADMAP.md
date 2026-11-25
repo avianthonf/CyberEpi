@@ -78,9 +78,12 @@ scores, never by re-scoring the backtest.
   hold up when a season is left out (horizons 1–3: no gain; horizon 0: helps
   two seasons, hurts the third). Decision: submit uncalibrated; fixing the
   decline-phase dynamics is the first model improvement, judged live.
-- Scheduled GitHub Action: pull latest hub data → forecast → validate with the
-  hub's own rules → produce the submission file.
-- Model metadata and first submission.
+- [done] Scheduled GitHub Action (`.github/workflows/weekly-forecast.yml`):
+  Wednesdays after the CDC release, pulls hub data → forecasts with the frozen
+  settings (`backtest/model_config.json`) → packages → validates against the
+  hub's rules and official metadata schema. Refuses stale data; a missed week
+  fails loudly. Produces a downloadable draft each week; never submits.
+- [owner] Model metadata and first submission: see SUBMITTING.md.
 
 **Checkpoint B (owner only):** team name, authors and the first pull request to
 the CDC hub are public and in the owner's name, so they are never done without

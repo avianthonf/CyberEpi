@@ -13,7 +13,9 @@ this catches everything locally without R):
   - values non-negative integers for 'wk inc flu hosp'
   - quantile values non-decreasing within each (location, horizon)
   - locations valid against data/flusight/locations.csv
-  - metadata yml carries the required keys and cc-by-4.0-style license
+  - metadata yml carries the required keys and an accepted license; with
+    --hub, also checked against the hub's model-metadata-schema.json;
+    empty contributor name/email reported as a failure
 
 Usage: python3 backtest/validate_submission.py backtest/submission \
            [--model-id CyberEpi-EAKF]
@@ -103,7 +105,11 @@ def validate_forecast_file(path: str, model_id: str, valid_locs: set[str]) -> li
     return f.errors
 
 
-def validate_metadata(path: str, model_id: str) -> list[str]:
+LICENSES = {"CC0-1.0", "CC-BY-4.0", "CC-BY_SA-4.0", "PPDL", "ODC-by", "ODbL", "OGL-3.0"}
+
+
+def validate_metadata(path: str, model_id: str, schema_path: str | None = None,
+                      allow_empty_contributor: bool = False) -> list[str]:
     f = Failures()
     f.check(os.path.basename(path) == f"{model_id}.yml",
             f"{path}: metadata filename must be {model_id}.yml")
@@ -114,9 +120,20 @@ def validate_metadata(path: str, model_id: str) -> list[str]:
         f.check(re.search(rf"^{key}:", text, re.M) is not None,
                 f"{path}: missing required key {key!r}")
     m = re.search(r"^license:\s*(\S+)", text, re.M)
-    f.check(m is not None and m.group(1) in
-            {"cc-by-4.0", "cc-by-sa-4.0", "cc0-1.0", "CC-BY-4.0", "MIT", "agpl-3.0"},
-            f"{path}: license should be an accepted value (cc-by-4.0 encouraged)")
+    f.check(m is not None and m.group(1) in LICENSES,
+            f"{path}: license must be one of {sorted(LICENSES)} (exact case)")
+    for field in ("name", "email"):
+        f.check(allow_empty_contributor or re.search(rf'"{field}":\s*""', text) is None,
+                f"{path}: contributor {field} is empty (owner fills this in before submitting)")
+    if schema_path:
+        import json
+
+        import jsonschema
+        import yaml
+        with open(schema_path) as fh:
+            schema = json.load(fh)
+        for e in jsonschema.Draft7Validator(schema).iter_errors(yaml.safe_load(text)):
+            f.check(False, f"{path}: hub schema: {list(e.path)} {e.message[:200]}")
     return f.errors
 
 
@@ -127,14 +144,20 @@ def main() -> int:
     ap.add_argument("--locations-csv",
                     default=os.path.join(os.path.dirname(__file__), "..",
                                          "data", "flusight", "locations.csv"))
+    ap.add_argument("--hub", default=None,
+                    help="FluSight-forecast-hub checkout; enables the official metadata schema check")
+    ap.add_argument("--allow-empty-contributor", action="store_true",
+                    help="draft mode: do not fail on empty contributor name/email")
     args = ap.parse_args()
+    schema = (os.path.join(args.hub, "hub-config", "model-metadata-schema.json")
+              if args.hub else None)
 
     valid_locs = set(load_locations()["location"])
     errors: list[str] = []
 
     meta = os.path.join(args.submission_dir, "model-metadata", f"{args.model_id}.yml")
     if os.path.exists(meta):
-        errors += validate_metadata(meta, args.model_id)
+        errors += validate_metadata(meta, args.model_id, schema, args.allow_empty_contributor)
     else:
         errors.append(f"missing metadata file {meta}")
 
