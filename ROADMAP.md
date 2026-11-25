@@ -108,7 +108,8 @@ explicit approval.
 
 ## Rules for working autonomously
 
-- Work proceeds without asking inside the current phase.
+- Work proceeds without asking inside the current phase. Decisions that stay
+  inside the owner's own repositories are made and reported, not asked.
 - Stop at a checkpoint, before anything public or in the owner's name, before
   deleting anything, and when a result contradicts this file.
 - Report numbers as they come out, including bad ones.

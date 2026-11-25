@@ -9,9 +9,10 @@
 #   FORECAST_CONTRIBUTOR_NAME / _EMAIL / _AFFILIATION
 #       override the contributor details below (defaults are the ones
 #       registered with the hub for CyberEpi-EAKF).
-#   COMMIT_FORECASTS = "true"
-#       also commit each week's files to forecasts/ on main, a public,
-#       timestamped record. Off by default.
+#   COMMIT_FORECASTS = "false"
+#       stop committing each week's files to forecasts/ on main. On by
+#       default: the commits are a public, timestamped record that each
+#       forecast existed before its scores did.
 name: weekly-forecast
 
 on:
@@ -96,11 +97,12 @@ jobs:
           name: forecast-${{ steps.done.outputs.ref }}
           path: forecasts/
 
-      - name: Commit forecast (opt-in)
-        if: vars.COMMIT_FORECASTS == 'true' && steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'
+      - name: Commit forecast (public timestamped record)
+        if: (vars.COMMIT_FORECASTS || 'true') == 'true' && steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add forecasts/
           git commit -m "forecast: ${{ steps.done.outputs.ref }}"
-          git push
+          git pull --rebase origin main
+          git push origin HEAD:main
