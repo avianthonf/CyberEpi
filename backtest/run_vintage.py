@@ -61,7 +61,10 @@ def load_vintages() -> pd.DataFrame:
     )
     df = df[df["target"] == PRIMARY_TARGET].drop(columns="target")
     df["observation"] = pd.to_numeric(df["observation"], errors="coerce")
-    return df
+    # The hub file repeats one version (as_of 2026-05-27) row-for-row with
+    # identical values; drop exact repeats so each (version, location, week)
+    # is unique.
+    return df.drop_duplicates(["as_of", "location", "target_end_date"])
 
 
 @lru_cache(maxsize=1)
@@ -120,6 +123,7 @@ def load_ed_vintages() -> pd.DataFrame:
     parts.append(pd.DataFrame({"vintage": ts["as_of"], "location": ts["location"],
                                "week_end": ts["target_end_date"], "ili_frac": ts["observation"]}))
     ed = pd.concat(parts, ignore_index=True).dropna()
+    ed = ed.drop_duplicates(["vintage", "location", "week_end"])
     ed["max_week"] = ed.groupby("vintage")["week_end"].transform("max")
     return ed
 

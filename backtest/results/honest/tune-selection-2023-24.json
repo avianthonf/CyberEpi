@@ -1,0 +1,159 @@
+{
+  "rule": "Pre-registered tuning for the honest backtest.\n\nRule (fixed before any test-season result was seen):\n  * tune on season 2023-24 only, with as-of (vintage) admissions;\n  * candidate grid below (16 configs);\n  * select the config with the lowest relWIS vs FluSight-baseline among\n    those with cov90 >= 0.85 (all 53 locations, horizons 0..3);\n  * freeze it; score 2024-25 and 2025-26 once with run_vintage.py.\n\nUsage: python3 backtest/tune_vintage.py --ncpus 4",
+  "grid": [
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.03,
+      "ili": "none",
+      "relWIS": 3.3268259754209963,
+      "cov50": 0.517626691847655,
+      "cov90": 0.8931381806735914
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.03,
+      "ili": "final",
+      "relWIS": 0.8005094469030353,
+      "cov50": 0.4546742209631728,
+      "cov90": 0.8426188227887944
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.05,
+      "ili": "none",
+      "relWIS": 3.532398269308174,
+      "cov50": 0.552093169656909,
+      "cov90": 0.9123386842933585
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.05,
+      "ili": "final",
+      "relWIS": 0.8268272098538825,
+      "cov50": 0.5152659741894869,
+      "cov90": 0.8906200818382122
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.03,
+      "ili": "none",
+      "relWIS": 3.327412243699512,
+      "cov50": 0.5240793201133145,
+      "cov90": 0.8959710418633932
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.03,
+      "ili": "final",
+      "relWIS": 0.7994404268980017,
+      "cov50": 0.4664778092540132,
+      "cov90": 0.8563109852061693
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.05,
+      "ili": "none",
+      "relWIS": 3.534767743241549,
+      "cov50": 0.5594900849858357,
+      "cov90": 0.9161158325464275
+    },
+    {
+      "sd_beta": 0.03,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.05,
+      "ili": "final",
+      "relWIS": 0.8271685151456573,
+      "cov50": 0.5247088448221593,
+      "cov90": 0.8984891406987724
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.03,
+      "ili": "none",
+      "relWIS": 3.9875827826529697,
+      "cov50": 0.6455775889203651,
+      "cov90": 0.9507396915328926
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.03,
+      "ili": "final",
+      "relWIS": 0.836236714967155,
+      "cov50": 0.47576329870947437,
+      "cov90": 0.8774000629524709
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.05,
+      "ili": "none",
+      "relWIS": 4.2001164149972,
+      "cov50": 0.666981429021089,
+      "cov90": 0.9568775574441297
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.04,
+      "sd_beta_fwd": 0.05,
+      "ili": "final",
+      "relWIS": 0.8511106668945827,
+      "cov50": 0.5132200188857413,
+      "cov90": 0.9098205854579793
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.03,
+      "ili": "none",
+      "relWIS": 3.9946711844043112,
+      "cov50": 0.6490399748190117,
+      "cov90": 0.9515265974189487
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.03,
+      "ili": "final",
+      "relWIS": 0.8358830787369737,
+      "cov50": 0.48142902108907776,
+      "cov90": 0.8838526912181303
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.05,
+      "ili": "none",
+      "relWIS": 4.212297606307398,
+      "cov50": 0.6712307208057916,
+      "cov90": 0.9578218445073969
+    },
+    {
+      "sd_beta": 0.05,
+      "s_obs": 0.1,
+      "sd_beta_fwd": 0.05,
+      "ili": "final",
+      "relWIS": 0.8518102703878941,
+      "cov50": 0.5210890777463015,
+      "cov90": 0.9165879760780611
+    }
+  ],
+  "chosen": {
+    "sd_beta": 0.03,
+    "s_obs": 0.1,
+    "sd_beta_fwd": 0.03,
+    "ili": "final",
+    "relWIS": 0.7994404268980017,
+    "cov50": 0.4664778092540132,
+    "cov90": 0.8563109852061693
+  },
+  "coverage_rule_met": true
+}
