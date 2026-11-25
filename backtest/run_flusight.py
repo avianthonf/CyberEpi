@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from eakf import EAKF, EakfConfig
 from forecast import emit_rows
-from hub_data import load_locations, load_model_output, load_oracle, load_truth, nssp_ili_by_location
+from hub_data import load_locations, load_model_output, load_oracle, load_truth, ed_frac_by_location
 from seir_fast import FluParams
 from wis import weighted_interval_score
 
@@ -228,7 +228,7 @@ def _run_job(job: dict) -> dict:
     """
     truth = load_truth()
     locs = load_locations().set_index("location")
-    ili_all = nssp_ili_by_location()
+    ili_all = ed_frac_by_location()
     ili_maps = {
         location: dict(zip(sub["week_end"].values, sub["ili_frac"].values, strict=True))
         for location, sub in ili_all.groupby("location")

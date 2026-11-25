@@ -114,6 +114,22 @@ def nssp_ili_by_location() -> pd.DataFrame:
                       us[["week_end", "location", "ili_frac"]]], ignore_index=True)
 
 
+def ed_frac_by_location() -> pd.DataFrame:
+    """ED flu-visit fraction per (week_end, location).
+
+    Uses the raw NSSP download when present (data/nssp/ed_visits.csv);
+    otherwise the FluSight hub's own target file, which carries the same
+    quantity (share of ED visits for influenza) already keyed by location.
+    Both are final (latest-revision) values, not as-of vintages.
+    """
+    if os.path.exists(os.path.join(DATA_DIR, "nssp", "ed_visits.csv")):
+        return nssp_ili_by_location()
+    df = pd.read_csv(os.path.join(HUB_DIR, "target-ed-visits-prop.csv"),
+                     parse_dates=["date"], dtype={"location": str})
+    df = df.rename(columns={"date": "week_end", "value": "ili_frac"})
+    return df[["week_end", "location", "ili_frac"]].dropna()
+
+
 def nwss_flu_weekly() -> pd.DataFrame:
     """NWSS Influenza A wastewater state-level weekly levels (Site_WVAL)."""
     df = pd.read_csv(os.path.join(DATA_DIR, "nwss", "wastewater.csv"))
