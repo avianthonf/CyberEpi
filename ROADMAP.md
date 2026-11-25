@@ -101,7 +101,7 @@ still needs approval.
 ### Phase 3 — Show it
 - README rewritten around the forecaster. The platform (app, services,
   deploy configs) was removed from main on 2026-11-25 rather than kept as a
-  demo; it is preserved at the git tag `platform-archive`.
+  demo; it is preserved in history at commit 509f9dc.
 - Results page: honest backtest + live scores, updated weekly.
 - Stop. From here the work is watching scores, not building.
 

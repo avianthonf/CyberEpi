@@ -62,8 +62,8 @@ forecasts a 4-week horizon exactly once — hub submission format via
 CyberEpi began as a larger platform: a patient app, six backend services and
 deployment configs around the forecasting model. It was removed on
 2026-11-25 to keep the project to one claim that can be checked. The last
-version with it is the git tag
-[`platform-archive`](https://github.com/avianthonf/CyberEpi/tree/platform-archive).
+version with it is commit
+[`509f9dc`](https://github.com/avianthonf/CyberEpi/tree/509f9dcbea82d4ccd9f2f8b3949c8508e584ce45).
 
 ## License & Citation
 
