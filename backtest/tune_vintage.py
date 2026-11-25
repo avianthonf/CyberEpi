@@ -54,7 +54,8 @@ def main() -> None:
                    "--sd-beta", str(c["sd_beta"]), "--s-obs", str(c["s_obs"]),
                    "--sd-beta-fwd", str(c["sd_beta_fwd"]), "--ili", c["ili"]]
             subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
-        s = json.load(open(summ_path))["seasons"][TUNE_SEASON]["FluSight-baseline"]
+        with open(summ_path) as f:
+            s = json.load(f)["seasons"][TUNE_SEASON]["FluSight-baseline"]
         results.append({**c, "relWIS": s["relWIS"], "cov50": s["cov50"], "cov90": s["cov90"]})
         print(results[-1], flush=True)
 

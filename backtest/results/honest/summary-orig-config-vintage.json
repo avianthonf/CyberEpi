@@ -1,0 +1,389 @@
+{
+  "config": {
+    "members": 300,
+    "sd_beta": 0.05,
+    "sd_hir": 0.005,
+    "r_rel": 0.15,
+    "inflation": 1.03,
+    "s_obs": 0.1,
+    "sd_beta_fwd": 0.05,
+    "sd_lc": 0.01,
+    "r_ili_rel": 0.1,
+    "seed": 1,
+    "ili": "final"
+  },
+  "seasons": {
+    "2023-24": {
+      "FluSight-baseline": {
+        "n_comparison_rows": 6360,
+        "n_finite_paired": 6354,
+        "n_excluded_nonfinite": 6,
+        "n_scored_ours": 6354,
+        "n_scored_base": 6354,
+        "wis_mean": 72.33969180659905,
+        "wis_baseline_mean": 84.92465320200621,
+        "relWIS": 0.8518102703878941,
+        "cov50": 0.5210890777463015,
+        "cov90": 0.9165879760780611,
+        "cov95": 0.9551463644948064,
+        "by_horizon": {
+          "0": {
+            "wis": 36.9621,
+            "wis_base": 44.0855,
+            "relWIS": 0.8384,
+            "n": 1590
+          },
+          "1": {
+            "wis": 58.9083,
+            "wis_base": 74.0838,
+            "relWIS": 0.7952,
+            "n": 1590
+          },
+          "2": {
+            "wis": 86.0083,
+            "wis_base": 99.9523,
+            "relWIS": 0.8605,
+            "n": 1588
+          },
+          "3": {
+            "wis": 107.5859,
+            "wis_base": 121.6884,
+            "relWIS": 0.8841,
+            "n": 1586
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.8384,
+          "1": 0.7952,
+          "2": 0.8605,
+          "3": 0.8841
+        }
+      },
+      "FluSight-ensemble": {
+        "n_comparison_rows": 6360,
+        "n_finite_paired": 6354,
+        "n_excluded_nonfinite": 6,
+        "n_scored_ours": 6354,
+        "n_scored_base": 6354,
+        "wis_mean": 72.33969180659905,
+        "wis_baseline_mean": 61.84337101877487,
+        "relWIS": 1.1697242665610454,
+        "cov50": 0.5210890777463015,
+        "cov90": 0.9165879760780611,
+        "cov95": 0.9551463644948064,
+        "by_horizon": {
+          "0": {
+            "wis": 36.9621,
+            "wis_base": 33.2094,
+            "relWIS": 1.113,
+            "n": 1590
+          },
+          "1": {
+            "wis": 58.9083,
+            "wis_base": 54.9155,
+            "relWIS": 1.0727,
+            "n": 1590
+          },
+          "2": {
+            "wis": 86.0083,
+            "wis_base": 72.9636,
+            "relWIS": 1.1788,
+            "n": 1588
+          },
+          "3": {
+            "wis": 107.5859,
+            "wis_base": 86.3607,
+            "relWIS": 1.2458,
+            "n": 1586
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 1.113,
+          "1": 1.0727,
+          "2": 1.1788,
+          "3": 1.2458
+        }
+      }
+    },
+    "2024-25": {
+      "FluSight-baseline": {
+        "n_comparison_rows": 5724,
+        "n_finite_paired": 5724,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5724,
+        "n_scored_base": 5724,
+        "wis_mean": 186.21195971196795,
+        "wis_baseline_mean": 262.724764302859,
+        "relWIS": 0.7087720116757245,
+        "cov50": 0.35412299091544375,
+        "cov90": 0.7739343116701607,
+        "cov95": 0.8471348707197763,
+        "by_horizon": {
+          "0": {
+            "wis": 105.7829,
+            "wis_base": 132.0259,
+            "relWIS": 0.8012,
+            "n": 1431
+          },
+          "1": {
+            "wis": 162.6785,
+            "wis_base": 217.8429,
+            "relWIS": 0.7468,
+            "n": 1431
+          },
+          "2": {
+            "wis": 218.7775,
+            "wis_base": 305.0669,
+            "relWIS": 0.7171,
+            "n": 1431
+          },
+          "3": {
+            "wis": 257.6089,
+            "wis_base": 395.9634,
+            "relWIS": 0.6506,
+            "n": 1431
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.8012,
+          "1": 0.7468,
+          "2": 0.7171,
+          "3": 0.6506
+        }
+      },
+      "FluSight-ensemble": {
+        "n_comparison_rows": 5724,
+        "n_finite_paired": 5724,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5724,
+        "n_scored_base": 5724,
+        "wis_mean": 186.21195971196795,
+        "wis_baseline_mean": 176.68604836994504,
+        "relWIS": 1.0539143380584164,
+        "cov50": 0.35412299091544375,
+        "cov90": 0.7739343116701607,
+        "cov95": 0.8471348707197763,
+        "by_horizon": {
+          "0": {
+            "wis": 105.7829,
+            "wis_base": 105.8268,
+            "relWIS": 0.9996,
+            "n": 1431
+          },
+          "1": {
+            "wis": 162.6785,
+            "wis_base": 150.2722,
+            "relWIS": 1.0826,
+            "n": 1431
+          },
+          "2": {
+            "wis": 218.7775,
+            "wis_base": 196.6643,
+            "relWIS": 1.1124,
+            "n": 1431
+          },
+          "3": {
+            "wis": 257.6089,
+            "wis_base": 253.9809,
+            "relWIS": 1.0143,
+            "n": 1431
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.9996,
+          "1": 1.0826,
+          "2": 1.1124,
+          "3": 1.0143
+        }
+      }
+    },
+    "2025-26": {
+      "FluSight-baseline": {
+        "n_comparison_rows": 5936,
+        "n_finite_paired": 5936,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5936,
+        "n_scored_base": 5936,
+        "wis_mean": 124.84598727001055,
+        "wis_baseline_mean": 174.90745041310208,
+        "relWIS": 0.7137831291642823,
+        "cov50": 0.4563679245283019,
+        "cov90": 0.8330525606469003,
+        "cov95": 0.8969002695417789,
+        "by_horizon": {
+          "0": {
+            "wis": 55.8737,
+            "wis_base": 94.7502,
+            "relWIS": 0.5897,
+            "n": 1484
+          },
+          "1": {
+            "wis": 105.1469,
+            "wis_base": 159.0447,
+            "relWIS": 0.6611,
+            "n": 1484
+          },
+          "2": {
+            "wis": 157.9008,
+            "wis_base": 208.1118,
+            "relWIS": 0.7587,
+            "n": 1484
+          },
+          "3": {
+            "wis": 180.4625,
+            "wis_base": 237.7231,
+            "relWIS": 0.7591,
+            "n": 1484
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.5897,
+          "1": 0.6611,
+          "2": 0.7587,
+          "3": 0.7591
+        }
+      },
+      "FluSight-ensemble": {
+        "n_comparison_rows": 5936,
+        "n_finite_paired": 5936,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5936,
+        "n_scored_base": 5936,
+        "wis_mean": 124.84598727001055,
+        "wis_baseline_mean": 115.21210762627447,
+        "relWIS": 1.083618639066881,
+        "cov50": 0.4563679245283019,
+        "cov90": 0.8330525606469003,
+        "cov95": 0.8969002695417789,
+        "by_horizon": {
+          "0": {
+            "wis": 55.8737,
+            "wis_base": 57.0475,
+            "relWIS": 0.9794,
+            "n": 1484
+          },
+          "1": {
+            "wis": 105.1469,
+            "wis_base": 102.4478,
+            "relWIS": 1.0263,
+            "n": 1484
+          },
+          "2": {
+            "wis": 157.9008,
+            "wis_base": 140.193,
+            "relWIS": 1.1263,
+            "n": 1484
+          },
+          "3": {
+            "wis": 180.4625,
+            "wis_base": 161.1602,
+            "relWIS": 1.1198,
+            "n": 1484
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.9794,
+          "1": 1.0263,
+          "2": 1.1263,
+          "3": 1.1198
+        }
+      }
+    }
+  },
+  "pooled": {
+    "FluSight-baseline": {
+      "n_comparison_rows": 18020,
+      "n_finite_paired": 18014,
+      "n_excluded_nonfinite": 6,
+      "n_scored_ours": 18014,
+      "n_scored_base": 18014,
+      "wis_mean": 125.82488284474393,
+      "wis_baseline_mean": 171.07241162247624,
+      "relWIS": 0.7355065708807281,
+      "cov50": 0.4467081159098479,
+      "cov90": 0.8437326523814811,
+      "cov95": 0.9016320639502609,
+      "by_horizon": {
+        "0": {
+          "wis": 65.0525,
+          "wis_base": 88.7091,
+          "relWIS": 0.7333,
+          "n": 4505
+        },
+        "1": {
+          "wis": 107.1021,
+          "wis_base": 147.7356,
+          "relWIS": 0.725,
+          "n": 4505
+        },
+        "2": {
+          "wis": 151.8936,
+          "wis_base": 200.7801,
+          "relWIS": 0.7565,
+          "n": 4503
+        },
+        "3": {
+          "wis": 179.3104,
+          "wis_base": 247.1456,
+          "relWIS": 0.7255,
+          "n": 4501
+        }
+      },
+      "relWIS_by_horizon": {
+        "0": 0.7333,
+        "1": 0.725,
+        "2": 0.7565,
+        "3": 0.7255
+      }
+    },
+    "FluSight-ensemble": {
+      "n_comparison_rows": 18020,
+      "n_finite_paired": 18014,
+      "n_excluded_nonfinite": 6,
+      "n_scored_ours": 18014,
+      "n_scored_base": 18014,
+      "wis_mean": 125.82488284474393,
+      "wis_baseline_mean": 115.92110531766548,
+      "relWIS": 1.0854354994281545,
+      "cov50": 0.4467081159098479,
+      "cov90": 0.8437326523814811,
+      "cov95": 0.9016320639502609,
+      "by_horizon": {
+        "0": {
+          "wis": 65.0525,
+          "wis_base": 64.1286,
+          "relWIS": 1.0144,
+          "n": 4505
+        },
+        "1": {
+          "wis": 107.1021,
+          "wis_base": 100.8629,
+          "relWIS": 1.0619,
+          "n": 4505
+        },
+        "2": {
+          "wis": 151.8936,
+          "wis_base": 134.4302,
+          "relWIS": 1.1299,
+          "n": 4503
+        },
+        "3": {
+          "wis": 179.3104,
+          "wis_base": 164.3138,
+          "relWIS": 1.0913,
+          "n": 4501
+        }
+      },
+      "relWIS_by_horizon": {
+        "0": 1.0144,
+        "1": 1.0619,
+        "2": 1.1299,
+        "3": 1.0913
+      }
+    }
+  },
+  "vintage_staleness_weeks": {
+    "0": 4293,
+    "1": 212
+  }
+}

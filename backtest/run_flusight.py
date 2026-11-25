@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from eakf import EAKF, EakfConfig
 from forecast import emit_rows
-from hub_data import load_locations, load_model_output, load_oracle, load_truth, ed_frac_by_location
+from hub_data import ed_frac_by_location, load_locations, load_model_output, load_oracle, load_truth
 from seir_fast import FluParams
 from wis import weighted_interval_score
 

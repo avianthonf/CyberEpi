@@ -40,7 +40,17 @@ These are what a reviewer would attack first, and what Phase 1 fixes.
 ### Phase 0 — Consolidate (done)
 - Local delta restored into the repo; report clutter moved to `docs/archive/`.
 
-### Phase 1 — Honest retest
+### Phase 1 — Honest retest (done 2026-11-25)
+
+Result (see BACKTEST_RESULTS.md): out of sample on as-published data,
+relWIS **0.697 vs baseline** and **1.046 vs ensemble** (pooled 2024-25 and
+2025-26). 90% intervals cover only ~74%. Checkpoint A outcome: beats
+baseline, not ensemble → Phase 2.
+
+From here the backtest numbers are frozen. Any model change (e.g. wider
+intervals) may use all past seasons, and is judged only by live 2026-27
+scores, never by re-scoring the backtest.
+
 - Rebuild the backtest input from the hub's `time-series.csv`, using only the
   data version available at each forecast date (`as_of`).
 - Split seasons: tune on 2023-24 only; score 2024-25 and 2025-26 untouched.
@@ -60,6 +70,7 @@ These are what a reviewer would attack first, and what Phase 1 fixes.
   anything goes public.
 
 ### Phase 2 — Live submission pipeline
+- Fix interval calibration (90% intervals cover ~74%) before going live.
 - Scheduled GitHub Action: pull latest hub data → forecast → validate with the
   hub's own rules → produce the submission file.
 - Model metadata and first submission.

@@ -36,7 +36,7 @@ import glob
 import json
 import os
 import sys
-from functools import lru_cache
+from functools import cache, lru_cache
 
 import numpy as np
 import pandas as pd
@@ -85,7 +85,7 @@ def pick_vintage(origin: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp] | No
     return row["as_of"], row["max_week"]
 
 
-@lru_cache(maxsize=None)
+@cache
 def _vintage_by_loc(as_of: pd.Timestamp) -> dict[str, pd.Series]:
     v = load_vintages()
     sub = v[v["as_of"] == as_of]
@@ -164,28 +164,28 @@ def _run_job(job: dict) -> dict:
     rows: list[dict] = []
     trace: list[dict] = []
     for origin in job["origins"]:
-        R = pd.Timestamp(origin)
-        pick = pick_vintage(R)
+        ref = pd.Timestamp(origin)
+        pick = pick_vintage(ref)
         if pick is None:
-            trace.append({"location": loc, "reference_date": str(R.date()), "as_of": None, "stale_weeks": None})
+            trace.append({"location": loc, "reference_date": str(ref.date()), "as_of": None, "stale_weeks": None})
             continue
         as_of, max_week = pick
         if a["ili"] == "vintage":
-            ili_map = ed_map_at(R, loc)
+            ili_map = ed_map_at(ref, loc)
             if not ili_map:
                 continue
-        tw = series_at(as_of, loc, R - WEEK)
+        tw = series_at(as_of, loc, ref - WEEK)
         if tw.notna().sum() < 10:
             continue
         r_rows, _ = run_location(
-            loc, pop, tw, cfg, {np.datetime64(R.date())},
+            loc, pop, tw, cfg, {np.datetime64(ref.date())},
             SEASONS[season][0], SEASONS[season][1],
             ili_map=ili_map, run_rng_seed=run_seed,
         )
         rows.extend(r_rows)
-        trace.append({"location": loc, "reference_date": str(R.date()),
+        trace.append({"location": loc, "reference_date": str(ref.date()),
                       "as_of": str(as_of.date()),
-                      "stale_weeks": int((R - WEEK - max_week) / WEEK)})
+                      "stale_weeks": int((ref - WEEK - max_week) / WEEK)})
     return {"status": "ok", "season": season, "loc": loc, "rows": rows, "trace": trace}
 
 

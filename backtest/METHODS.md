@@ -79,9 +79,16 @@ coverage (cov50 0.44–0.53 vs 0.5, cov90 0.85–0.91 vs 0.9).
   per-origin emission RNGs are derived from the run seed, so reruns are
   bitwise stable.
 
-Results in `BACKTEST_RESULTS.md` (pooled relWIS 0.714, per-season
-0.66–0.86, n = 18,014 finite paired scores from 18,020 total comparison rows).
-Raw rows: `backtest/out/flu/rows-*.csv`.
+Sections 4–5 describe the original August 2026 evaluation (final data,
+tuning on the reported seasons; pooled relWIS 0.714, archived in
+`docs/archive/BACKTEST_RESULTS-2026-08.md`).
+
+The current evaluation (`run_vintage.py`, `tune_vintage.py`) differs in three
+ways: each origin sees only the admissions version published by then (hub
+`time-series.csv` `as_of`); settings are tuned on 2023-24 only by a rule
+committed before scoring; and scores are reported against FluSight-ensemble
+as well as the baseline. Results: `BACKTEST_RESULTS.md` (pooled relWIS 0.697
+vs baseline, 1.046 vs ensemble, out of sample on 2024-25 and 2025-26).
 
 ## 6. Limitations
 

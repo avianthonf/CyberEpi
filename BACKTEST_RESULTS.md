@@ -1,73 +1,104 @@
-# CyberEpi-EAKF Backtest Record
+# Backtest results (honest retest, 2026-11-25)
 
-**Date**: 2026-08-21
-**Benchmark**: FluSight-style scoring (US national + 52 HHS/state locations), seasons 2023-24, 2024-25, 2025-26
-**Baseline**: naive surveillance-persistence baseline model shipped with the FluSight eval harness (`wis_baseline_mean`)
-**Model**: CyberEpi EAKF — ensemble-adjusted Kalman filter over SEIHDR with nonlinear ILI-visit observation (model/inference details: [backtest/METHODS.md](./backtest/METHODS.md))
-**Final config artifact**: `backtest/out/flu/summary-EAKF-final.json` (+ `rows-EAKF-final.csv`)
+The forecaster in `backtest/` (SEIHDR model + ensemble Kalman filter, see
+[backtest/METHODS.md](backtest/METHODS.md)) scored against CDC FluSight
+targets (weekly flu hospital admissions, 53 locations, horizons 0–3).
+
+These numbers replace the August 2026 headline (pooled relWIS 0.714), which is
+kept in [docs/archive/BACKTEST_RESULTS-2026-08.md](docs/archive/BACKTEST_RESULTS-2026-08.md).
+That result used fully revised data, was tuned on the seasons it reported, and
+was compared only with the persistence baseline. This retest removes all three
+problems.
+
+**relWIS** = our mean weighted interval score ÷ the reference model's, on the
+same (location, date, horizon) rows. Below 1 means better than the reference.
 
 ## Headline
 
-| Season | n scored | our WIS | baseline WIS | **relWIS** | cov50 | cov90 | cov95 |
-|---|---|---|---|---|---|---|---|
-| 2023-24 | 6354 | 73.00 | 85.05 | **0.858** | 0.531 | 0.913 | 0.951 |
-| 2024-25 | 5724 | 174.19 | 263.13 | **0.662** | 0.445 | 0.849 | 0.903 |
-| 2025-26 | 5936 | 125.22 | 175.16 | **0.715** | 0.487 | 0.868 | 0.925 |
-| **pooled** | 18014 | — | — | **0.714** | ~0.487 | ~0.876 | ~0.926 |
+Settings frozen after tuning on 2023-24 only; scored once on the two later
+seasons, using only data as it was published at each forecast date.
 
-Scoring follows FluSight practice: horizons 0..3 (h=-1 nowcast-back rows
-are emitted for the hub but excluded from scoring, matching the hub's own
-protocol). **n scored** = finite paired (wis, wis_base) comparison rows;
-18,020 total comparison rows, 6 excluded due to non-finite baseline WIS.
-Numbers reproduced 2026-08-23 by the one-command run below.
+| Season | vs FluSight-baseline | vs FluSight-ensemble | 50% interval coverage | 90% interval coverage | n |
+|---|---|---|---|---|---|
+| 2024-25 | **0.650** | 0.966 | 0.35 | 0.73 | 5,724 |
+| 2025-26 | **0.766** | 1.163 | 0.39 | 0.74 | 5,936 |
+| pooled | **0.697** | 1.046 | 0.37 | 0.74 | 11,660 |
 
-relWIS < 1 = better than baseline at every level of aggregation; single mechanistic model beating a tuned persistence baseline by 14–34% depending on season.
+In plain terms:
 
-## relWIS by horizon (final config, h>=0 scoring)
+- **About 30% better than the CDC persistence baseline**, out of sample.
+- **About level with the CDC ensemble** (the combination of all submitted
+  models): 3% better in 2024-25, 16% worse in 2025-26, 5% worse pooled.
+- **Intervals are too narrow.** The 90% intervals contain the truth about 74%
+  of the time (target 90%). This is the main weakness to fix.
 
-| Season | 0 (nowcast) | +1 | +2 | +3 |
-|---|---|---|---|---|
-| 2023-24 | 0.808 | 0.794 | 0.872 | 0.905 |
-| 2024-25 | 0.623 | 0.675 | 0.694 | 0.644 |
-| 2025-26 | 0.536 | 0.651 | 0.770 | 0.781 |
+relWIS vs the ensemble by horizon (pooled): h0 0.88, h1 1.00, h2 1.11, h3 1.08.
+The model is strongest for the current week and loses ground further out.
 
-All forward horizons beat the baseline in every season. (The h=-1
-nowcast-back horizon, where the filter is strongest at relWIS 0.09–0.24,
-is excluded per FluSight scoring convention; hub submissions score h=0..3.)
+## What "honest" means here
 
-## Tuning sweep evidence (`backtest/out/flu/sweep.csv`, summary-*.json)
+1. **As-published data.** At each forecast date R the model only sees the
+   admissions version the CDC published by R (hub `target-data/time-series.csv`,
+   `as_of`), re-running the filter from the season start on that version.
+   First reports average ~96% of final values (range 78–142% nationally).
+2. **Out-of-sample settings.** Selection rule committed before any test result
+   (`backtest/tune_vintage.py`, commit `f25fb31`): 16 settings on 2023-24, lowest
+   relWIS vs baseline with 90% coverage ≥ 0.85. Chosen: `sd_beta=0.03,
+   s_obs=0.10, sd_beta_fwd=0.03`, ED input on (2023-24: relWIS 0.799, cov90 0.86).
+3. **Strong comparison.** Scored against both FluSight-baseline and
+   FluSight-ensemble on identical rows.
 
-*Note: sweep figures below predate the h>=0 scoring change and include
-h=-1; they are retained as the tuning artifact that selected EAKF-final.
-Final-config re-scored numbers are the headline table above.*
+### Remaining limitations
 
-| Config | 2023-24 | 2024-25 | 2025-26 | pooled |
-|---|---|---|---|---|
-| EAKF-ili (ILI-fraction obs) | 0.710 | 0.636 | 0.704 | 0.672 |
-| s_obs=0.04, sd_beta=0.03 | 0.711 | 0.639 | 0.710 | 0.676 |
-| s_obs=0.04, sd_beta=0.05 | 0.755 | 0.631 | 0.701 | 0.676 |
-| s_obs=0.08, sd_beta=0.03 | 0.702 | 0.636 | 0.710 | 0.673 |
-| s_obs=0.08, sd_beta=0.05 | 0.740 | 0.628 | 0.724 | 0.680 |
-| **EAKF-final** | **0.797** | **0.643** | **0.754** | **0.707** |
+- **ED input before Nov 2025 uses final values.** The second data stream
+  (share of ED visits for flu) has no published versions in the hub before
+  Nov 2025. For 2025-26, a fully as-published run (both streams) gives
+  relWIS **0.759** vs baseline and **1.156** vs ensemble (n = 5,712; origins
+  before the first archived ED version skipped), essentially the same as the
+  headline, so ED revisions do not appear to inflate the result.
+- **Missing archived versions.** On 212 of 2,915 location-dates the hub has no
+  version for the expected week, so the model ran one week stale. This can only
+  make the scores worse.
+- **Retrospective.** Still a backtest. The real test is live submission during
+  the 2026-27 season (see [ROADMAP.md](ROADMAP.md)).
 
-EAKF-final trades small raw-WIS differences for materially better calibrated per-horizon coverage (cov50 ≈ 0.44–0.53 vs intended 0.5, cov90 ≈ 0.85–0.91). Chosen on 2025-26 h=0/h=+3 balance + pooled stability.
+## Supporting findings
 
-## Rt cross-validation (earlier diagnostic, `backtest/results.json`)
+| Run | 2023-24 | 2024-25 | 2025-26 | pooled vs baseline | pooled vs ensemble |
+|---|---|---|---|---|---|
+| Original settings, final data (re-run on today's data) | 0.834 | 0.654 | 0.711 | — | — |
+| Original settings, as-published data | 0.852 | 0.709 | 0.714 | 0.736 | 1.085 |
+| Frozen tuned settings, as-published data (headline) | (tuning) | 0.650 | 0.766 | 0.697 | 1.046 |
 
-- EKF estimate vs synthetic truth over 418 weeks: crossings detected 38 weeks ahead on upward, 6 on downward vs retrospective Cori/EpiEstim.
-- The diagnostic run there used an extreme mis-specified prior; RMSE figure (11.38) reflects that stress test, not the production config.
+- **As-published data costs little**: 0–8% worse relWIS than final data, depending on season.
+- **The ED input carries most of the skill.** Every admissions-only setting
+  scored relWIS 3.3–4.2 vs baseline on 2023-24; every setting with ED input
+  scored 0.80–0.85.
+- **Tuning trades calibration for sharpness.** The original settings have
+  better 90% coverage (0.77–0.83) but slightly worse relWIS.
 
 ## Reproduce
 
-```sh
-# Full EAKF-final run: 3 seasons x 53 locations (uses --ncpus workers)
-python3 backtest/run_flusight.py \
-  --seasons 2023-24,2024-25,2025-26 \
-  --locations US,01,02,04,05,06,08,09,10,11,12,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,44,45,46,47,48,49,50,51,53,54,55,56,72 \
-  --ncpus 8 --label EAKF-final
-# writes backtest/out/flu/{rows,trace,cmp,summary}-EAKF-final*.csv/json
+Data: clone the hub (`https://github.com/cdcepi/FluSight-forecast-hub`, sparse:
+`target-data`, `auxiliary-data`, `model-output/FluSight-baseline`,
+`model-output/FluSight-ensemble`) and link into `data/flusight/`:
+`locations.csv` (from `auxiliary-data/`), `target-hospital-admissions.csv`,
+`target-ed-visits-prop.csv`, `oracle-output.csv`, `time-series.csv`,
+`model-output/`, and `target-data-archive/` (from `auxiliary-data/`).
 
-python3 backtest/tune_sweep.py   # regenerates the calibration grid (backtest/out/flu/sweep.csv)
+```sh
+LOCS=US,01,02,04,05,06,08,09,10,11,12,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,44,45,46,47,48,49,50,51,53,54,55,56,72
+
+# 1. tuning on 2023-24 (pre-registered rule)
+python3 backtest/tune_vintage.py --ncpus 4 --locations $LOCS
+# 2. frozen settings on the test seasons
+python3 backtest/run_vintage.py --seasons 2024-25,2025-26 --locations $LOCS \
+  --ncpus 4 --label test-chosen --sd-beta 0.03 --s-obs 0.10 --sd-beta-fwd 0.03 --ili final
+# 3. fully as-published 2025-26
+python3 backtest/run_vintage.py --seasons 2025-26 --locations $LOCS \
+  --ncpus 4 --label test-chosen-edvintage --sd-beta 0.03 --s-obs 0.10 --sd-beta-fwd 0.03 --ili vintage
 ```
 
-Raw scoring tables: `backtest/out/flu/rows-*.csv`; per-season traces: `trace-*.csv`.
+About 45 minutes on 4 CPUs in total. Summaries of every run above are committed in
+[backtest/results/honest/](backtest/results/honest/); row-level outputs go to
+`backtest/out/honest/` (not committed, ~100 MB).

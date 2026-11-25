@@ -133,30 +133,22 @@ background consumers; the separate live Compose smoke covers those paths.
 
 ## Forecast Validation (CDC FluSight targets)
 
-The **standalone** `backtest/` SEIHDR + EAKF implementation has retained
-retrospective CDC FluSight scoring artifacts (see
-[BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md)). It is not the live epi-engine's
-regional EKF/particle-filter/SEIR forecast path, and its scores do not validate
-the API's scientific or clinical accuracy.
+The **standalone** `backtest/` SEIHDR + EAKF forecaster is scored against CDC
+FluSight hospital-admission targets (53 locations, horizons 0–3). It is not the
+live epi-engine's forecast path, and its scores do not validate the API's
+scientific or clinical accuracy. Full results: [BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md).
 
-- Archived pooled relWIS **0.714** vs `FluSight-baseline`, across three seasons
-  and 53 locations: **18,014 finite paired scores** from 18,020 comparison rows
-  (six have missing truth). The independent audit recomputed the archived score
-  arithmetic; it did not rerun the complete model or download surveillance data.
-- Interval coverage: cov90 ≈ 0.85–0.91, cov50 ≈ 0.44–0.53 (near nominal
-  at 0.5 and 0.9).
-- Retrospective scoring by the in-repo harness; hub verification is the
-  next step (`backtest/package_submission.py` emits hub-conformant
-  quantile files + `model-metadata`).
+Honest retest (2026-11-25): only data as published at each forecast date,
+settings frozen after tuning on 2023-24, scored once on 2024-25 and 2025-26:
 
-One-command reproduction:
+- **relWIS 0.697 vs FluSight-baseline** (about 30% better), 11,660 scores.
+- **relWIS 1.046 vs FluSight-ensemble** (about level: 3% better in 2024-25,
+  16% worse in 2025-26).
+- **Intervals too narrow:** 90% intervals cover ~74% (target 90%).
 
-```bash
-python3 backtest/run_flusight.py \
-  --seasons 2023-24,2024-25,2025-26 \
-  --locations US,01,02,04,05,06,08,09,10,11,12,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,44,45,46,47,48,49,50,51,53,54,55,56,72 \
-  --ncpus 8 --label EAKF-final
-```
+The earlier headline (relWIS 0.714) used revised data and test-season tuning;
+it is archived in [docs/archive/](docs/archive/BACKTEST_RESULTS-2026-08.md).
+Next step: live weekly submission for 2026-27 ([ROADMAP.md](./ROADMAP.md)).
 
 Single-origin prospective mode: `python3 backtest/run_flusight.py
 --reference-date YYYY-MM-DD` runs the filter through week R−7 and
