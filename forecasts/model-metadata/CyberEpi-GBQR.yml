@@ -1,0 +1,20 @@
+team_name: CyberEpi
+team_abbr: CyberEpi
+model_name: CyberEpi EAKF
+model_abbr: GBQR
+model_contributors: [
+  {
+    "name": "Student",
+    "affiliation": "Independent",
+    "email": "avianthonf@protonmail.com"
+  }
+]
+license: CC-BY-4.0
+designated_model: false
+data_inputs: "NHSN weekly confirmed influenza hospital admissions (target data); NSSP emergency department influenza visit fraction."
+methods: "Gradient-boosted quantile regression on recent admission trends and ED visit share, pooled across locations."
+methods_long: "LightGBM quantile regression, one model per horizon and quantile, pooled across all locations. Target: change in log(1 + admissions per 100k) from the last reported week. Features: current log rate, its 1-4 week changes, log ED influenza visit share and its 1-2 week changes, and week of year. Refitted every week on all data published by the forecast date; quantiles sorted to prevent crossing."
+ensemble_of_models: false
+ensemble_of_hub_models: false
+website_url: https://github.com/avianthonf/CyberEpi
+repo_url: https://github.com/avianthonf/CyberEpi
