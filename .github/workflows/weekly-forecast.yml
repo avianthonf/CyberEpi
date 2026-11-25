@@ -7,7 +7,8 @@
 #
 # Repository settings (Settings > Secrets and variables > Actions > Variables):
 #   FORECAST_CONTRIBUTOR_NAME / _EMAIL / _AFFILIATION
-#       contributor details for model-metadata; until set, output is a draft.
+#       override the contributor details below (defaults are the ones
+#       registered with the hub for CyberEpi-EAKF).
 #   COMMIT_FORECASTS = "true"
 #       also commit each week's files to forecasts/ on main, a public,
 #       timestamped record. Off by default.
@@ -67,9 +68,9 @@ jobs:
         id: run
         if: steps.done.outputs.already != 'true'
         env:
-          FORECAST_CONTRIBUTOR_NAME: ${{ vars.FORECAST_CONTRIBUTOR_NAME }}
-          FORECAST_CONTRIBUTOR_EMAIL: ${{ vars.FORECAST_CONTRIBUTOR_EMAIL }}
-          FORECAST_CONTRIBUTOR_AFFILIATION: ${{ vars.FORECAST_CONTRIBUTOR_AFFILIATION }}
+          FORECAST_CONTRIBUTOR_NAME: ${{ vars.FORECAST_CONTRIBUTOR_NAME || 'Student' }}
+          FORECAST_CONTRIBUTOR_EMAIL: ${{ vars.FORECAST_CONTRIBUTOR_EMAIL || 'avianthonf@protonmail.com' }}
+          FORECAST_CONTRIBUTOR_AFFILIATION: ${{ vars.FORECAST_CONTRIBUTOR_AFFILIATION || 'Independent' }}
         run: |
           set +e
           python3 backtest/live.py --hub hub --out forecasts \
