@@ -70,7 +70,14 @@ scores, never by re-scoring the backtest.
   anything goes public.
 
 ### Phase 2 — Live submission pipeline
-- Fix interval calibration (90% intervals cover ~74%) before going live.
+- ~~Fix interval calibration before going live.~~ Investigated 2026-11-25
+  (`backtest/calibrate.py`, `backtest/results/calibration.json`): forecasts
+  run low (truth above the median ~65%), worst while an epidemic is
+  *declining* (3-week median ~40% low): the model's post-peak decline is
+  too steep. A per-horizon shift/widening fitted on past seasons does not
+  hold up when a season is left out (horizons 1–3: no gain; horizon 0: helps
+  two seasons, hurts the third). Decision: submit uncalibrated; fixing the
+  decline-phase dynamics is the first model improvement, judged live.
 - Scheduled GitHub Action: pull latest hub data → forecast → validate with the
   hub's own rules → produce the submission file.
 - Model metadata and first submission.
@@ -86,6 +93,10 @@ explicit approval.
 - Stop. From here the work is watching scores, not building.
 
 ## Parked (not forgotten, not worked on)
+
+- Model: post-peak decline too steep (see Phase 2 note). Candidates: waning
+  immunity or a slower second compartment in the tail; evaluated only on
+  live 2026-27 scores.
 
 - Public forecast dashboard fed by the live pipeline (first candidate after
   Phase 3; would reuse epi-engine and the app).
