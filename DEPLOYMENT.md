@@ -342,8 +342,8 @@ Do not rely on their old free-tier claims. A future cloud target needs a new
 review of persistent storage, always-on event consumers, authentication,
 networking, resource limits and actual provider pricing.
 
-Dated verification reports and `kafka-fix-plan.md` record historical work.
-`issues.md` retains the original observations alongside their current
+Dated verification reports and `docs/archive/kafka-fix-plan.md` record historical work.
+`docs/archive/issues.md` retains the original observations alongside their current
 disposition; not every suggested historical fix remains applicable.
 
 ## Before any public deployment

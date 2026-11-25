@@ -193,7 +193,7 @@ is implied; that requires its own restoration exercise.
 
 Use the independent audit record in [DEPLOYMENT.md](DEPLOYMENT.md), the actual
 checks in [README.md](README.md#running-tests), and the per-issue dispositions in
-[issues.md](issues.md). Historical reports remain history, not automatic proof
+[docs/archive/issues.md](docs/archive/issues.md). Historical reports remain history, not automatic proof
 for a new revision. Resource measurements are idle observations on one host,
 not scalability benchmarks or minimum-machine guarantees.
 
@@ -217,7 +217,7 @@ accuracy measurements of the live API or as a fresh benchmark run.
 
 The acceptance categories above were checked against the current source, tracked
 diff, untracked deliverables, issue history, tests and a disposable local stack.
-All eleven original `ISS-01`–`ISS-11` entries are reconciled in `issues.md`.
+All eleven original `ISS-01`–`ISS-11` entries are reconciled in `docs/archive/issues.md`.
 Earlier completion summaries are not treated as current proof.
 
 | Acceptance criterion | Result and evidence |
