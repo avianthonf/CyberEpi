@@ -25,13 +25,33 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hub_data import PRIMARY_TARGET, STANDARD_QUANTILES, ed_frac_by_location, load_locations, load_model_output
 from run_flusight import season_origins
-from run_vintage import WEEK, load_vintages, pick_vintage, score, series_at, vintage_index
+from run_vintage import WEEK, ed_map_at, load_ed_vintages, load_vintages, pick_vintage, score, series_at, vintage_index
 
 HORIZONS = (0, 1, 2, 3)
 MAX_GAP = 2  # weeks the newest observation may lag R-7 (missing data version)
 MAX_STEP = HORIZONS[-1] + 1 + MAX_GAP
 FEATURES = ["lr", "d1", "d2", "d3", "d4", "ed", "ed_d1", "ed_d2", "sin_w", "cos_w"]
 DEFAULT_PARAMS = {"num_leaves": 15, "n_estimators": 300, "learning_rate": 0.05, "min_data_in_leaf": 50}
+
+
+ED_SOURCE = os.environ.get("GBQR_ED", "final")  # "final" or "vintage" (robustness check)
+
+
+def _ed_at(ref: pd.Timestamp) -> pd.DataFrame | None:
+    """ED fractions usable at R: final values, or the version published by R."""
+    if ED_SOURCE == "final":
+        ed = ed_frac_by_location()
+        return ed[ed["week_end"] <= ref - WEEK]
+    frames = []
+    for loc in load_locations()["location"]:
+        m = ed_map_at(ref, loc)
+        if m:
+            frames.append(pd.DataFrame({"week_end": list(m), "location": loc, "ili_frac": list(m.values())}))
+    if not frames:
+        return None
+    ed = pd.concat(frames, ignore_index=True)
+    ed["week_end"] = pd.to_datetime(ed["week_end"])
+    return ed
 
 
 def build_panel(ref: pd.Timestamp) -> pd.DataFrame | None:
@@ -41,8 +61,9 @@ def build_panel(ref: pd.Timestamp) -> pd.DataFrame | None:
         return None
     as_of, _ = pick
     locs = load_locations().set_index("location")["population"]
-    ed = ed_frac_by_location()
-    ed = ed[ed["week_end"] <= ref - WEEK]
+    ed = _ed_at(ref)
+    if ed is None:
+        return None
     frames = []
     for loc, pop in locs.items():
         s = series_at(as_of, loc, ref - WEEK)
@@ -138,6 +159,8 @@ def main() -> None:
     load_vintages()
     vintage_index()
     ed_frac_by_location()
+    if ED_SOURCE == "vintage":
+        load_ed_vintages()
     baseline = load_model_output("FluSight-baseline")
     seasons = args.seasons.split(",")
     jobs = [{"season": s, "ref": str(pd.Timestamp(r).date()), "params": params}

@@ -1,0 +1,102 @@
+{
+  "params": {
+    "num_leaves": 7,
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "min_data_in_leaf": 50
+  },
+  "seasons": {
+    "2025-26": {
+      "FluSight-baseline": {
+        "n_comparison_rows": 5928,
+        "n_finite_paired": 5928,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5928,
+        "n_scored_base": 5928,
+        "wis_mean": 71.78045964618904,
+        "wis_baseline_mean": 175.08782550020538,
+        "relWIS": 0.4099683084253328,
+        "cov50": 0.4267881241565452,
+        "cov90": 0.7970647773279352,
+        "cov95": 0.8753373819163293,
+        "by_horizon": {
+          "0": {
+            "wis": 42.9758,
+            "wis_base": 94.8695,
+            "relWIS": 0.453,
+            "n": 1482
+          },
+          "1": {
+            "wis": 62.5027,
+            "wis_base": 159.2208,
+            "relWIS": 0.3926,
+            "n": 1482
+          },
+          "2": {
+            "wis": 84.3289,
+            "wis_base": 208.3246,
+            "relWIS": 0.4048,
+            "n": 1482
+          },
+          "3": {
+            "wis": 97.3144,
+            "wis_base": 237.9363,
+            "relWIS": 0.409,
+            "n": 1482
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.453,
+          "1": 0.3926,
+          "2": 0.4048,
+          "3": 0.409
+        }
+      },
+      "FluSight-ensemble": {
+        "n_comparison_rows": 5928,
+        "n_finite_paired": 5928,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5928,
+        "n_scored_base": 5928,
+        "wis_mean": 71.78045964618904,
+        "wis_baseline_mean": 115.34437100275773,
+        "relWIS": 0.6223143706290867,
+        "cov50": 0.4267881241565452,
+        "cov90": 0.7970647773279352,
+        "cov95": 0.8753373819163293,
+        "by_horizon": {
+          "0": {
+            "wis": 42.9758,
+            "wis_base": 57.1113,
+            "relWIS": 0.7525,
+            "n": 1482
+          },
+          "1": {
+            "wis": 62.5027,
+            "wis_base": 102.5707,
+            "relWIS": 0.6094,
+            "n": 1482
+          },
+          "2": {
+            "wis": 84.3289,
+            "wis_base": 140.3617,
+            "relWIS": 0.6008,
+            "n": 1482
+          },
+          "3": {
+            "wis": 97.3144,
+            "wis_base": 161.3338,
+            "relWIS": 0.6032,
+            "n": 1482
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.7525,
+          "1": 0.6094,
+          "2": 0.6008,
+          "3": 0.6032
+        }
+      }
+    }
+  }
+}
