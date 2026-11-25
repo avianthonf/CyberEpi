@@ -28,6 +28,8 @@ from run_flusight import season_origins
 from run_vintage import WEEK, load_vintages, pick_vintage, score, series_at, vintage_index
 
 HORIZONS = (0, 1, 2, 3)
+MAX_GAP = 2  # weeks the newest observation may lag R-7 (missing data version)
+MAX_STEP = HORIZONS[-1] + 1 + MAX_GAP
 FEATURES = ["lr", "d1", "d2", "d3", "d4", "ed", "ed_d1", "ed_d2", "sin_w", "cos_w"]
 DEFAULT_PARAMS = {"num_leaves": 15, "n_estimators": 300, "learning_rate": 0.05, "min_data_in_leaf": 50}
 
@@ -63,8 +65,8 @@ def build_panel(ref: pd.Timestamp) -> pd.DataFrame | None:
     doy = p["week"].dt.dayofyear.to_numpy()
     p["sin_w"] = np.sin(2 * np.pi * doy / 365.25)
     p["cos_w"] = np.cos(2 * np.pi * doy / 365.25)
-    for h in HORIZONS:
-        p[f"y{h}"] = g["lr"].shift(-(h + 1)) - p["lr"]
+    for k in range(1, MAX_STEP + 1):
+        p[f"y{k}"] = g["lr"].shift(-k) - p["lr"]
     return p
 
 
@@ -75,23 +77,38 @@ def forecast_origin(ref: pd.Timestamp, params: dict) -> list[dict]:
     p = build_panel(ref)
     if p is None:
         return []
-    last = p[p["week"] == ref - WEEK].dropna(subset=["lr"])
+    # Anchor each location at its newest observed week; if that lags R-7
+    # (missing data version), forecast with a correspondingly longer step.
+    obs = p.dropna(subset=["lr"])
+    last = obs.loc[obs.groupby("location")["week"].idxmax()].copy()
+    last["gap"] = ((ref - WEEK - last["week"]) / WEEK).astype(int)
+    last = last[last["gap"] <= MAX_GAP]
     if last.empty:
         return []
+    models: dict[int, list] = {}
+
+    def fitted(k: int) -> list:
+        if k not in models:
+            train = p.dropna(subset=["lr", f"y{k}"])
+            models[k] = [
+                lgb.LGBMRegressor(objective="quantile", alpha=float(q), verbose=-1, n_jobs=1,
+                                  **params).fit(train[FEATURES], train[f"y{k}"])
+                for q in STANDARD_QUANTILES
+            ]
+        return models[k]
+
     rows: list[dict] = []
     for h in HORIZONS:
-        train = p.dropna(subset=["lr", f"y{h}"])
-        x, y = train[FEATURES], train[f"y{h}"]
-        preds = np.column_stack([
-            lgb.LGBMRegressor(objective="quantile", alpha=float(q), verbose=-1, n_jobs=1,
-                              **params).fit(x, y).predict(last[FEATURES])
-            for q in STANDARD_QUANTILES
-        ])
-        preds = np.sort(preds, axis=1)  # no quantile crossing
-        counts = np.expm1(last["lr"].to_numpy()[:, None] + preds) * last["pop"].to_numpy()[:, None] / 1e5
+        parts = []
+        for gap, grp in last.groupby("gap"):
+            preds = np.column_stack([m.predict(grp[FEATURES]) for m in fitted(h + 1 + int(gap))])
+            parts.append((grp, np.sort(preds, axis=1)))  # sorted: no quantile crossing
+        sub = pd.concat([g for g, _ in parts])
+        preds = np.vstack([pr for _, pr in parts])
+        counts = np.expm1(sub["lr"].to_numpy()[:, None] + preds) * sub["pop"].to_numpy()[:, None] / 1e5
         counts = np.maximum(np.round(counts), 0)
         ted = str((ref + pd.Timedelta(weeks=h)).date())
-        for loc, qv in zip(last["location"], counts, strict=True):
+        for loc, qv in zip(sub["location"], counts, strict=True):
             rows.extend({
                 "reference_date": str(ref.date()), "target": PRIMARY_TARGET, "horizon": h,
                 "location": loc, "target_end_date": ted, "output_type": "quantile",

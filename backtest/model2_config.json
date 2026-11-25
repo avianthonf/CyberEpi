@@ -1,0 +1,7 @@
+{
+  "_note": "Frozen model 2 (CyberEpi-GBQR) settings, chosen on development seasons 2023-24 and 2024-25 only (backtest/results/model2/summary-dev-*.json). Holdout 2025-26 is scored once with this commit.",
+  "num_leaves": 7,
+  "n_estimators": 300,
+  "learning_rate": 0.05,
+  "min_data_in_leaf": 50
+}

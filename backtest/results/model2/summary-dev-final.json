@@ -1,0 +1,194 @@
+{
+  "params": {
+    "num_leaves": 7,
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "min_data_in_leaf": 50
+  },
+  "seasons": {
+    "2023-24": {
+      "FluSight-baseline": {
+        "n_comparison_rows": 6360,
+        "n_finite_paired": 6354,
+        "n_excluded_nonfinite": 6,
+        "n_scored_ours": 6354,
+        "n_scored_base": 6354,
+        "wis_mean": 62.91799893254507,
+        "wis_baseline_mean": 84.92465320200621,
+        "relWIS": 0.7408684823579442,
+        "cov50": 0.41013534781240163,
+        "cov90": 0.7796663519043122,
+        "cov95": 0.8692162417374882,
+        "by_horizon": {
+          "0": {
+            "wis": 24.7517,
+            "wis_base": 44.0855,
+            "relWIS": 0.5614,
+            "n": 1590
+          },
+          "1": {
+            "wis": 47.551,
+            "wis_base": 74.0838,
+            "relWIS": 0.6419,
+            "n": 1590
+          },
+          "2": {
+            "wis": 76.0782,
+            "wis_base": 99.9523,
+            "relWIS": 0.7611,
+            "n": 1588
+          },
+          "3": {
+            "wis": 103.4094,
+            "wis_base": 121.6884,
+            "relWIS": 0.8498,
+            "n": 1586
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.5614,
+          "1": 0.6419,
+          "2": 0.7611,
+          "3": 0.8498
+        }
+      },
+      "FluSight-ensemble": {
+        "n_comparison_rows": 6360,
+        "n_finite_paired": 6354,
+        "n_excluded_nonfinite": 6,
+        "n_scored_ours": 6354,
+        "n_scored_base": 6354,
+        "wis_mean": 62.91799893254507,
+        "wis_baseline_mean": 61.84337101877487,
+        "relWIS": 1.0173766063535565,
+        "cov50": 0.41013534781240163,
+        "cov90": 0.7796663519043122,
+        "cov95": 0.8692162417374882,
+        "by_horizon": {
+          "0": {
+            "wis": 24.7517,
+            "wis_base": 33.2094,
+            "relWIS": 0.7453,
+            "n": 1590
+          },
+          "1": {
+            "wis": 47.551,
+            "wis_base": 54.9155,
+            "relWIS": 0.8659,
+            "n": 1590
+          },
+          "2": {
+            "wis": 76.0782,
+            "wis_base": 72.9636,
+            "relWIS": 1.0427,
+            "n": 1588
+          },
+          "3": {
+            "wis": 103.4094,
+            "wis_base": 86.3607,
+            "relWIS": 1.1974,
+            "n": 1586
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.7453,
+          "1": 0.8659,
+          "2": 1.0427,
+          "3": 1.1974
+        }
+      }
+    },
+    "2024-25": {
+      "FluSight-baseline": {
+        "n_comparison_rows": 5724,
+        "n_finite_paired": 5724,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5724,
+        "n_scored_base": 5724,
+        "wis_mean": 163.89061184030626,
+        "wis_baseline_mean": 262.724764302859,
+        "relWIS": 0.6238110528909999,
+        "cov50": 0.376659678546471,
+        "cov90": 0.7250174703004891,
+        "cov95": 0.8001397624039134,
+        "by_horizon": {
+          "0": {
+            "wis": 87.2659,
+            "wis_base": 132.0259,
+            "relWIS": 0.661,
+            "n": 1431
+          },
+          "1": {
+            "wis": 143.5023,
+            "wis_base": 217.8429,
+            "relWIS": 0.6587,
+            "n": 1431
+          },
+          "2": {
+            "wis": 190.8709,
+            "wis_base": 305.0669,
+            "relWIS": 0.6257,
+            "n": 1431
+          },
+          "3": {
+            "wis": 233.9233,
+            "wis_base": 395.9634,
+            "relWIS": 0.5908,
+            "n": 1431
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.661,
+          "1": 0.6587,
+          "2": 0.6257,
+          "3": 0.5908
+        }
+      },
+      "FluSight-ensemble": {
+        "n_comparison_rows": 5724,
+        "n_finite_paired": 5724,
+        "n_excluded_nonfinite": 0,
+        "n_scored_ours": 5724,
+        "n_scored_base": 5724,
+        "wis_mean": 163.89061184030626,
+        "wis_baseline_mean": 176.68604836994504,
+        "relWIS": 0.9275809457074522,
+        "cov50": 0.376659678546471,
+        "cov90": 0.7250174703004891,
+        "cov95": 0.8001397624039134,
+        "by_horizon": {
+          "0": {
+            "wis": 87.2659,
+            "wis_base": 105.8268,
+            "relWIS": 0.8246,
+            "n": 1431
+          },
+          "1": {
+            "wis": 143.5023,
+            "wis_base": 150.2722,
+            "relWIS": 0.9549,
+            "n": 1431
+          },
+          "2": {
+            "wis": 190.8709,
+            "wis_base": 196.6643,
+            "relWIS": 0.9705,
+            "n": 1431
+          },
+          "3": {
+            "wis": 233.9233,
+            "wis_base": 253.9809,
+            "relWIS": 0.921,
+            "n": 1431
+          }
+        },
+        "relWIS_by_horizon": {
+          "0": 0.8246,
+          "1": 0.9549,
+          "2": 0.9705,
+          "3": 0.921
+        }
+      }
+    }
+  }
+}
