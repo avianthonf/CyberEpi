@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install numpy pandas scipy jsonschema pyyaml lightgbm scikit-learn ruff
+        run: pip install numpy pandas scipy jsonschema pyyaml lightgbm scikit-learn ruff pytest
 
       - name: Lint
         run: ruff check backtest
