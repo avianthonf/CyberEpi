@@ -1,11 +1,70 @@
-# CyberEpi: Epidemiological Forecasting & Response Platform
+# CyberEpi: flu hospitalization forecasting
 
-CyberEpi is a real-time epidemiological monitoring and response system. It combines compartmental SEIR modeling with partial-observability filters (EKF/particle filter), optimal control, and a microservices backend consumed by a React Native patient app.
+CyberEpi forecasts weekly influenza hospital admissions for the US and 52
+jurisdictions with a mechanistic SEIHDR model and an ensemble Kalman filter,
+in the format of the CDC FluSight challenge. The goal is a forecasting record
+scored by someone else: weekly live forecasts for the 2026-27 season, judged
+against data that did not exist when they were made. See [ROADMAP.md](./ROADMAP.md).
 
-This is a local research/engineering demonstration using **synthetic data**,
-not medical advice or a clinically validated decision system. For a walkthrough,
-architecture/trust map, evidence, limitations and defensible resume wording,
-start with [PORTFOLIO.md](./PORTFOLIO.md).
+## Results so far (honest backtest)
+
+Forecasts made only from data as the CDC published it each week; settings
+frozen after tuning on 2023-24; scored once on 2024-25 and 2025-26
+(53 locations, horizons 0–3, 11,660 scores). Full detail:
+[BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md).
+
+| Compared with | relWIS (below 1 = better) |
+|---|---|
+| CDC FluSight-baseline (persistence) | **0.697**, about 30% better |
+| CDC FluSight-ensemble (all teams combined) | **1.046**, about level (3% better in 2024-25, 16% worse in 2025-26) |
+
+Known weaknesses, stated up front:
+
+- **Forecasts run low while epidemics decline.** The model's post-peak fall is
+  too steep (3-week forecasts ~40% low in declining phases). An after-the-fact
+  correction did not hold up on held-out seasons, so it is not applied; the
+  fix belongs in the model ([backtest/calibrate.py](./backtest/calibrate.py)).
+- **Intervals cover too little:** 90% intervals contain the truth ~74% of the time.
+- **Still retrospective.** The live season is the real test.
+
+An earlier headline (relWIS 0.714) used revised data and was tuned on the
+seasons it reported; it is kept in [docs/archive/](./docs/archive/BACKTEST_RESULTS-2026-08.md)
+with the reasons it was replaced.
+
+## Live forecasting (2026-27)
+
+`.github/workflows/weekly-forecast.yml` runs every Wednesday after the CDC
+data release: it fetches the hub data, refuses to run on last week's data,
+forecasts with the frozen settings in [backtest/model_config.json](./backtest/model_config.json),
+and validates the files against the hub's rules. Submission to the CDC hub is
+a manual step; see [SUBMITTING.md](./SUBMITTING.md).
+
+```bash
+pip install numpy pandas scipy jsonschema pyyaml
+git clone --depth 1 https://github.com/cdcepi/FluSight-forecast-hub hub
+python3 backtest/live.py --hub hub --out forecasts
+```
+
+Reproducing the backtest takes about 45 minutes on 4 CPUs; commands are in
+[BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md#reproduce). Method details:
+[backtest/METHODS.md](./backtest/METHODS.md).
+
+Single-origin prospective mode: `python3 backtest/run_flusight.py
+--reference-date YYYY-MM-DD` runs the filter through week R−7 and
+forecasts a 4-week horizon exactly once — hub submission format via
+`backtest/package_submission.py`, checked by `backtest/validate_submission.py`.
+
+---
+
+# Part 2: platform systems demo
+
+Alongside the forecaster, this repository contains a local research and
+engineering demonstration of a surveillance platform: six FastAPI services,
+Kafka, Keycloak, Kong and an Expo patient app. It runs on **synthetic data
+only** and is not medical advice or a clinically validated system. Its own
+forecast path (epi-engine) is separate from the backtested forecaster above,
+and the backtest scores do not validate it. Walkthrough, evidence and
+limitations: [PORTFOLIO.md](./PORTFOLIO.md).
 
 ## Architecture
 
@@ -131,29 +190,8 @@ background consumers; the separate live Compose smoke covers those paths.
 - **security-scan** — Trivy FS + pip-audit
 - **build-images** — docker build for all 6 services (main branch)
 
-## Forecast Validation (CDC FluSight targets)
-
-The **standalone** `backtest/` SEIHDR + EAKF forecaster is scored against CDC
-FluSight hospital-admission targets (53 locations, horizons 0–3). It is not the
-live epi-engine's forecast path, and its scores do not validate the API's
-scientific or clinical accuracy. Full results: [BACKTEST_RESULTS.md](./BACKTEST_RESULTS.md).
-
-Honest retest (2026-11-25): only data as published at each forecast date,
-settings frozen after tuning on 2023-24, scored once on 2024-25 and 2025-26:
-
-- **relWIS 0.697 vs FluSight-baseline** (about 30% better), 11,660 scores.
-- **relWIS 1.046 vs FluSight-ensemble** (about level: 3% better in 2024-25,
-  16% worse in 2025-26).
-- **Intervals too narrow:** 90% intervals cover ~74% (target 90%).
-
-The earlier headline (relWIS 0.714) used revised data and test-season tuning;
-it is archived in [docs/archive/](docs/archive/BACKTEST_RESULTS-2026-08.md).
-Next step: live weekly submission for 2026-27 ([ROADMAP.md](./ROADMAP.md)).
-
-Single-origin prospective mode: `python3 backtest/run_flusight.py
---reference-date YYYY-MM-DD` runs the filter through week R−7 and
-forecasts a 4-week horizon exactly once — hub submission format via
-`backtest/package_submission.py`, checked by `backtest/validate_submission.py`.
+`.github/workflows/weekly-forecast.yml` produces the weekly FluSight forecast
+(see [Live forecasting](#live-forecasting-2026-27)).
 
 ## Key API Contracts
 
