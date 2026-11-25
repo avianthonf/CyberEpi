@@ -52,11 +52,12 @@ These are what a reviewer would attack first, and what Phase 1 fixes.
 - Replace the headline numbers in README/BACKTEST_RESULTS with the honest ones,
   keeping the old ones labelled as superseded.
 
-**Checkpoint A (stop and decide with the owner):** the honest numbers decide
-the next step.
-- Beats ensemble → Phase 2 as is.
-- Beats baseline, not ensemble → Phase 2; aim is an honest mid-table entry.
-- Loses to baseline → fix the model before anything goes public.
+**Checkpoint A:** the honest numbers decide the next step.
+- Beats ensemble → continue to Phase 2 without stopping.
+- Beats baseline, not ensemble → continue to Phase 2 without stopping;
+  aim is an honest mid-table entry.
+- Loses to baseline → stop and decide with the owner; fix the model before
+  anything goes public.
 
 ### Phase 2 — Live submission pipeline
 - Scheduled GitHub Action: pull latest hub data → forecast → validate with the
