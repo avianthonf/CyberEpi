@@ -1,8 +1,8 @@
 # Submitting to CDC FluSight (owner checklist)
 
-Everything up to a valid forecast file is automated
-(`.github/workflows/weekly-forecast.yml`). The steps below are public and in
-your name, so they are yours to take (ROADMAP.md, checkpoint B).
+Everything is automated (`.github/workflows/weekly-forecast.yml`), including
+the weekly pull request to the CDC hub once the token below is set. The owner
+has given standing approval for weekly submissions in their name.
 
 ## Decide
 
@@ -36,12 +36,21 @@ Then fork `cdcepi/FluSight-forecast-hub` on GitHub.
    request to `cdcepi/FluSight-forecast-hub` before **Wednesday 11pm ET**.
    The hub's own checks run on the pull request; fix anything they flag.
 
-## Every week after
+## Every week after (automatic)
 
-Copy that week's CSV into `model-output/CyberEpi-EAKF/` in your fork and open
-a pull request by Wednesday 11pm ET. (Automating this pull request needs a
-token with access to your fork; ask for it to be set up once the first
-submission has gone through by hand.)
+The first submission (CyberEpi-EAKF, 2026-11-28) was merged by the hub
+(cdcepi/FluSight-forecast-hub#4189). From then on the workflow opens each
+week's pull request itself, from your fork, once this secret exists:
+
+1. Create a classic token at https://github.com/settings/tokens/new with only
+   the **public_repo** scope and an expiry after the season (2027-06-30).
+2. In this repository: Settings → Secrets and variables → Actions → New
+   repository secret, name `FLUSIGHT_PR_TOKEN`, paste the token.
+
+Without the secret the step is skipped and the pull request is opened by
+hand as before. The step never resubmits a file already in the hub and never
+opens a second pull request for the same week. Model 2 (`CyberEpi-GBQR`) is
+included from reference date 2026-12-05, with its metadata on first use.
 
 ## What the workflow guarantees
 

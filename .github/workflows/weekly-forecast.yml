@@ -111,3 +111,55 @@ jobs:
           git commit -m "forecast: ${{ steps.done.outputs.ref }}"
           git pull --rebase origin main
           git push origin HEAD:main
+
+      # Opens this week's pull request to the CDC hub from the owner's fork.
+      # Needs the FLUSIGHT_PR_TOKEN secret (classic token, public_repo scope,
+      # owned by the fork's owner); without it this step is skipped. Runs
+      # even if the forecast was committed earlier, so a failed submission is
+      # retried by the evening run; skips if this week's PR already exists.
+      - name: Submit to CDC FluSight hub
+        if: steps.run.outputs.stale != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.FLUSIGHT_PR_TOKEN }}
+          FORK: ${{ vars.FLUSIGHT_FORK || 'avianthonf/FluSight-forecast-hub' }}
+          UPSTREAM: cdcepi/FluSight-forecast-hub
+          REF: ${{ steps.done.outputs.ref }}
+          GIT_NAME: ${{ vars.FORECAST_CONTRIBUTOR_NAME || 'Student' }}
+          GIT_EMAIL: ${{ vars.FORECAST_CONTRIBUTOR_EMAIL || 'avianthonf@protonmail.com' }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::FLUSIGHT_PR_TOKEN not set; open the CDC pull request by hand (SUBMITTING.md)."
+            exit 0
+          fi
+          branch="CyberEpi-$REF"
+          owner="${FORK%%/*}"
+          if [ -n "$(gh pr list --repo "$UPSTREAM" --head "$branch" --state all --json number --jq '.[].number')" ]; then
+            echo "Pull request for $REF already exists; nothing to do."
+            exit 0
+          fi
+          files=$(ls forecasts/model-output/*/"$REF"-*.csv 2>/dev/null || true)
+          [ -n "$files" ] || { echo "::error::no forecast files for $REF"; exit 1; }
+          gh api -X POST "repos/$FORK/merge-upstream" -f branch=main >/dev/null
+          git clone -q --depth 1 --filter=blob:none \
+            "https://x-access-token:${GH_TOKEN}@github.com/${FORK}" fork
+          cd fork
+          git checkout -q -B "$branch"
+          models=""
+          for f in $files; do
+            m=$(basename "$(dirname "$f")")
+            # Model 2 is submitted from 2026-12-05 (backtest/MODEL2_PROTOCOL.md).
+            if [ "$m" = "CyberEpi-GBQR" ] && [[ "$REF" < "2026-12-05" ]]; then continue; fi
+            # Already in the hub (e.g. submitted by hand): never resubmit.
+            if [ -f "model-output/$m/$(basename "$f")" ]; then continue; fi
+            mkdir -p "model-output/$m"
+            cp "../$f" "model-output/$m/"
+            [ -f "model-metadata/$m.yml" ] || cp "../forecasts/model-metadata/$m.yml" model-metadata/
+            models="$models $m"
+          done
+          [ -n "$models" ] || { echo "Nothing new to submit for $REF."; exit 0; }
+          git add model-output model-metadata
+          git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" commit -q -m "CyberEpi forecasts for $REF:$models"
+          git push -q -f origin "$branch"
+          gh pr create --repo "$UPSTREAM" --base main --head "$owner:$branch" \
+            --title "CyberEpi forecasts for $REF" \
+            --body "Weekly forecast submission for reference date $REF:$models. Generated and validated by https://github.com/avianthonf/CyberEpi/blob/main/.github/workflows/weekly-forecast.yml"

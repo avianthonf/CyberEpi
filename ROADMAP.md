@@ -83,17 +83,20 @@ scores, never by re-scoring the backtest.
   settings (`backtest/model_config.json`) → packages → validates against the
   hub's rules and official metadata schema. Refuses stale data; a missed week
   fails loudly. Produces a downloadable draft each week; never submits.
-- [done] Model metadata and first submission prepared on the owner's fork
-  (`avianthonf/FluSight-forecast-hub`, branch `CyberEpi-EAKF-2026-11-28`).
+- [done] First submission: CyberEpi-EAKF, reference date 2026-11-28, merged
+  by the hub with all validation checks passing (cdcepi/FluSight-forecast-hub#4189).
+- [done] Weekly pull request to the hub opened by the workflow itself
+  (needs the owner's `FLUSIGHT_PR_TOKEN` secret; SUBMITTING.md).
 - [done] Second model `CyberEpi-GBQR` (backtest/MODEL2_PROTOCOL.md):
   pre-registered, frozen, holdout passed; runs weekly alongside model 1,
   submitted from reference date 2026-12-05, not designated for the CDC
   ensemble until it has a live record. Its holdout score is driven mostly by
   one peak call and is not claimed as "better than all teams".
 
-**Checkpoint B (owner only):** team name, authors and the first pull request to
-the CDC hub are public and in the owner's name, so they are never done without
-explicit approval.
+**Checkpoint B (passed 2026-11-25):** the owner approved the team name, authors
+and first pull request, and gave standing approval for weekly submissions
+("in future you do everything"). Anything else public and in the owner's name
+still needs approval.
 
 ### Phase 3 — Show it
 - README rewritten around the forecaster; the platform becomes a labelled
