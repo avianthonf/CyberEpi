@@ -34,19 +34,21 @@ db_engine = create_async_engine(settings.database_url)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup: run Alembic migrations, init Redis + Postgres, wire budget tracker.
     Shutdown: close Redis."""
-    # Run database migrations on startup. Run in a separate thread because
-    # alembic's env.py uses asyncio.run() which can't run inside a running
-    # event loop.
-    alembic_cfg = Config("alembic.ini")
+    # Run database migrations on startup. Alembic config must resolve relative
+    # to this file's location, not cwd, to work both in dev and in containers.
+    import os
+
+    _service_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    alembic_ini_path = os.path.join(_service_root, "alembic.ini")
+    alembic_cfg = Config(alembic_ini_path)
+    alembic_cfg.set_main_option("script_location", os.path.join(_service_root, "alembic"))
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
     logger.info("Alembic migrations applied")
 
     app.state.redis = await connect_redis(settings)
 
     # Initialize Postgres session maker for DP budget tracker
-    session_maker = async_sessionmaker(
-        db_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_maker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     app.state.db_engine = db_engine
 
     app.state.budget_tracker = PersistentBudgetTracker(
@@ -54,6 +56,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         session_maker=session_maker,
         max_budget=settings.max_privacy_budget,
     )
+
+    # Initialize FL aggregator with DB persistence
+    from src.api.routers.fl import aggregator
+
+    aggregator.session_maker = session_maker
+    await aggregator.initialize_from_db()
+    logger.info(f"FL aggregator initialized: current_round_id={aggregator.current_round_id}")
 
     yield
 

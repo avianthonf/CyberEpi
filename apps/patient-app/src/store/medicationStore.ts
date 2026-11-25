@@ -1,94 +1,152 @@
 import {create} from 'zustand';
-import {createJSONStorage, persist} from 'zustand/middleware';
 import {Medication} from '@/types';
-import {mmkvStorage} from '@/lib/storage';
+import {mmkv} from '@/lib/storage';
+import {getPatientSession, SessionChangedError} from '@/lib/patientSession';
 
 interface MedicationState {
+  ownerId: string | null;
   medications: Medication[];
   activeMedications: Medication[];
   isLoading: boolean;
   error: string | null;
-  setMedications: (medications: Medication[]) => void;
-  addMedication: (medication: Medication) => void;
-  updateMedication: (id: string, updates: Partial<Medication>) => void;
-  removeMedication: (id: string) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  clearMedications: () => void;
+  bindPatient: (patientId: string | null) => void;
+  setMedications: (patientId: string, medications: Medication[]) => void;
+  addMedication: (patientId: string, medication: Medication) => void;
+  updateMedication: (patientId: string, id: string, updates: Partial<Medication>) => void;
+  removeMedication: (patientId: string, id: string) => void;
 }
 
-export const useMedicationStore = create<MedicationState>()(
-  persist(
-    (set, get) => ({
-      // Initial state
-      medications: [],
-      activeMedications: [],
-      isLoading: false,
+function isOwnedMedication(value: unknown): value is Medication {
+  if (!value || typeof value !== 'object') return false;
+  const medication = value as Partial<Medication>;
+  return (
+    typeof medication.patient_id === 'string' &&
+    /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(medication.patient_id) &&
+    typeof medication.id === 'string' &&
+    medication.id.trim().length > 0 &&
+    typeof medication.drug_name === 'string' &&
+    typeof medication.is_active === 'boolean' &&
+    typeof medication.adherence_rate === 'number'
+  );
+}
+
+function readMedications(patientId: string): Medication[] {
+  const raw = mmkv.getString(`medications:${patientId}`);
+  if (!raw) return [];
+  const records: unknown = JSON.parse(raw);
+  if (
+    !Array.isArray(records) ||
+    !records.every(item => isOwnedMedication(item) && item.patient_id === patientId)
+  ) {
+    throw new Error('Saved medications do not have a matching patient owner.');
+  }
+  return records;
+}
+
+function migrateLegacyMedications(): void {
+  const raw = mmkv.getString('medication-storage');
+  if (!raw) return;
+  const legacy = JSON.parse(raw);
+  const records: unknown = legacy?.state?.medications;
+  if (!Array.isArray(records)) return; // Leave unrecognised legacy data untouched.
+  const groups = new Map<string, Medication[]>();
+  const remaining: unknown[] = [];
+  for (const record of records) {
+    if (!isOwnedMedication(record)) {
+      remaining.push(record);
+      continue;
+    }
+    const group = groups.get(record.patient_id) || [];
+    if (!group.some(item => item.id === record.id)) group.push(record);
+    groups.set(record.patient_id, group);
+  }
+  if (!groups.size) return;
+  // Commit every destination before changing the legacy source. On a partial
+  // write failure, a retry keeps the newer destination record for each ID.
+  for (const [owner, medications] of groups) {
+    const existing = readMedications(owner);
+    const ids = new Set(existing.map(item => item.id));
+    mmkv.set(
+      `medications:${owner}`,
+      JSON.stringify([...existing, ...medications.filter(item => !ids.has(item.id))]),
+    );
+  }
+  const remainingActive = Array.isArray(legacy.state.activeMedications)
+    ? legacy.state.activeMedications.filter((item: unknown) => !isOwnedMedication(item))
+    : [];
+  if (remaining.length || remainingActive.length) {
+    mmkv.set('medication-storage', JSON.stringify({
+      ...legacy,
+      state: {...legacy.state, medications: remaining, activeMedications: remainingActive},
+    }));
+  } else {
+    mmkv.delete('medication-storage');
+  }
+}
+
+export const useMedicationStore = create<MedicationState>((set, get) => {
+  const save = (patientId: string, medications: Medication[]) => {
+    if (get().ownerId !== patientId || getPatientSession().patientId !== patientId) {
+      throw new SessionChangedError();
+    }
+    if (!medications.every(item => isOwnedMedication(item) && item.patient_id === patientId)) {
+      throw new Error('Medication patient owner does not match the signed-in patient.');
+    }
+    mmkv.set(`medications:${patientId}`, JSON.stringify(medications));
+    set({
+      medications,
+      activeMedications: medications.filter(item => item.is_active),
       error: null,
+    });
+  };
 
-      // Actions
-      setMedications: medications => {
-        const activeMeds = medications.filter(med => med.is_active);
-        set({
-          medications,
-          activeMedications: activeMeds,
-        });
-      },
+  return {
+    ownerId: null,
+    medications: [],
+    activeMedications: [],
+    isLoading: false,
+    error: null,
 
-      addMedication: medication => {
-        const {medications} = get();
-        const updated = [...medications, medication];
-        const activeMeds = updated.filter(med => med.is_active);
-        set({
-          medications: updated,
-          activeMedications: activeMeds,
-        });
-      },
-
-      updateMedication: (id, updates) => {
-        const {medications} = get();
-        const updated = medications.map(med =>
-          med.id === id ? {...med, ...updates} : med,
-        );
-        const activeMeds = updated.filter(med => med.is_active);
-        set({
-          medications: updated,
-          activeMedications: activeMeds,
-        });
-      },
-
-      removeMedication: id => {
-        const {medications} = get();
-        const updated = medications.filter(med => med.id !== id);
-        const activeMeds = updated.filter(med => med.is_active);
-        set({
-          medications: updated,
-          activeMedications: activeMeds,
-        });
-      },
-
-      setLoading: isLoading => {
-        set({isLoading});
-      },
-
-      setError: error => {
-        set({error});
-      },
-
-      clearMedications: () => {
-        set({
-          medications: [],
-          activeMedications: [],
-          error: null,
-        });
-      },
-    }),
-    {
-      name: 'medication-storage',
-      storage: createJSONStorage(() => mmkvStorage),
+    bindPatient: patientId => {
+      set({
+        ownerId: patientId,
+        medications: [],
+        activeMedications: [],
+        isLoading: false,
+        error: null,
+      });
+      if (!patientId) return;
+      try {
+        migrateLegacyMedications();
+      } catch {
+        set({error: 'Legacy medication migration could not finish. Existing records were retained.'});
+      }
+      try {
+        const medications = readMedications(patientId);
+        set({medications, activeMedications: medications.filter(item => item.is_active)});
+      } catch {
+        set({error: 'Saved medications could not be loaded. No records were removed.'});
+      }
     },
-  ),
-);
+
+    setMedications: save,
+    addMedication: (patientId, medication) => {
+      const medications = get().medications;
+      const existing = medications.find(item => item.id === medication.id);
+      save(patientId, existing
+        ? medications.map(item => item.id === medication.id ? medication : item)
+        : [...medications, medication]);
+    },
+    updateMedication: (patientId, id, updates) => {
+      save(patientId, get().medications.map(item =>
+        item.id === id ? {...item, ...updates, id, patient_id: patientId} : item,
+      ));
+    },
+    removeMedication: (patientId, id) => {
+      save(patientId, get().medications.filter(item => item.id !== id));
+    },
+  };
+});
 
 // Helper function to calculate overall adherence rate
 export function calculateOverallAdherence(medications: Medication[]): number {

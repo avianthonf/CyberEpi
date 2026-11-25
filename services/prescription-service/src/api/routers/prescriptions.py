@@ -49,7 +49,7 @@ class PrescriptionResponse(BaseModel):
     start_date: date
     end_date: date | None
     notes: str | None
-    interactions: list[dict[str, Any]] | None = None
+    interactions: list[dict[str, Any]] = []
 
     model_config = {"from_attributes": True}
 
@@ -226,11 +226,24 @@ async def scan_medication(
     _user: dict[str, Any] = Depends(get_current_user),
 ) -> MedicationScanResponse:
     """OCR text → OpenFDA lookup → interaction check."""
+    # Authorization: Patient can only scan for themselves; staff can scan for any patient
+    roles = _user.get("realm_access", {}).get("roles", [])
+    if "physician" not in roles and "admin" not in roles:
+        from src.auth import patient_id_from_jwt
+
+        own_patient_id = await patient_id_from_jwt(db, _user)
+        if body.patient_id and (own_patient_id is None or body.patient_id != own_patient_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Patients can only scan medications for themselves.",
+            )
+
     redis_client: aioredis.Redis = request.app.state.redis
 
     # Extract drug name from OCR text (simplified: use first line or full text)
     import re
-    drug_name = re.sub(r'\s+\d+\s*(mg|mcg|g|ml).*', '', body.ocr_text.strip().split("\n")[0].strip(), flags=re.IGNORECASE)
+
+    drug_name = re.sub(r"\s+\d+\s*(mg|mcg|g|ml).*", "", body.ocr_text.strip().split("\n")[0].strip(), flags=re.IGNORECASE)
 
     # RxNorm lookup
     rxnorm_id = await rxnorm_lookup(drug_name)
@@ -240,8 +253,6 @@ async def scan_medication(
     fda_result: dict[str, Any] | None = None
 
     # Try to find NDC pattern in text (XXXXX-XXXX-XX)
-    import re
-
     ndc_match = re.search(r"\d{4,5}-\d{3,4}-\d{1,2}", body.ocr_text)
     if ndc_match:
         ndc_code = ndc_match.group()

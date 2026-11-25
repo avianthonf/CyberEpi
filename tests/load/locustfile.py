@@ -13,13 +13,10 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import uuid
-from typing import Any
 
-from locust import HttpUser, between, task
+from locust import between, task
 from locust.contrib.fasthttp import FastHttpUser
-
 
 # Fake JWT for load testing (bypasses auth in test mode)
 LOAD_TEST_TOKEN = (

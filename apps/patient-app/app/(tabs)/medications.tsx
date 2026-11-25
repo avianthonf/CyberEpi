@@ -11,12 +11,19 @@ import {Ionicons} from '@expo/vector-icons';
 import {MedCard} from '@/components/MedCard';
 import {MedicationScanner} from '@/components/MedicationScanner';
 import {useMedicationStore} from '@/store/medicationStore';
+import {useAuthStore} from '@/store/authStore';
 import {calculateOverallAdherence} from '@/store/medicationStore';
 import {Medication} from '@/types';
 
+const NO_MEDICATIONS: Medication[] = [];
+
 export default function MedicationsScreen() {
   const [showScanner, setShowScanner] = useState(false);
-  const {medications, activeMedications} = useMedicationStore();
+  const {user, isAuthenticated} = useAuthStore();
+  const {ownerId, medications: saved, activeMedications: savedActive} = useMedicationStore();
+  const ownsVisibleRecords = isAuthenticated && ownerId === user?.id;
+  const medications = ownsVisibleRecords ? saved : NO_MEDICATIONS;
+  const activeMedications = ownsVisibleRecords ? savedActive : NO_MEDICATIONS;
 
   const overallAdherence = calculateOverallAdherence(activeMedications);
 

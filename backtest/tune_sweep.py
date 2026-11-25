@@ -2,16 +2,13 @@
 from __future__ import annotations
 
 import itertools
-import json
-import sys
 
 import pandas as pd
-
+from eakf import EakfConfig
 from hub_data import load_locations, load_model_output, load_oracle, load_truth
 from run_flusight import SEASONS, run_location, summarize
-from eakf import EakfConfig
 
-LOCS = "US,06,48".split(",")
+LOCS = ["US", "06", "48"]
 SEASON = "2024-25"
 
 truth = load_truth()
@@ -21,6 +18,7 @@ baseline["output_type_id"] = baseline["output_type_id"].astype(float)
 locs = load_locations().set_index("location")
 
 from run_flusight import season_origins
+
 origins = set(season_origins(baseline, SEASON))
 
 results = []
@@ -40,7 +38,7 @@ for sd_beta, r_rel, s_obs, sbf in itertools.product(
     if not rows_per:
         continue
     rdf = pd.concat(rows_per, ignore_index=True)
-    summ, _ = summarize(rdf, oracle, baseline, f"sweep")
+    summ, _ = summarize(rdf, oracle, baseline, "sweep")
     results.append({"sd_beta": sd_beta, "r_rel": r_rel, "s_obs": s_obs,
                     "sd_beta_fwd": sbf, **{k: summ[k] for k in
                                            ("relWIS", "wis_mean", "cov50", "cov90", "cov95")}})

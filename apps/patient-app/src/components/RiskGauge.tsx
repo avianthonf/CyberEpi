@@ -108,7 +108,7 @@ export function RiskGauge({
     if (tier === 'urgent' && onCallPress) {
       Alert.alert(
         'Emergency Call',
-        'Your risk score indicates immediate medical attention is needed. Do you want to call the crisis line?',
+        'This research score is not validated medical advice. If you are experiencing a medical emergency, contact your local emergency services. Do not place emergency calls while testing synthetic data.',
         [
           {text: 'Cancel', style: 'cancel'},
           {text: 'Call Now', onPress: onCallPress},
@@ -186,8 +186,8 @@ export function RiskGauge({
             strokeLinecap="round"
           />
 
-          {/* Risk tier indicators */}
-          {[0.2, 0.5, 0.75].map((threshold, index) => {
+          {/* Risk tier indicators at backend thresholds: 0.3, 0.6, 0.8 */}
+          {[0.3, 0.6, 0.8].map((threshold, index) => {
             const radius = size * 0.35;
             const centerX = size / 2;
             const centerY = size * 0.6;

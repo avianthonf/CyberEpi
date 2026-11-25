@@ -14,9 +14,9 @@ from src.audit import record_audit
 @pytest.mark.asyncio
 async def test_record_audit_persists_row():
     db = AsyncMock()
+    db.add = MagicMock()  # AsyncSession.add is synchronous.
     pid = uuid.uuid4()
-    await record_audit(db, actor_sub="physician-1", action="patient.read",
-                       patient_id=pid)
+    await record_audit(db, actor_sub="physician-1", action="patient.read", patient_id=pid)
 
     db.add.assert_called_once()
     row = db.add.call_args.args[0]
@@ -30,6 +30,7 @@ async def test_record_audit_persists_row():
 @pytest.mark.asyncio
 async def test_record_audit_never_raises_into_request_path():
     db = AsyncMock()
+    db.add = MagicMock()
     db.commit.side_effect = RuntimeError("db down")
     # must log and swallow, not break the parent operation
     await record_audit(db, actor_sub="x", action="patient.read")
@@ -43,9 +44,17 @@ async def test_get_patient_emits_audit_event():
 
     pid = uuid.uuid4()
     patient = SimpleNamespace(
-        id=pid, keycloak_id="owner-kc-id", first_name="A", last_name="B",
-        date_of_birth=None, gender=None, region_id=None, patch_id=None,
-        email="a@b.c", phone=None, risk_tier="low",
+        id=pid,
+        keycloak_id="owner-kc-id",
+        first_name="A",
+        last_name="B",
+        date_of_birth=None,
+        gender=None,
+        region_id=None,
+        patch_id=None,
+        email="a@b.c",
+        phone=None,
+        risk_tier="low",
     )
 
     result_mock = MagicMock()
@@ -55,8 +64,7 @@ async def test_get_patient_emits_audit_event():
 
     user = {"sub": "owner-kc-id", "realm_access": {"roles": ["patient"]}}
 
-    with patch("src.api.routers.patients.record_audit",
-               new=AsyncMock()) as mock_audit:
+    with patch("src.api.routers.patients.record_audit", new=AsyncMock()) as mock_audit:
         resp = await get_patient(patient_id=pid, db=db, _user=user)
 
     assert resp is not None
@@ -85,8 +93,7 @@ async def test_get_patient_forbidden_emits_no_audit():
     db.execute = AsyncMock(return_value=result_mock)
     user = {"sub": "attacker", "realm_access": {"roles": ["patient"]}}
 
-    with patch("src.api.routers.patients.record_audit",
-               new=AsyncMock()) as mock_audit, pytest.raises(HTTPException) as exc:
+    with patch("src.api.routers.patients.record_audit", new=AsyncMock()) as mock_audit, pytest.raises(HTTPException) as exc:
         await get_patient(patient_id=pid, db=db, _user=user)
 
     assert exc.value.status_code == 403

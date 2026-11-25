@@ -76,9 +76,19 @@ describe('Symptom Report Contract', () => {
   describe('Risk Tier Mapping (riskStore)', () => {
     it('maps scores to the documented thresholds', () => {
       expect(getRiskTierFromScore(0.1)).toBe('low');
+      expect(getRiskTierFromScore(0.25)).toBe('low');
+      expect(getRiskTierFromScore(0.3)).toBe('moderate');
+      expect(getRiskTierFromScore(0.55)).toBe('moderate');
+      expect(getRiskTierFromScore(0.6)).toBe('consult');
+      expect(getRiskTierFromScore(0.775)).toBe('consult');
+      expect(getRiskTierFromScore(0.8)).toBe('urgent');
+      expect(getRiskTierFromScore(0.9)).toBe('urgent');
+    });
+
+    it('boundary tests: thresholds 0.3, 0.6, 0.8 inclusive higher tier', () => {
       expect(getRiskTierFromScore(0.3)).toBe('moderate');
       expect(getRiskTierFromScore(0.6)).toBe('consult');
-      expect(getRiskTierFromScore(0.9)).toBe('urgent');
+      expect(getRiskTierFromScore(0.8)).toBe('urgent');
     });
 
     it('returns a color for every tier', () => {

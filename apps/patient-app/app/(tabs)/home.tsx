@@ -16,23 +16,18 @@ import {AlertBanner} from '@/components/AlertBanner';
 import {SymptomForm} from '@/components/SymptomForm';
 import {useRiskScore} from '@/hooks/useRiskScore';
 import {useAuthStore} from '@/store/authStore';
-import {useRiskStore} from '@/store/riskStore';
 import {useSymptomSubmit} from '@/hooks/useSymptomSubmit';
-import {useNetworkSync} from '@/hooks/useRiskScore';
 import NetInfo from '@react-native-community/netinfo';
 
 export default function HomeScreen() {
   const [showSymptomForm, setShowSymptomForm] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  const {user} = useAuthStore();
-  const {riskScore, riskTier, refreshRiskScore, getTimeSinceLastUpdate} =
-    useRiskScore();
-  const {insufficientDataMessage} = useRiskStore();
+  const {user, error: authError} = useAuthStore();
+  const {riskScore, riskTier, insufficientDataMessage, refreshRiskScore,
+    getTimeSinceLastUpdate, error: riskError} = useRiskScore();
   const {isSubmitting} = useSymptomSubmit();
 
-  // Network sync
-  useNetworkSync();
 
   useEffect(() => {
     // Check network status
@@ -43,12 +38,8 @@ export default function HomeScreen() {
     return () => unsubscribe();
   }, []);
 
-  const handleSymptomSubmit = async () => {
+  const handleSymptomSubmit = () => {
     setShowSymptomForm(false);
-    // Refresh risk score after successful submission
-    setTimeout(() => {
-      refreshRiskScore();
-    }, 1000);
   };
 
   const handleCallPress = () => {
@@ -98,6 +89,12 @@ export default function HomeScreen() {
         {insufficientDataMessage && (
           <Text style={styles.insufficientDataText}>
             {insufficientDataMessage}
+          </Text>
+        )}
+        {(riskError || authError) && (
+          <Text accessibilityRole="alert" style={styles.insufficientDataText}>
+            {riskError?.message || authError}
+            {riskScore !== null ? ' Showing the last saved score for this account; it may be out of date.' : ''}
           </Text>
         )}
       </View>

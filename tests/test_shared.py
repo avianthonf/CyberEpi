@@ -1,17 +1,16 @@
 
-import pytest
-import httpx
-import asyncio
-from jose import jwt
-from shared.config import Settings
-from shared.auth import JWKSProvider, build_auth_dependency
-from shared.db import create_session_factory
-from shared.kafka import connect_redis, disconnect_redis, connect_kafka, disconnect_kafka
-from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy import text
 from unittest.mock import AsyncMock, MagicMock
-from shared.health import _redis_healthy, _db_healthy
+
+import httpx
+import pytest
 from fastapi import Request
+from fastapi.security import HTTPAuthorizationCredentials
+from shared.auth import JWKSProvider, build_auth_dependency
+from shared.config import Settings
+from shared.db import create_session_factory
+from shared.health import _db_healthy, _redis_healthy
+from shared.kafka import connect_kafka, connect_redis, disconnect_kafka, disconnect_redis
+from sqlalchemy import text
 
 # Credentials for the master realm (admin-cli client always exists)
 CLIENT_ID = "admin-cli"
@@ -69,18 +68,18 @@ async def test_auth_token_verification(settings):
         )
         response.raise_for_status()
         token = response.json()["access_token"]
-    
+
     assert token is not None
 
     # Verify it using shared.auth
-    jwks_provider = JWKSProvider(settings)
+    JWKSProvider(settings)
     credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-    
+
     get_current_user, _ = build_auth_dependency(settings)
-    
+
     payload = await get_current_user(credentials)
     assert payload is not None
-    assert payload["typ"] == "Bearer" 
+    assert payload["typ"] == "Bearer"
 
 @pytest.mark.asyncio
 async def test_health_checks():
@@ -98,6 +97,6 @@ async def test_health_checks():
     mock_engine.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
     mock_engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
     mock_conn.execute = AsyncMock(return_value=MagicMock())
-    
+
     healthy, _ = await _db_healthy(mock_engine)
     assert healthy is True

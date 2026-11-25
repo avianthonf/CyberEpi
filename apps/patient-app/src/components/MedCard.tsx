@@ -23,13 +23,13 @@ export function MedCard({medication, onPress, onTaken}: MedCardProps) {
   const isDueSoon = isDoseDueSoon(medication);
   const isOverdue = isDoseOverdue(medication);
 
-  const handleMarkAsTaken = async () => {
+  const handleMarkAsTaken = () => {
     setIsTaking(true);
 
     try {
       // Update medication
       const now = new Date().toISOString();
-      await updateMedication(medication.id, {
+      updateMedication(medication.patient_id, medication.id, {
         last_taken: now,
         // Calculate next dose based on schedule
         next_dose: calculateNextDose(medication.schedule, now),
@@ -37,8 +37,7 @@ export function MedCard({medication, onPress, onTaken}: MedCardProps) {
       });
 
       onTaken?.(medication);
-    } catch (error) {
-      console.error('Failed to mark medication as taken:', error);
+    } catch {
       Alert.alert('Error', 'Failed to update medication');
     } finally {
       setIsTaking(false);

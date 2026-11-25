@@ -34,12 +34,20 @@ class DeteriorationPredictor:
     """
 
     FEATURES: ClassVar[list[str]] = [
-        'age', 'n_comorbidities', 'days_since_onset',
-        'spo2_current', 'spo2_slope_48h', 'spo2_min_24h',
-        'heart_rate_current', 'hr_slope_48h',
-        'fever_max_24h', 'fever_duration_h',
-        'risk_score_current', 'risk_score_acceleration',
-        'local_hosp_rate', 'regional_Rt'
+        "age",
+        "n_comorbidities",
+        "days_since_onset",
+        "spo2_current",
+        "spo2_slope_48h",
+        "spo2_min_24h",
+        "heart_rate_current",
+        "hr_slope_48h",
+        "fever_max_24h",
+        "fever_duration_h",
+        "risk_score_current",
+        "risk_score_acceleration",
+        "local_hosp_rate",
+        "regional_Rt",
     ]
 
     def __init__(self, model_hosp_path: str | None = None, model_icu_path: str | None = None):
@@ -60,28 +68,38 @@ class DeteriorationPredictor:
         """
         Runs inference for a single patient (Chapter 5.2.3).
         """
-        x = np.array([[patient_features.get(f, 0.0) for f in self.FEATURES]])
-
-        if self.has_models:
-            p_hosp = float(self.model_hosp.predict(x)[0])
-            p_icu = float(self.model_icu.predict(x)[0])
-            source = "ml"
-        else:
-            # Documented clinical heuristics — no model loaded.
+        if not _HAS_ML_DEPS:
+            # ML dependencies not installed — use heuristic fallback
             p_hosp = 0.05
-            if patient_features.get('spo2_current', 100) < _SPO2_HOSP_THRESHOLD:
+            if patient_features.get("spo2_current", 100) < _SPO2_HOSP_THRESHOLD:
                 p_hosp = 0.85
-            elif patient_features.get('spo2_slope_48h', 0) < _SPO2_SLOPE_HOSP_THRESHOLD:
+            elif patient_features.get("spo2_slope_48h", 0) < _SPO2_SLOPE_HOSP_THRESHOLD:
                 p_hosp = 0.45
             p_icu = 0.01
             source = "heuristic"
+        else:
+            x = np.array([[patient_features.get(f, 0.0) for f in self.FEATURES]])
+
+            if self.has_models:
+                p_hosp = float(self.model_hosp.predict(x)[0])
+                p_icu = float(self.model_icu.predict(x)[0])
+                source = "ml"
+            else:
+                # Documented clinical heuristics — no model loaded.
+                p_hosp = 0.05
+                if patient_features.get("spo2_current", 100) < _SPO2_HOSP_THRESHOLD:
+                    p_hosp = 0.85
+                elif patient_features.get("spo2_slope_48h", 0) < _SPO2_SLOPE_HOSP_THRESHOLD:
+                    p_hosp = 0.45
+                p_icu = 0.01
+                source = "heuristic"
 
         # Generate rule-based alerts (Chapter 5.2.3)
         alerts = []
-        if patient_features.get('spo2_slope_48h', 0) < -1.0 and patient_features.get('spo2_current', 100) < 95:
+        if patient_features.get("spo2_slope_48h", 0) < -1.0 and patient_features.get("spo2_current", 100) < 95:
             alerts.append("URGENT: Falling SpO2 detected")
 
-        if patient_features.get('risk_score_acceleration', 1.0) > 1.5:
+        if patient_features.get("risk_score_acceleration", 1.0) > 1.5:
             alerts.append("RAPID DETERIORATION: Risk score increased >50% in 48h")
 
         return {
@@ -89,7 +107,7 @@ class DeteriorationPredictor:
             "p_icu_7d": float(p_icu),
             "alerts": alerts,
             "source": source,
-            "timestamp_utc": datetime.now(UTC).isoformat()
+            "timestamp_utc": datetime.now(UTC).isoformat(),
         }
 
     def train(self, X_train, y_hosp, y_icu):
@@ -106,13 +124,13 @@ class DeteriorationPredictor:
         logger.info("training_deterioration_model", n_samples=len(X_train))
 
         params = {
-            'objective': 'binary',
-            'metric': 'auc',
-            'learning_rate': 0.05,
-            'num_leaves': 31,
-            'class_weight': 'balanced',
-            'random_state': 42,
-            'verbose': -1
+            "objective": "binary",
+            "metric": "auc",
+            "learning_rate": 0.05,
+            "num_leaves": 31,
+            "class_weight": "balanced",
+            "random_state": 42,
+            "verbose": -1,
         }
 
         # Train Hospitalization model

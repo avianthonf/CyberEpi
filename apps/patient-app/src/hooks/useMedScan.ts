@@ -4,6 +4,9 @@ import {MedicationScanResponse} from '@/types';
 import {medScannerService} from '@/services/medScanner';
 import {useAuthStore} from '@/store/authStore';
 import {useMedicationStore} from '@/store/medicationStore';
+import {
+  PatientSession, getPatientSession, assertPatientSession, isPatientSessionCurrent,
+} from '@/lib/patientSession';
 
 interface UseMedScanOptions {
   onSuccess?: (medication: MedicationScanResponse) => void;
@@ -13,16 +16,20 @@ interface UseMedScanOptions {
 
 export function useMedScan(options: UseMedScanOptions = {}) {
   const {user} = useAuthStore();
+  const session = getPatientSession();
   const {addMedication} = useMedicationStore();
 
   const [isScanning, setIsScanning] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
   const [currentMedication, setCurrentMedication] =
-    useState<MedicationScanResponse | null>(null);
+    useState<{data: MedicationScanResponse; session: PatientSession} | null>(null);
+  const [requestSession, setRequestSession] = useState(session);
   const [error, setError] = useState<string | null>(null);
 
-  const handleScanSuccess = (medication: MedicationScanResponse) => {
-    setCurrentMedication(medication);
+  const handleScanSuccess = (medication: MedicationScanResponse, scannedSession: PatientSession) => {
+    assertPatientSession(scannedSession);
+    if (!scannedSession.patientId) throw new Error('Sign in before saving medications.');
+    setCurrentMedication({data: medication, session: scannedSession});
 
     // Check for severe interactions
     if (medScannerService.hasSevereInteractions(medication)) {
@@ -32,14 +39,14 @@ export function useMedScan(options: UseMedScanOptions = {}) {
       const now = new Date().toISOString();
       const medToAdd = {
         id: medication.ndc_code || medication.rxnorm_id || now,
-        patient_id: user?.id || '',
+        patient_id: scannedSession.patientId,
         drug_name: medication.drug_name || 'Unknown medication',
         adherence_rate: 100,
         is_active: true,
         created_at: now,
         updated_at: now,
       };
-      addMedication(medToAdd);
+      addMedication(scannedSession.patientId, medToAdd);
       options.onSuccess?.(medication);
     }
   };
@@ -58,8 +65,11 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     setIsScanning(true);
     setError(null);
 
+    setRequestSession(session);
     try {
+      assertPatientSession(session);
       const imageUri = await medScannerService.captureFromCamera();
+      assertPatientSession(session);
       if (!imageUri) {
         setIsScanning(false);
         return;
@@ -74,10 +84,11 @@ export function useMedScan(options: UseMedScanOptions = {}) {
       );
       options.onScanTextEntry?.();
     } catch (err) {
-      console.error('Camera scan error:', err);
-      handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+      if (isPatientSessionCurrent(session)) {
+        handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+      }
     } finally {
-      setIsScanning(false);
+      if (isPatientSessionCurrent(session)) setIsScanning(false);
     }
   };
 
@@ -89,9 +100,12 @@ export function useMedScan(options: UseMedScanOptions = {}) {
 
     setIsScanning(true);
     setError(null);
+    setRequestSession(session);
 
     try {
+      assertPatientSession(session);
       const imageUri = await medScannerService.pickFromGallery();
+      assertPatientSession(session);
       if (!imageUri) {
         setIsScanning(false);
         return;
@@ -104,10 +118,11 @@ export function useMedScan(options: UseMedScanOptions = {}) {
       );
       options.onScanTextEntry?.();
     } catch (err) {
-      console.error('Gallery scan error:', err);
-      handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+      if (isPatientSessionCurrent(session)) {
+        handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+      }
     } finally {
-      setIsScanning(false);
+      if (isPatientSessionCurrent(session)) setIsScanning(false);
     }
   };
 
@@ -120,34 +135,40 @@ export function useMedScan(options: UseMedScanOptions = {}) {
     setIsScanning(true);
     setError(null);
 
+    setRequestSession(session);
     try {
+      assertPatientSession(session);
       const medication = await medScannerService.scanMedication(
         ocrText,
         user.id,
+        session,
       );
-      handleScanSuccess(medication);
+      assertPatientSession(session);
+      handleScanSuccess(medication, session);
     } catch (err) {
-      console.error('Text scan error:', err);
-      handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+      if (isPatientSessionCurrent(session)) {
+        handleScanError(err instanceof Error ? err : new Error('Scan failed'));
+      }
     } finally {
-      setIsScanning(false);
+      if (isPatientSessionCurrent(session)) setIsScanning(false);
     }
   };
 
   const handleInteractionModalAccept = () => {
-    if (currentMedication && user?.id) {
+    if (currentMedication && isPatientSessionCurrent(currentMedication.session) && user?.id) {
+      const medication = currentMedication.data;
       const now = new Date().toISOString();
       const medToAdd = {
-        id: currentMedication.ndc_code || currentMedication.rxnorm_id || now,
+        id: medication.ndc_code || medication.rxnorm_id || now,
         patient_id: user.id,
-        drug_name: currentMedication.drug_name || 'Unknown medication',
+        drug_name: medication.drug_name || 'Unknown medication',
         adherence_rate: 100,
         is_active: true,
         created_at: now,
         updated_at: now,
       };
-      addMedication(medToAdd);
-      options.onSuccess?.(currentMedication);
+      addMedication(user.id, medToAdd);
+      options.onSuccess?.(medication);
     }
 
     setShowInteractionModal(false);
@@ -171,10 +192,12 @@ export function useMedScan(options: UseMedScanOptions = {}) {
 
   return {
     // State
-    isScanning,
-    error,
-    showInteractionModal,
-    currentMedication,
+    isScanning: isPatientSessionCurrent(requestSession) && isScanning,
+    error: isPatientSessionCurrent(requestSession) ? error : null,
+    showInteractionModal: !!currentMedication &&
+      isPatientSessionCurrent(currentMedication.session) && showInteractionModal,
+    currentMedication: currentMedication && isPatientSessionCurrent(currentMedication.session)
+      ? currentMedication.data : null,
 
     // Actions
     scanFromCamera,

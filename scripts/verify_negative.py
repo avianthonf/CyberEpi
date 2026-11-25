@@ -3,6 +3,7 @@
 Complements scripts/verify_all.py (positive paths). Every check expects a
 REJECTION; any 2xx here is a regression.
 """
+
 from __future__ import annotations
 
 import random
@@ -42,23 +43,116 @@ def main() -> int:
     # patient app (SEIR params, no PII) — see docstring in params.py. Not gated.
     expect("GET epi /regions/{r}/forecast", requests.get(f"{EPI}/api/v1/regions/{region}/forecast", timeout=5), (401,))
     expect("GET epi /regions/{r}/state", requests.get(f"{EPI}/api/v1/regions/{region}/state", timeout=5), (401,))
-    expect("GET epi /control/recommendations", requests.get(f"{EPI}/api/v1/control/recommendations", params={"region_id": region}, timeout=5), (401,))
+    expect(
+        "GET epi /control/recommendations",
+        requests.get(f"{EPI}/api/v1/control/recommendations", params={"region_id": region}, timeout=5),
+        (401,),
+    )
     expect("GET epi /control/weights/{r}", requests.get(f"{EPI}/api/v1/control/weights/{region}", timeout=5), (401,))
     expect("GET epi /map/hotspots", requests.get(f"{EPI}/api/v1/map/hotspots", params={"region_id": region}, timeout=5), (401,))
     expect("GET symptom /v1/risk/score/{pid}", requests.get(f"{SYM}/v1/risk/score/{patient_id}", timeout=5), (401,))
     expect("POST symptom /v1/risk/deterioration", requests.post(f"{SYM}/v1/risk/deterioration", json={}, timeout=5), (401,))
     expect("GET privacy /fl/model/1", requests.get(f"{PRI}/api/v1/fl/model/1", timeout=5), (401,))
-    expect("POST privacy /internal/dp/publish", requests.post(f"{PRI}/internal/dp/publish", json={"region_id": region, "stat_type": "count", "value": 1, "epsilon": 1.0}, timeout=5), (401,))
-    expect("POST privacy /internal/dp/gaussian", requests.post(f"{PRI}/internal/dp/gaussian", json={"value": 1.0, "epsilon": 1.0, "delta": 1e-5, "sensitivity": 1.0}, timeout=5), (401,))
+    expect(
+        "POST privacy /internal/dp/publish",
+        requests.post(
+            f"{PRI}/internal/dp/publish", json={"region_id": region, "stat_type": "count", "value": 1, "epsilon": 1.0}, timeout=5
+        ),
+        (401,),
+    )
+    expect(
+        "POST privacy /internal/dp/gaussian",
+        requests.post(
+            f"{PRI}/internal/dp/gaussian", json={"value": 1.0, "epsilon": 1.0, "delta": 1e-5, "sensitivity": 1.0}, timeout=5
+        ),
+        (401,),
+    )
 
     print("\n== Patient role (no physician/admin): expect 403 ==")
-    expect("PUT epi params", requests.put(f"{EPI}/api/v1/regions/{region}/params", headers=pat, json={"region_id": region, "N_pop": 1000, "beta": 0.4, "gamma": 0.1, "sigma": 0.2, "mu": 0.05, "alpha": 0.1, "delta": 0.05, "rho": 0.5, "gamma_A": 0.1, "gamma_M": 0.1, "gamma_S": 0.1, "gamma_H": 0.05, "gamma_ICU": 0.02, "h_rate": 0.05, "mu_icu": 0.05, "papp": 0.4, "fA": 0.3, "fM": 0.4, "fS": 0.3, "source": "manual_override"}, timeout=10), (403,))
-    expect("POST epi control weights", requests.post(f"{EPI}/api/v1/control/weights/{region}", headers=pat, json={"C1": 1.0, "C2": 1.0, "C3": 1.0, "C4": 1.0, "W_u1": 0.5, "W_u2": 0.5, "W_u3": 0.5, "ethical_framework": "utilitarian"}, timeout=10), (403,))
-    expect("PUT epi control weights", requests.put(f"{EPI}/api/v1/control/weights/{region}", headers=pat, json={"C1": 1.0, "C2": 1.0, "C3": 1.0, "C4": 1.0, "W_u1": 0.5, "W_u2": 0.5, "W_u3": 0.5, "ethical_framework": "utilitarian"}, timeout=10), (403,))
+    expect(
+        "PUT epi params",
+        requests.put(
+            f"{EPI}/api/v1/regions/{region}/params",
+            headers=pat,
+            json={
+                "region_id": region,
+                "N_pop": 1000,
+                "beta": 0.4,
+                "gamma": 0.1,
+                "sigma": 0.2,
+                "mu": 0.05,
+                "alpha": 0.1,
+                "delta": 0.05,
+                "rho": 0.5,
+                "gamma_A": 0.1,
+                "gamma_M": 0.1,
+                "gamma_S": 0.1,
+                "gamma_H": 0.05,
+                "gamma_ICU": 0.02,
+                "h_rate": 0.05,
+                "mu_icu": 0.05,
+                "papp": 0.4,
+                "fA": 0.3,
+                "fM": 0.4,
+                "fS": 0.3,
+                "source": "manual_override",
+            },
+            timeout=10,
+        ),
+        (403,),
+    )
+    expect(
+        "POST epi control weights",
+        requests.post(
+            f"{EPI}/api/v1/control/weights/{region}",
+            headers=pat,
+            json={
+                "C1": 1.0,
+                "C2": 1.0,
+                "C3": 1.0,
+                "C4": 1.0,
+                "W_u1": 0.5,
+                "W_u2": 0.5,
+                "W_u3": 0.5,
+                "ethical_framework": "utilitarian",
+            },
+            timeout=10,
+        ),
+        (403,),
+    )
+    expect(
+        "PUT epi control weights",
+        requests.put(
+            f"{EPI}/api/v1/control/weights/{region}",
+            headers=pat,
+            json={
+                "C1": 1.0,
+                "C2": 1.0,
+                "C3": 1.0,
+                "C4": 1.0,
+                "W_u1": 0.5,
+                "W_u2": 0.5,
+                "W_u3": 0.5,
+                "ethical_framework": "utilitarian",
+            },
+            timeout=10,
+        ),
+        (403,),
+    )
     expect("POST fl/trigger_aggregation", requests.post(f"{PRI}/api/v1/fl/trigger_aggregation", headers=pat, timeout=10), (403,))
     other_pid = "00000000-0000-0000-0000-00000000dead"
     expect("GET risk score of other patient", requests.get(f"{SYM}/v1/risk/score/{other_pid}", headers=pat, timeout=5), (403,))
-    expect("POST mobility/upload as patient", requests.post(f"{EPI}/api/v1/mobility/upload", params={"region_id": region}, headers=pat, files={"file": ("m.csv", b"from_patch_id,to_patch_id,fraction\nA,B,0.5\n", "text/csv")}, timeout=10), (403,))
+    expect(
+        "POST mobility/upload as patient",
+        requests.post(
+            f"{EPI}/api/v1/mobility/upload",
+            params={"region_id": region},
+            headers=pat,
+            files={"file": ("m.csv", b"from_patch_id,to_patch_id,fraction\nA,B,0.5\n", "text/csv")},
+            timeout=10,
+        ),
+        (403,),
+    )
 
     print("\n== Cross-patient IDOR (patient token vs second registered patient): expect 403/scoped ==")
     usr_svc = SERVICES["user"]
@@ -66,8 +160,12 @@ def main() -> int:
     _, _, victim_pid, _ = reg_user(suffix + "-victim")
     r = requests.get(f"{usr_svc}/api/v1/patients/{victim_pid}/risk", headers=pat, timeout=5)
     expect("GET user-svc risk of other patient", r, (403,))
-    r = requests.post(f"{usr_svc}/api/v1/patients/{victim_pid}/push_token", headers=pat,
-                      json={"token": "attacker-device-token", "platform": "android"}, timeout=5)
+    r = requests.post(
+        f"{usr_svc}/api/v1/patients/{victim_pid}/push_token",
+        headers=pat,
+        json={"token": "attacker-device-token", "platform": "android"},
+        timeout=5,
+    )
     expect("POST push_token for other patient", r, (403,))
     r = requests.get(f"{notif_svc}/api/v1/notifications", headers=pat, params={"patient_id": victim_pid}, timeout=5)
     expect("GET notifications filtered by other patient", r, (403,))
@@ -75,7 +173,9 @@ def main() -> int:
     rows = r.json() if r.status_code == 200 else None
     scoped_ok = r.status_code == 200 and isinstance(rows, list) and all(x.get("patient_id") == patient_id for x in rows)
     marker = "PASS" if scoped_ok else "FAIL"
-    print(f"  [{marker}] GET notifications unfiltered is auto-scoped to caller: HTTP {r.status_code} rows={len(rows) if rows is not None else '-'}")
+    print(
+        f"  [{marker}] GET notifications unfiltered is auto-scoped to caller: HTTP {r.status_code} rows={len(rows) if rows is not None else '-'}"
+    )
     if not scoped_ok:
         failures += 1
 
@@ -86,17 +186,89 @@ def main() -> int:
     grant_physician_role(uname, admin)
     ptok = get_user_token(uname, pwd)
     pat = {"Authorization": f"Bearer {ptok}"}
-    expect("PUT control weights as physician", requests.put(f"{EPI}/api/v1/control/weights/{region}", headers=pat, json={"C1": 1.0, "C2": 1.0, "C3": 1.0, "C4": 1.0, "W_u1": 0.5, "W_u2": 0.5, "W_u3": 0.5, "ethical_framework": "utilitarian"}, timeout=60), (200, 201))
+    expect(
+        "PUT control weights as physician",
+        requests.put(
+            f"{EPI}/api/v1/control/weights/{region}",
+            headers=pat,
+            json={
+                "C1": 1.0,
+                "C2": 1.0,
+                "C3": 1.0,
+                "C4": 1.0,
+                "W_u1": 0.5,
+                "W_u2": 0.5,
+                "W_u3": 0.5,
+                "ethical_framework": "utilitarian",
+            },
+            timeout=60,
+        ),
+        (200, 201),
+    )
 
     print("\n== Input validation: expect 400/422 ==")
-    expect("dp/gaussian negative epsilon", requests.post(f"{PRI}/internal/dp/gaussian", headers=pat, json={"value": 1.0, "epsilon": -1.0, "delta": 1e-5, "sensitivity": 1.0}, timeout=5), (400, 422))
-    expect("dp/publish negative epsilon", requests.post(f"{PRI}/internal/dp/publish", headers=pat, json={"region_id": region, "stat_type": "count", "value": 1, "epsilon": -1.0}, timeout=5), (400, 422))
+    expect(
+        "dp/gaussian negative epsilon",
+        requests.post(
+            f"{PRI}/internal/dp/gaussian",
+            headers=pat,
+            json={"value": 1.0, "epsilon": -1.0, "delta": 1e-5, "sensitivity": 1.0},
+            timeout=5,
+        ),
+        (400, 422),
+    )
+    expect(
+        "dp/publish negative epsilon",
+        requests.post(
+            f"{PRI}/internal/dp/publish",
+            headers=pat,
+            json={"region_id": region, "stat_type": "count", "value": 1, "epsilon": -1.0},
+            timeout=5,
+        ),
+        (400, 422),
+    )
     # NaN payloads - json.dumps emits NaN literal; FastAPI/pydantic must reject
     nan_body = b'{"value": 1.0, "epsilon": NaN, "delta": 1e-5, "sensitivity": 1.0}'
-    expect("dp/gaussian NaN epsilon", requests.post(f"{PRI}/internal/dp/gaussian", headers={**pat, "Content-Type": "application/json"}, data=nan_body, timeout=5), (400, 422))
-    grad_nan = (f'{{"user_id": "{patient_id}", "round_id": 1, "gradient": [0.1, NaN, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1], "n_samples": 10}}').encode()
-    expect("fl/upload_gradient NaN element", requests.post(f"{PRI}/api/v1/fl/upload_gradient", headers={**pat, "Content-Type": "application/json"}, data=grad_nan, timeout=5), (400, 422))
-    expect("prescription oversize drug_name", requests.post(f"{RX}/api/v1/prescriptions", headers=pat, json={"patient_id": patient_id, "drug_name": "X" * 300, "dosage": "1 mg", "frequency": "daily", "start_date": "2026-08-22"}, timeout=5), (400, 422))
+    expect(
+        "dp/gaussian NaN epsilon",
+        requests.post(
+            f"{PRI}/internal/dp/gaussian", headers={**pat, "Content-Type": "application/json"}, data=nan_body, timeout=5
+        ),
+        (400, 422),
+    )
+    # Use current round from GET fl/status for valid-round invalid-gradient test
+    try:
+        status_r = requests.get(f"{PRI}/api/v1/fl/status", headers=pat, timeout=5)
+        current_round = status_r.json()["current_round_id"] if status_r.status_code == 200 else 1
+    except Exception:
+        current_round = 1
+    grad_nan = (
+        f'{{"user_id": "{patient_id}", "round_id": {current_round}, "gradient": [0.1, NaN, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1], "n_samples": 10}}'
+    ).encode()
+    expect(
+        "fl/upload_gradient NaN element",
+        requests.post(
+            f"{PRI}/api/v1/fl/upload_gradient", headers={**pat, "Content-Type": "application/json"}, data=grad_nan, timeout=5
+        ),
+        (422,),
+        note="valid round, invalid gradient",
+    )
+    expect(
+        "prescription oversize drug_name",
+        requests.post(
+            f"{RX}/api/v1/prescriptions",
+            headers=pat,
+            json={
+                "patient_id": patient_id,
+                "drug_name": "X" * 300,
+                "dosage": "1 mg",
+                "frequency": "daily",
+                "start_date": "2026-08-22",
+            },
+            timeout=5,
+        ),
+        (400, 422),
+    )
 
     print(f"\n{'ALL NEGATIVE CHECKS PASSED' if failures == 0 else f'FAILURES: {failures}'}")
     return 0 if failures == 0 else 1

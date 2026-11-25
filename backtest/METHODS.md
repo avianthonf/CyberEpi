@@ -70,13 +70,18 @@ coverage (cov50 0.44–0.53 vs 0.5, cov90 0.85–0.91 vs 0.9).
 - Scoring: per-horizon relWIS vs the hub's persistence baseline
   (`wis_baseline_mean` in the scoring tables); horizons h = 0..3
   (FluSight convention — h=-1 nowcast rows are emitted for hub submissions
-  but excluded from evaluation).
+  but excluded from evaluation). **Scientific reporting**: relWIS and all
+  summary statistics computed over finite paired (wis, wis_base) comparison
+  rows only; non-finite scores excluded before ratio computation. Excluded
+  counts reported in summary JSON (`n_comparison_rows`, `n_finite_paired`,
+  `n_excluded_nonfinite`).
 - Determinism: cross-run seeds derive from sha256 of (run seed, location);
   per-origin emission RNGs are derived from the run seed, so reruns are
   bitwise stable.
 
 Results in `BACKTEST_RESULTS.md` (pooled relWIS 0.714, per-season
-0.66–0.86, n = 18,020 scored rows). Raw rows: `backtest/out/flu/rows-*.csv`.
+0.66–0.86, n = 18,014 finite paired scores from 18,020 total comparison rows).
+Raw rows: `backtest/out/flu/rows-*.csv`.
 
 ## 6. Limitations
 

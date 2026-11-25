@@ -27,12 +27,13 @@ logger = structlog.get_logger()
 
 
 async def _consume_alerts(app: FastAPI) -> None:
-    """Background task: consume alerts.push topic and forward to Redis pub/sub.
+    """Background task: consume symptom-reports and forward high-risk alerts to broadcast.
 
-    Bounded retries: when the broker is unreachable we sleep with
-    exponential backoff instead of letting aiokafka's internal retry loop
-    spam the log. The /health endpoint will still report Kafka as
-    unhealthy while this is retrying, which is the truthful signal.
+    High-risk alerts (urgent/consult tier) are published to alerts:broadcast for all
+    physician dashboards. Individual physicians also receive alerts published directly
+    to their personal alerts:{physician_id} channel (e.g., from external systems).
+
+    Bounded retries with exponential backoff when broker is unreachable.
     """
 
     from aiokafka.errors import KafkaError
@@ -53,17 +54,23 @@ async def _consume_alerts(app: FastAPI) -> None:
                 async for msg in consumer:
                     try:
                         event = json.loads(msg.value.decode("utf-8"))
-                        payload = json.loads(event.get("payload", "{}"))
-                        physician_id = payload.get("physician_id")
-                        if physician_id:
+                        # payload field contains nested JSON string
+                        payload_str = event.get("payload", "{}")
+                        payload = json.loads(payload_str) if isinstance(payload_str, str) else payload_str
+                        risk_tier = payload.get("risk_tier")
+                        patient_id = event.get("patient_id")
+
+                        # Forward high-risk alerts to broadcast channel for all staff
+                        if risk_tier in ("urgent", "consult"):
                             redis_client: aioredis.Redis = app.state.redis
                             await redis_client.publish(
-                                f"alerts:{physician_id}",
+                                "alerts:broadcast",
                                 json.dumps(event),
                             )
                             logger.info(
-                                "Alert forwarded to physician",
-                                physician_id=physician_id,
+                                "High-risk alert forwarded to broadcast",
+                                patient_id=patient_id,
+                                risk_tier=risk_tier,
                             )
                     except Exception:
                         logger.exception("Error processing alert message")
@@ -86,6 +93,7 @@ async def _consume_alerts(app: FastAPI) -> None:
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30.0)
             continue
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:

@@ -9,9 +9,8 @@ reference_date R (i.e. data processed through week R-7):
 from __future__ import annotations
 
 import numpy as np
-
 from hub_data import PRIMARY_TARGET, STANDARD_QUANTILES
-from seir_fast import LB, W, FluParams, integrate
+from seir_fast import LB, FluParams, W, integrate
 
 
 def forecast_quantiles(
@@ -72,8 +71,8 @@ def emit_rows(
             "location": location, "target_end_date": ted,
             "output_type": "quantile", "output_type_id": f"{lev:g}",
             # hub requires integer values for wk inc flu hosp
-            "value": max(int(round(v)), 0),
-        } for lev, v in zip(STANDARD_QUANTILES, q_neg1))
+            "value": max(round(v), 0),
+        } for lev, v in zip(STANDARD_QUANTILES, q_neg1, strict=False))
 
     for h, q in qs.items():
         ted = str((ref + np.timedelta64(7 * h, "D")).astype("datetime64[D]"))
@@ -81,6 +80,6 @@ def emit_rows(
             "reference_date": str(ref), "target": PRIMARY_TARGET, "horizon": h,
             "location": location, "target_end_date": ted,
             "output_type": "quantile", "output_type_id": f"{lev:g}",
-            "value": max(int(round(v)), 0),
-        } for lev, v in zip(STANDARD_QUANTILES, q))
+            "value": max(round(v), 0),
+        } for lev, v in zip(STANDARD_QUANTILES, q, strict=False))
     return rows

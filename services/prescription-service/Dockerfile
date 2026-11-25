@@ -21,4 +21,4 @@ USER appuser
 EXPOSE 8003
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python healthcheck.py || exit 1
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8003", "--workers", "2"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8003", "--workers", "1"]

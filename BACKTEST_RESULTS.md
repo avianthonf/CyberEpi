@@ -10,14 +10,16 @@
 
 | Season | n scored | our WIS | baseline WIS | **relWIS** | cov50 | cov90 | cov95 |
 |---|---|---|---|---|---|---|---|
-| 2023-24 | 6360 | 73.00 | 85.05 | **0.858** | 0.531 | 0.913 | 0.951 |
+| 2023-24 | 6354 | 73.00 | 85.05 | **0.858** | 0.531 | 0.913 | 0.951 |
 | 2024-25 | 5724 | 174.19 | 263.13 | **0.662** | 0.445 | 0.849 | 0.903 |
 | 2025-26 | 5936 | 125.22 | 175.16 | **0.715** | 0.487 | 0.868 | 0.925 |
-| **pooled** | 18020 | — | — | **0.714** | ~0.487 | ~0.876 | ~0.926 |
+| **pooled** | 18014 | — | — | **0.714** | ~0.487 | ~0.876 | ~0.926 |
 
 Scoring follows FluSight practice: horizons 0..3 (h=-1 nowcast-back rows
 are emitted for the hub but excluded from scoring, matching the hub's own
-protocol). Numbers reproduced 2026-08-23 by the one-command run below.
+protocol). **n scored** = finite paired (wis, wis_base) comparison rows;
+18,020 total comparison rows, 6 excluded due to non-finite baseline WIS.
+Numbers reproduced 2026-08-23 by the one-command run below.
 
 relWIS < 1 = better than baseline at every level of aggregation; single mechanistic model beating a tuned persistence baseline by 14–34% depending on season.
 

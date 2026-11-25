@@ -188,7 +188,8 @@ export function SymptomForm({onSubmit, onCancel}: SymptomFormProps) {
       await submitReport({report});
       onSubmit?.(report);
     } catch (error) {
-      console.error('Submit error:', error);
+      Alert.alert('Report status', error instanceof Error ? error.message :
+        'The report could not be submitted. Please try again.');
     }
   };
 

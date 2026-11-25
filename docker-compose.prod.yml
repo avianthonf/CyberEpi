@@ -1,254 +1,312 @@
-version: "3.9"
+# Authoritative local single-host stack. See DEPLOYMENT.md.
+# Always pass --env-file and use a Compose project name for resource isolation.
+x-common: &common
+  restart: unless-stopped
+  networks:
+    - cyberepi-net
+  healthcheck:
+    test: ["CMD", "python", "healthcheck.py"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
 
-# Production-like Docker Compose for local testing
-# This is a simplified version without monitoring stack
+x-service-environment: &service-environment
+  DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD:?Prepare credentials and pass --env-file}@postgres:5432/cyberepi
+  REDIS_URL: redis://redis:6379/0
+  KEYCLOAK_URL: http://keycloak:8080
+  KEYCLOAK_REALM: cyberepi
+  DEV_AUTH_MODE: "false"
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-service-dependencies: &service-dependencies
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  keycloak:
+    condition: service_healthy
+  user-service:
+    condition: service_healthy
+
+x-event-dependencies: &event-dependencies
+  <<: *service-dependencies
+  kafka:
+    condition: service_healthy
+  kafka-init:
+    condition: service_completed_successfully
 
 services:
-  # ─────────────── DATA LAYER ───────────────
   postgres:
+    <<: *common
     image: timescale/timescaledb:latest-pg16
-    container_name: cyberepi-postgres-prod
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: cyberepi
       POSTGRES_USER: cyberepi
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Prepare credentials and pass --env-file}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres-init:/docker-entrypoint-initdb.d
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cyberepi"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U cyberepi -d cyberepi"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - cyberepi-net
+      retries: 12
+      start_period: 20s
 
   redis:
+    <<: *common
     image: redis:7-alpine
-    container_name: cyberepi-redis-prod
     ports:
-      - "6380:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - cyberepi-net
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
-  # ─────────────── MESSAGE BUS ───────────────
   zookeeper:
-    image: docker.io/confluentinc/cp-zookeeper:7.5.0
-    container_name: cyberepi-zookeeper-prod
+    <<: *common
+    image: confluentinc/cp-zookeeper:7.6.0
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc -q 2 localhost 2181 | grep imok"]
-      interval: 10s
+      test: ["CMD-SHELL", "echo srvr | nc 127.0.0.1 2181 | grep -q Latency"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      retries: 12
+      start_period: 15s
 
   kafka:
-    image: docker.io/confluentinc/cp-kafka:7.5.0
-    container_name: cyberepi-kafka-prod
+    <<: *common
+    image: confluentinc/cp-kafka:7.6.0
     ports:
-      - "9092:9092"
+      - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://127.0.0.1:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     depends_on:
       zookeeper:
         condition: service_healthy
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
-      interval: 15s
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 12
+      start_period: 30s
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
     networks:
       - cyberepi-net
-    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - bash
+      - -ec
+      - |
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic symptom-reports --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic patient.events --partitions 6 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic epi.updates --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic alerts.push --partitions 3 --replication-factor 1
 
-  # ─────────────── MICROSERVICES ───────────────
+  keycloak:
+    <<: *common
+    image: quay.io/keycloak/keycloak:24.0
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8080}:8080"
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Prepare credentials and pass --env-file}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: cyberepi
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?Prepare credentials and pass --env-file}
+      KC_HOSTNAME_STRICT: "false"
+      # Agroal pool validation: background validation detects stale connections
+      QUARKUS_DATASOURCE_JDBC_VALIDATION_QUERY_SQL: "SELECT 1"
+      QUARKUS_DATASOURCE_JDBC_BACKGROUND_VALIDATION_INTERVAL: "30S"
+      QUARKUS_DATASOURCE_JDBC_ACQUISITION_TIMEOUT: "10"
+    command: start-dev --import-realm
+    volumes:
+      - ./infra/keycloak-realms:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -ec
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/8080
+          printf 'GET /realms/cyberepi HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3
+          read -r response <&3
+          [[ "$$response" == *" 200 "* ]]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
   user-service:
+    <<: *common
     build:
       context: .
       dockerfile: services/user-service/Dockerfile
-    container_name: cyberepi-user-service-prod
     ports:
-      - "8011:8001"
+      - "127.0.0.1:${USER_SERVICE_PORT:-8001}:8001"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
-      KEYCLOAK_URL: ${KEYCLOAK_URL}
-      KEYCLOAK_REALM: cyberepi
+      <<: *service-environment
       SERVICE_PORT: 8001
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Prepare credentials and pass --env-file}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      keycloak:
+        condition: service_healthy
 
   symptom-service:
+    <<: *common
     build:
       context: .
       dockerfile: services/symptom-service/Dockerfile
-    container_name: cyberepi-symptom-service-prod
     ports:
-      - "8012:8002"
+      - "127.0.0.1:${SYMPTOM_SERVICE_PORT:-8002}:8002"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      <<: *service-environment
       SERVICE_PORT: 8002
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on: *event-dependencies
 
   prescription-service:
+    <<: *common
     build:
       context: .
       dockerfile: services/prescription-service/Dockerfile
-    container_name: cyberepi-prescription-service-prod
     ports:
-      - "8013:8003"
+      - "127.0.0.1:${PRESCRIPTION_SERVICE_PORT:-8003}:8003"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
-      OPENFDA_API_URL: https://api.fda.gov
-      RXNORM_API_URL: https://rxnav.nlm.nih.gov/REST
+      <<: *service-environment
       SERVICE_PORT: 8003
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      OPENFDA_API_URL: ${OPENFDA_API_URL:-https://api.fda.gov/drug/label.json}
+      RXNORM_API_URL: ${RXNORM_API_URL:-https://rxnav.nlm.nih.gov/REST}
+    depends_on: *service-dependencies
 
   notification-service:
+    <<: *common
     build:
       context: .
       dockerfile: services/notification-service/Dockerfile
-    container_name: cyberepi-notification-service-prod
     ports:
-      - "8014:8004"
+      - "127.0.0.1:${NOTIFICATION_SERVICE_PORT:-8004}:8004"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      <<: *service-environment
       SERVICE_PORT: 8004
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+      APNS_KEY_PATH: ${APNS_KEY_PATH:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-com.cyberepi.patient}
+    depends_on: *event-dependencies
 
   epi-engine:
+    <<: *common
     build:
       context: .
       dockerfile: services/epi-engine/Dockerfile
-    container_name: cyberepi-epi-engine-prod
     ports:
-      - "8015:8005"
+      - "127.0.0.1:${EPI_ENGINE_PORT:-8005}:8005"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      <<: *service-environment
       SERVICE_PORT: 8005
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on: *event-dependencies
 
   privacy-service:
+    <<: *common
     build:
       context: .
       dockerfile: services/privacy-service/Dockerfile
-    container_name: cyberepi-privacy-service-prod
     ports:
-      - "8016:8006"
+      - "127.0.0.1:${PRIVACY_SERVICE_PORT:-8006}:8006"
     environment:
-      DATABASE_URL: postgresql+asyncpg://cyberepi:${POSTGRES_PASSWORD}@postgres:5432/cyberepi
-      REDIS_URL: redis://redis:6379/0
+      <<: *service-environment
       SERVICE_PORT: 8006
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      MAX_PRIVACY_BUDGET: ${MAX_PRIVACY_BUDGET:-10.0}
+      FL_MIN_CLIENTS: ${FL_MIN_CLIENTS:-3}
+    depends_on: *service-dependencies
 
-  # ─────────────── API GATEWAY ───────────────
   kong:
-    image: kong:3-alpine
-    container_name: cyberepi-kong-prod
+    <<: *common
+    image: kong:3.7
     ports:
-      - "8000:8000"
-      # Admin API has no authentication - bind to loopback only.
-      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:${KONG_PORT:-8000}:8000"
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_ADMIN_LISTEN: "off"
+      # A single local gateway worker avoids one Lua runtime per host CPU.
+      KONG_NGINX_WORKER_PROCESSES: "1"
       KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_LISTEN: 0.0.0.0:8001
     volumes:
       - ./infra/kong/kong.yml:/kong/kong.yml:ro
     depends_on:
-      - user-service
-      - symptom-service
-      - prescription-service
-      - notification-service
-      - epi-engine
-      - privacy-service
-    networks:
-      - cyberepi-net
-    restart: unless-stopped
+      user-service:
+        condition: service_healthy
+      symptom-service:
+        condition: service_healthy
+      prescription-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      epi-engine:
+        condition: service_healthy
+      privacy-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
 volumes:
   postgres_data:
   redis_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
 
 networks:
   cyberepi-net:
     driver: bridge
-    name: cyberepi-net

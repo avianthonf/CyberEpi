@@ -1,18 +1,31 @@
+COMPOSE ?= podman-compose
+PROJECT ?= cyberepi-singlehost
+ENV_FILE ?= .env.production
+PYTHON ?= .venv/bin/python
+
+COMPOSE_COMMAND = $(COMPOSE) --env-file "$(ENV_FILE)" -p "$(PROJECT)" -f docker-compose.prod.yml
+
+.PHONY: all prepare build up down logs status
+
 all: up
 
+prepare:
+	bash scripts/prepare-deploy.sh "$(ENV_FILE)"
+
+build:
+	$(COMPOSE_COMMAND) build
+
 up:
-	bash scripts/podman-up.sh
-	bash scripts/services-up.sh
+	$(COMPOSE_COMMAND) up -d --build --force-recreate
 
 down:
-	bash scripts/services-down.sh
-	podman-compose -f infra/docker-compose.yml down
+	$(COMPOSE_COMMAND) down
 
 smoke:
-	python3 scripts/smoke.py
+	$(PYTHON) scripts/smoke.py
 
 logs:
-	tail -f logs/*.log
+	$(COMPOSE_COMMAND) logs -f
 
 status:
-	bash scripts/services-status.sh
+	$(COMPOSE_COMMAND) ps

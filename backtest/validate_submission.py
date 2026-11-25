@@ -31,6 +31,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hub_data import PRIMARY_TARGET, STANDARD_QUANTILES, load_locations
+
 COLUMNS = ["reference_date", "target", "horizon", "target_end_date",
            "location", "output_type", "output_type_id", "value"]
 

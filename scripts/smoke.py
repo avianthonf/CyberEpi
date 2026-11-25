@@ -6,18 +6,23 @@ checkout against services started via scripts/services-up.sh.
 """
 
 import argparse
+import os
 import sys
 import time
 
 import requests
 
+SERVICE_PORT_OFFSET = int(os.environ.get("SERVICE_PORT_OFFSET", "0"))
 DEFAULT_SERVICES = {
-    "user-service": "http://127.0.0.1:8001",
-    "symptom-service": "http://127.0.0.1:8002",
-    "prescription-service": "http://127.0.0.1:8003",
-    "notification-service": "http://127.0.0.1:8004",
-    "epi-engine": "http://127.0.0.1:8005",
-    "privacy-service": "http://127.0.0.1:8006",
+    name: os.environ.get(environment_variable, f"http://127.0.0.1:{port + SERVICE_PORT_OFFSET}").rstrip("/")
+    for name, environment_variable, port in (
+        ("user-service", "USER_SERVICE_URL", 8001),
+        ("symptom-service", "SYMPTOM_SERVICE_URL", 8002),
+        ("prescription-service", "PRESCRIPTION_SERVICE_URL", 8003),
+        ("notification-service", "NOTIFICATION_SERVICE_URL", 8004),
+        ("epi-engine", "EPI_ENGINE_URL", 8005),
+        ("privacy-service", "PRIVACY_SERVICE_URL", 8006),
+    )
 }
 
 
@@ -35,10 +40,8 @@ def check_service(name, url, timeout=2.0):
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--retries", type=int, default=1,
-                        help="Retry each service this many times before failing.")
-    parser.add_argument("--timeout", type=float, default=2.0,
-                        help="Per-request timeout in seconds.")
+    parser.add_argument("--retries", type=int, default=1, help="Retry each service this many times before failing.")
+    parser.add_argument("--timeout", type=float, default=2.0, help="Per-request timeout in seconds.")
     args = parser.parse_args()
 
     all_passed = True

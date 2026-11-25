@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {Alert} from 'react-native';
 import {MedicationScanRequest, MedicationScanResponse} from '@/types';
 import {apiClient} from '@/services/api';
+import {PatientSession, assertPatientSession} from '@/lib/patientSession';
 
 export class MedScannerService {
   private static instance: MedScannerService;
@@ -135,7 +136,14 @@ export class MedScannerService {
   async scanMedication(
     ocrText: string,
     patientId?: string,
+    patientSession?: PatientSession,
   ): Promise<MedicationScanResponse> {
+    if (patientSession) {
+      assertPatientSession(patientSession);
+      if (patientSession.patientId !== patientId) {
+        throw new Error('Medication scan patient does not match the signed-in patient.');
+      }
+    }
     const scanRequest: MedicationScanRequest = {
       ocr_text: ocrText,
       ...(patientId ? {patient_id: patientId} : {}),
@@ -144,6 +152,7 @@ export class MedScannerService {
     const response = await apiClient.post<MedicationScanResponse>(
       '/medications/scan',
       scanRequest,
+      patientSession ? {patientSession} : undefined,
     );
     return response.data;
   }

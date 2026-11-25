@@ -47,9 +47,9 @@ where = ["."]
 include = ["src*"]
 
 [tool.pytest.ini_options]
-# integration tests need testcontainers and a live DB+Redis. Run them with
-# `pytest tests/integration` after `pip install -e ".[dev]"`. The default
-# `pytest` invocation picks up unit + regression suites only.
+# Integration tests create their own PostgreSQL/Redis through Testcontainers.
+# After installing .[dev] and enabling the Podman/Docker API socket, run
+# `pytest -o addopts= tests` to include them alongside unit/regression tests.
 addopts = "--ignore=tests/integration"
 asyncio_mode = "auto"
 testpaths = ["tests"]

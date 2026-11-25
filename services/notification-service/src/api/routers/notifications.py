@@ -30,12 +30,17 @@ class SendNotificationRequest(BaseModel):
     body: str
     data: dict[str, Any] | None = None
 
+
 class CreateNotificationRequest(BaseModel):
     patient_id: uuid.UUID
     title: str
     body: str
     type: str  # risk_alert, reminder, general
     priority: str  # low, medium, high
+
+
+class UpdateNotificationRequest(BaseModel):
+    read: bool
 
 
 class NotificationResponse(BaseModel):
@@ -113,10 +118,7 @@ async def send_notification(
     # Authorization: Only Physician or Admin can send notifications.
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied: Only physicians or admins can send notifications."
-        )
+        raise HTTPException(status_code=403, detail="Access denied: Only physicians or admins can send notifications.")
     result = await db.execute(select(PushToken).where(PushToken.patient_id == body.patient_id))
     tokens = result.scalars().all()
     if not tokens:
@@ -155,22 +157,20 @@ async def physician_alert_stream(
 ) -> EventSourceResponse:
     """SSE stream of patient alerts for a physician.
 
-     Uses Redis pub/sub channel alerts:{physician_id}.
-     """
+    Subscribes to two Redis pub/sub channels:
+    - alerts:{physician_id}: Personal alerts published directly to this physician
+    - alerts:broadcast: System-wide high-risk alerts (urgent/consult tier) for all staff
+
+    Authorization: Physician can only access their own stream; admin can access any.
+    """
     # Authorization: Physician can only listen to their own stream. Admin can listen to any.
     user_id = user.get("sub")
-    roles = user.get("realm_access", {}).get("roles", [])
-    if "admin" not in roles and str(physician_id) != user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied: Physicians can only access their own alert streams."
-        )
-    redis_client: aioredis.Redis = request.app.state.redis
 
     async def event_generator():
         pubsub = redis_client.pubsub()
-        channel = f"alerts:{physician_id}"
-        await pubsub.subscribe(channel)
+        # Subscribe to both personal physician channel and global broadcast
+        personal_channel = f"alerts:{physician_id}"
+        await pubsub.subscribe(personal_channel, "alerts:broadcast")
 
         try:
             while True:
@@ -191,7 +191,7 @@ async def physician_alert_stream(
                     yield {"event": "heartbeat", "data": ""}
                     await asyncio.sleep(1)
         finally:
-            await pubsub.unsubscribe(channel)
+            await pubsub.unsubscribe(personal_channel, "alerts:broadcast")
             await pubsub.aclose()
 
     return EventSourceResponse(event_generator())
@@ -203,14 +203,15 @@ async def create_notification(
     db: AsyncSession = Depends(get_db),
     user: dict[str, Any] = Depends(get_current_user),
 ) -> NotificationResponse:
-    """Create and send a notification."""
+    """Create a notification record.
+
+    Stores the notification in the database but does NOT send push notifications.
+    Use POST /api/v1/notifications/send for immediate push delivery.
+    """
     # Authorization check...
     roles = user.get("realm_access", {}).get("roles", [])
     if "physician" not in roles and "admin" not in roles:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied"
-        )
+        raise HTTPException(status_code=403, detail="Access denied")
 
     notification = Notification(
         patient_id=body.patient_id,
@@ -222,10 +223,6 @@ async def create_notification(
     db.add(notification)
     await db.commit()
     await db.refresh(notification)
-
-    # Send notification logic...
-    # Reuse send_notification logic if possible, or extract it.
-    # For now, let's keep it simple.
     return NotificationResponse.model_validate(notification)
 
 
@@ -263,11 +260,11 @@ async def get_notifications(
 @router.patch("/api/v1/notifications/{notification_id}", response_model=NotificationResponse)
 async def update_notification(
     notification_id: uuid.UUID,
-    read: bool = True,
+    body: UpdateNotificationRequest,
     db: AsyncSession = Depends(get_db),
     user: dict[str, Any] = Depends(get_current_user),
 ) -> NotificationResponse:
-    """Mark notification as read."""
+    """Mark notification as read or unread."""
     result = await db.execute(select(Notification).where(Notification.id == notification_id))
     notification = result.scalars().first()
     if not notification:
@@ -285,7 +282,7 @@ async def update_notification(
                 detail="Access denied: Patients can only update their own notifications.",
             )
 
-    notification.read = read
+    notification.read = body.read
     await db.commit()
     await db.refresh(notification)
     return NotificationResponse.model_validate(notification)

@@ -30,6 +30,13 @@ services:
         paths:
           - /api/v1/symptoms
         strip_path: false
+      - name: patient-history-routes
+        paths:
+          - "~/api/v1/patients/[^/]+/history$"
+        methods:
+          - GET
+        regex_priority: 10
+        strip_path: false
 
   - name: prescription-service
     url: http://prescription-service:8003

@@ -1,172 +1,200 @@
-import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {QueryClient, useQuery, useQueryClient} from '@tanstack/react-query';
 import {useEffect} from 'react';
-
+import NetInfo from '@react-native-community/netinfo';
+import axios from 'axios';
 import {apiClient} from '@/services/api';
 import {useAuthStore} from '@/store/authStore';
-import {useRiskStore} from '@/store/riskStore';
-import {MMKV} from 'react-native-mmkv';
-import NetInfo from '@react-native-community/netinfo';
-
-// Cache for risk score
-const cacheStorage = new MMKV({
-  id: 'risk-cache',
-  encryptionKey: 'risk-cache-encryption-key',
-});
-
-interface RiskScoreResponse {
-  patient_id: string;
-  risk_score: number | null;
-  risk_tier: 'low' | 'moderate' | 'consult' | 'urgent' | null;
-}
+import {RiskResponse, useRiskStore} from '@/store/riskStore';
+import {RiskTier} from '@/types';
+import {
+  PatientSession, getPatientSession, assertPatientSession,
+  isPatientSessionCurrent, SessionChangedError,
+} from '@/lib/patientSession';
+import {flushSymptomQueue} from '@/lib/symptomQueue';
 
 export function useRiskScore(refreshInterval: number = 5 * 60 * 1000) {
-  // 5 minutes default
-  const queryClient = useQueryClient();
-  const {user, isAuthenticated} = useAuthStore();
-  const {setRiskScore, setInsufficientData, riskScore, riskTier, lastUpdated} =
-    useRiskStore();
-
+  const {user, isAuthenticated, sessionGeneration} = useAuthStore();
+  const session = getPatientSession();
+  const risk = useRiskStore();
+  const active = isAuthenticated && !!session.patientId && session.patientId === user?.id;
   const query = useQuery({
-    queryKey: ['risk-score', user?.id],
-    queryFn: async (): Promise<RiskScoreResponse> => {
-      if (!user?.id) {
-        throw new Error('User not authenticated');
-      }
-
-      const response = await apiClient.get<RiskScoreResponse>(
-        `/patients/${user.id}/risk`,
+    queryKey: ['risk-score', session.patientId, sessionGeneration],
+    queryFn: async ({signal}): Promise<RiskResponse> => {
+      assertPatientSession(session);
+      if (!session.patientId) throw new Error('User not authenticated');
+      const response = await apiClient.get<RiskResponse>(
+        `/patients/${session.patientId}/risk`, undefined, {patientSession: session, signal},
       );
-      return response.data;
+      assertPatientSession(session);
+      const data = response.data;
+      if (data.patient_id !== session.patientId) {
+        throw new Error('Risk response did not match the signed-in patient.');
+      }
+      if (data.risk_score !== null && data.risk_tier) {
+        risk.setRiskScore(session.patientId, data.risk_score, data.risk_tier);
+      } else {
+        risk.setInsufficientData(session.patientId,
+          data.message || 'Insufficient data: Need at least 3 symptom reports');
+      }
+      return data;
     },
-    enabled: isAuthenticated && !!user?.id,
+    enabled: active,
     refetchInterval: refreshInterval,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
     retry: (failureCount, error) => {
-      // Don't retry on 404 (insufficient data)
-      if (error instanceof Error && error.message.includes('404')) {
-        return false;
-      }
+      if (error instanceof SessionChangedError) return false;
+      if (axios.isAxiosError(error) &&
+        [401, 403, 404].includes(error.response?.status || 0)) return false;
       return failureCount < 3;
     },
   });
 
-  // Update store when query data changes
-  useEffect(() => {
-    if (query.data) {
-      const {risk_score, risk_tier} = query.data;
-
-      if (risk_score !== null && risk_tier) {
-        setRiskScore(risk_score, risk_tier);
-      } else {
-        setInsufficientData(
-          'Insufficient data: Need at least 3 symptom reports',
-        );
-      }
-
-      // Cache the response
-      cacheStorage.set('last_risk_response', JSON.stringify(query.data));
-    }
-  }, [query.data, setRiskScore, setInsufficientData]);
-
-  // Load cached data on mount
-  useEffect(() => {
-    const cachedData = cacheStorage.getString('last_risk_response');
-    if (cachedData && !query.data) {
-      try {
-        const parsed: RiskScoreResponse = JSON.parse(cachedData);
-        queryClient.setQueryData(['risk-score', user?.id], parsed);
-      } catch (error) {
-        console.error('Failed to parse cached risk data:', error);
-      }
-    }
-  }, [user?.id, queryClient, query.data]);
-
-  // Function to manually refresh risk score
-  const refreshRiskScore = () => {
-    query.refetch();
-  };
-
-  // Function to get time since last update
+  // Do not rely on an effect to clear old health values. This owner check also
+  // covers the render between an auth update and any React effect cleanup.
+  const owned = active && risk.ownerId === session.patientId;
+  const lastUpdated = owned ? risk.lastUpdated : null;
   const getTimeSinceLastUpdate = (): string => {
     if (!lastUpdated) return 'Never';
-
-    const now = new Date();
-    const last = new Date(lastUpdated);
-    const diffMs = now.getTime() - last.getTime();
-
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60)
-      return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24)
-      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  };
-
-  // Function to check if data is stale
-  const isDataStale = (): boolean => {
-    if (!lastUpdated) return true;
-
-    const now = new Date();
-    const last = new Date(lastUpdated);
-    const diffMs = now.getTime() - last.getTime();
-
-    // Consider stale after 10 minutes
-    return diffMs > 10 * 60 * 1000;
+    const diffMs = Date.now() - new Date(lastUpdated).getTime();
+    const minutes = Math.floor(diffMs / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    return `${days} day${days > 1 ? 's' : ''} ago`;
   };
 
   return {
-    riskScore,
-    riskTier,
+    riskScore: owned ? risk.riskScore : null,
+    riskTier: owned ? risk.riskTier : null,
+    insufficientDataMessage: owned ? risk.insufficientDataMessage : null,
     lastUpdated,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    error: query.error,
-    refreshRiskScore,
+    isLoading: active && query.isLoading,
+    isError: active && (query.isError || !!risk.cacheError),
+    error: active ? query.error || (risk.cacheError ? new Error(risk.cacheError) : null) : null,
+    refreshRiskScore: query.refetch,
     getTimeSinceLastUpdate,
-    isDataStale,
+    isDataStale: () => !lastUpdated ||
+      Date.now() - new Date(lastUpdated).getTime() > 10 * 60 * 1000,
   };
 }
 
-// Hook for risk score history (for charts)
+export interface RiskHistoryItem {
+  time: string;
+  risk_score: number | null;
+  risk_tier: RiskTier | null;
+  symptoms: Record<string, unknown> | unknown[] | null;
+  patient_id?: string;
+}
+
+// The backend returns at most the latest 30 records and does not filter days.
+// The history screen applies the selected date window to this bounded result.
 export function useRiskScoreHistory(days: number = 7) {
-  const {user, isAuthenticated} = useAuthStore();
-
-  return useQuery({
-    queryKey: ['risk-score-history', user?.id, days],
-    queryFn: async () => {
-      if (!user?.id) {
-        throw new Error('User not authenticated');
-      }
-
-      const response = await apiClient.get(
-        `/patients/${user.id}/history?days=${days}`,
+  const {user, isAuthenticated, sessionGeneration} = useAuthStore();
+  const session = getPatientSession();
+  const active = isAuthenticated && !!session.patientId && session.patientId === user?.id;
+  const query = useQuery({
+    queryKey: ['risk-score-history', session.patientId, days, sessionGeneration],
+    queryFn: async ({signal}) => {
+      assertPatientSession(session);
+      if (!session.patientId) throw new Error('User not authenticated');
+      const response = await apiClient.get<RiskHistoryItem[]>(
+        `/patients/${session.patientId}/history`, undefined, {patientSession: session, signal},
       );
+      assertPatientSession(session);
+      if (!Array.isArray(response.data)) throw new Error('History response was not a list.');
+      // Current backend rows have no owner field; the authenticated scoped URL
+      // and session guard bind them. Reject contradictory ownership if supplied.
+      if (response.data.some(row => row && typeof row === 'object' &&
+        'patient_id' in row && row.patient_id !== session.patientId)) {
+        throw new Error('History response did not match the signed-in patient.');
+      }
       return response.data;
     },
-    enabled: isAuthenticated && !!user?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: active,
+    staleTime: 5 * 60 * 1000,
+  });
+  return {...query, data: active ? query.data : undefined};
+}
+
+interface NetworkSubscription {
+  users: number;
+  online: boolean;
+  unsubscribe: () => void;
+  sync: {session: PatientSession; promise: Promise<void>} | null;
+}
+
+const networkSubscriptions = new WeakMap<QueryClient, NetworkSubscription>();
+
+export function syncPatientAfterReconnect(client: QueryClient): Promise<void> {
+  const session = getPatientSession();
+  if (!session.patientId) return Promise.resolve();
+  const subscription = networkSubscriptions.get(client);
+  if (subscription?.sync && isPatientSessionCurrent(subscription.sync.session)) {
+    return subscription.sync.promise;
+  }
+  const promise = (async () => {
+    try {
+      await flushSymptomQueue(session);
+    } finally {
+      // Refresh even after a partial flush failure, but never under a new owner.
+      if (isPatientSessionCurrent(session)) {
+        await Promise.all([
+          client.invalidateQueries({queryKey: ['risk-score', session.patientId]}),
+          client.invalidateQueries({queryKey: ['risk-score-history', session.patientId]}),
+        ]);
+      }
+    }
+  })().finally(() => {
+    if (subscription?.sync?.promise === promise) subscription.sync = null;
+  });
+  if (subscription) subscription.sync = {session, promise};
+  return promise;
+}
+
+function startNetworkSync(client: QueryClient): void {
+  const session = getPatientSession();
+  void syncPatientAfterReconnect(client).catch(error => {
+    if (session.patientId && isPatientSessionCurrent(session)) {
+      useAuthStore.getState().setError(error instanceof Error ? error.message :
+        'Pending reports could not be synced. They remain saved locally.');
+    }
   });
 }
 
-// Hook to listen for network changes and sync
 export function useNetworkSync() {
-  const queryClient = useQueryClient();
+  const client = useQueryClient();
+  const generation = useAuthStore(state => state.sessionGeneration);
 
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      if (state.isConnected) {
-        // When network is restored, refetch all queries
-        queryClient.refetchQueries({queryKey: ['risk-score']});
-        queryClient.refetchQueries({queryKey: ['risk-score-history']});
+    let subscription = networkSubscriptions.get(client);
+    if (!subscription) {
+      const entry: NetworkSubscription = {
+        users: 0, online: false, unsubscribe: () => {}, sync: null,
+      };
+      networkSubscriptions.set(client, entry);
+      entry.unsubscribe = NetInfo.addEventListener(state => {
+        const online = state.isConnected === true && state.isInternetReachable !== false;
+        const restored = online && !entry.online;
+        entry.online = online;
+        if (restored) startNetworkSync(client);
+      });
+      subscription = entry;
+    }
+    const activeSubscription = subscription;
+    ++activeSubscription.users;
+    return () => {
+      if (--activeSubscription.users === 0) {
+        activeSubscription.unsubscribe();
+        networkSubscriptions.delete(client);
       }
-    });
+    };
+  }, [client]);
 
-    return () => unsubscribe();
-  }, [queryClient]);
+  useEffect(() => {
+    if (networkSubscriptions.get(client)?.online) startNetworkSync(client);
+  }, [client, generation]);
 }

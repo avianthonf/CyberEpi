@@ -1,17 +1,139 @@
-# CyberEpi Complete Changes Documentation - FINAL
+# CyberEpi Implementation Changes
 
-**Date:** 2026-08-20  
-**Total Duration:** 95 minutes  
-**Status:** ✅ ALL 30 TASKS COMPLETED + CRITICAL SECURITY FIX
-
-## Overview
-
-This document comprehensively details every change made to fix all discovered issues in the CyberEpi system. All 30 tasks from the original todo list have been completed and verified, plus one additional critical security vulnerability discovered during final audit.
+This document tracks significant implementation changes across development sessions.
 
 ---
 
-## CRITICAL SECURITY FIX (Added During Final Audit)
+## Live demonstration: Expo asset bundling repair
 
+- Running the actual Android bundle exposed `getImageSize is not a function`:
+  the global `image-size` 2.x override was incompatible with Metro 0.80's callable
+  CommonJS API. Changed only that override to `^1.2.1` and updated the lockfile
+  with `npm install --offline --ignore-scripts --no-audit --no-fund`, using cached
+  packages and leaving the other dependency overrides intact.
+- The previously failing asset path then bundled successfully. Full non-lazy
+  Android and iOS JavaScript bundles returned HTTP 200; 87 Jest tests and
+  TypeScript checking passed after the change.
+- This is bundle-generation proof, not a rendered native-device result. No device
+  was attached, and the web launch was blocked by absent SDK-compatible web
+  dependencies. No provider calls or package downloads were made.
+
+## 2026-10-18: Independent local portfolio audit
+
+- Confirmed six application services, 12 runtime images and one completed Kafka
+  initializer; retained the local Podman target and the user's privacy/security work.
+- Fixed database connection-failure handling and exercised recovery with the real
+  stack. Configured Keycloak JDBC background validation; immediate recovery is not
+  guaranteed. An initial patient login failed after PostgreSQL restart, then login
+  and the existing patient lookup succeeded.
+- Aligned client risk thresholds with the backend, corrected notification JSON
+  read/unread updates, and corrected finite-score accounting in the standalone
+  backtest. Added meaningful regressions and removed shallow tests rather than
+  preserving inflated totals.
+- Made medical-provider lookups explicitly opt-in and documented harness mutations,
+  synthetic data, risk-score observation proxies, heuristic Rt bounds, and the
+  single-process/incomplete-upload FL limitation.
+- Final verification: 442 distinct Python tests (428 default + 10 additional Epi
+  integration + four backtest regressions), 87 Jest tests, TypeScript, and targeted
+  Ruff passed. Whole-repository Ruff still reports 57 legacy findings outside the
+  clean target; no lint rules were weakened. The 10 opt-in tests contain two real
+  PostgreSQL/Redis tests and eight infrastructure-mocked tests.
+- Live offline workflow: 54/54 exercised checks passed, two provider skips; negative
+  checks and all six health/metrics probes passed. Real app/Expo SDK HTTP smoke used
+  native-boundary shims, not a rendered device. No provider delivery was claimed.
+- Current measured capacity and reproducible commands are in
+  [DEPLOYMENT.md](DEPLOYMENT.md#measured-local-capacity-2026-10-18); the complete
+  acceptance/evidence/demo record is in [PORTFOLIO.md](PORTFOLIO.md).
+- A delegated final pass also made nonessential Python lint/style changes, including
+  scientific scripts. These were reviewed for regressions; they are not features
+  or evidence of model accuracy.
+
+## Prior implementation report (retained; superseded by the independent audit)
+
+- Made `docker-compose.prod.yml` authoritative for all six application
+  services, PostgreSQL/TimescaleDB, Redis, Kafka/Zookeeper, Keycloak, and Kong
+  on the existing Linux arm64 host. Published ports bind to loopback.
+  Historical cloud, Kubernetes, Helm, and monitoring plans are not requirements
+  for this target; no additional hosting was provisioned.
+- Unified Makefile targets around an explicit environment file and Compose
+  project. Startup builds and force-recreates containers so Podman Compose
+  does not silently retain an older image. All six service images use one
+  worker; Compose explicitly defines their healthchecks because Podman OCI
+  image builds ignore Dockerfile HEALTHCHECK instructions.
+- Measured the current 12-image runtime at 5.46 GiB of deduplicated image
+  layers and approximately 2.49 GiB healthy idle memory on the arm64 host.
+  Configured one Kong worker to avoid a Lua runtime per host CPU; verified
+  gateway routing and authorization after the reduction. Capacity guidance
+  distinguishes these measurements from unvalidated peak/minimum requirements.
+- Verified all ten opt-in epi-engine integration tests through Podman's API
+  socket, including real PostgreSQL/Redis forecast/cache tests. Fixed fixture
+  isolation by patching the existing app's lifespan rather than rebuilding
+  its routes; real-container tests no longer inherit the unit-suite Redis
+  mock. The combined epi-engine suite passed all 68 tests.
+- Replaced deployment preparation with private credential generation that
+  refuses to overwrite existing files. Removed obsolete host-virtualenv
+  image/bootstrap duplication and the superseded PowerShell preparation path.
+  Database bootstrap creates extensions and Keycloak's database; service
+  metadata and Alembic own application tables.
+- Preserved the user's atomic privacy-budget upsert and gradient validation,
+  identity, and duplicate-submission protections. Added a Python insertion
+  timestamp default and PostgreSQL-backed completed FL updates. Uploads and
+  aggregation share a round lock; completed round IDs survive restart.
+  Incomplete uploads remain in memory and require one worker/container.
+- Corrected privacy Alembic configuration and asyncpg startup. Added the
+  missing spatial-state column migration, with historical population
+  backfill, and corrected the existing deterioration heuristic path when
+  optional ML dependencies are absent.
+- Made shared health probes actively fetch Kafka metadata and bound database
+  connection acquisition as well as query execution.
+- Fixed patient-app API response envelopes and push-token payloads. Device
+  registration now obtains native FCM/APNs tokens, not Expo relay tokens.
+  Corrected OAuth client/redirect configuration, RFC 7636 verifier length
+  and base64url S256 encoding, central single-flight refresh, API 401 retry,
+  matching Expo AuthRequest/verifier state, and permanent-failure logout.
+  Logout now uses RFC 7009 revocation fields; real Keycloak checks confirmed
+  that the previous refresh token cannot be used afterward.
+- Added authenticated `/api/v1/patients/me` before the dynamic UUID route so
+  the app resolves Keycloak subject to its distinct local patient UUID.
+  Duplicate public registration returns 409 without disclosing identifiers;
+  public registration cannot grant staff roles.
+- Preserved the original `issues.md` observations and appended evidence-based
+  dispositions for all eleven. Risk calculation is synchronous, and null
+  risk before three reports is expected; the actual client envelope defect
+  was fixed. `seed-data.py` seeds regional parameters, not user identities.
+
+### Observed verification
+
+- Built and started the canonical Makefile stack from empty disposable
+  volumes. All six health/metrics probes passed.
+- Full-stack HTTP harness: 52/52 exercised checks passed; external push
+  delivery explicitly skipped. Negative authorization checks passed.
+- Actual TypeScript app services, with native boundaries shimmed, passed
+  Keycloak authorization-code login, local profile resolution, three-report
+  numeric risk, native token registration, concurrent 401 refresh/retry,
+  and failed-refresh token/state cleanup through the real gateway.
+- Fifty simultaneous first-use DP requests recorded consumption of 5.0
+  without failures; exhaustion returned 403. FL duplicate/closed-round and
+  simultaneous-trigger checks passed, including exact model retrieval after
+  restart. Redis, Kafka, and PostgreSQL outages produced 503 and recovered
+  to 200. Historical PostgreSQL migration and safe host-shutdown smoke passed.
+- TypeScript compilation and the Python service/library suites passed.
+  Patient Jest passed all 85 meaningful tests across six suites.
+
+External FCM/APNs delivery and visual native-device UI were not exercised;
+they require real provider credentials, a device token, and a supported
+device/runtime. No commit, push, or production deployment was performed.
+
+---
+
+
+## 2026-08-20: Initial Implementation Session
+
+**Date:** 2026-08-20
+**Total Duration:** 95 minutes
+**Status:** ✅ ALL 30 TASKS COMPLETED + CRITICAL SECURITY FIX
+
+---
 ### Privacy Service Authentication Bypass ✅
 
 **Problem:** Hardcoded mock authentication in privacy-service endpoints bypassed JWT validation.

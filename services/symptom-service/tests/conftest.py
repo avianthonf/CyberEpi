@@ -55,13 +55,18 @@ def mock_redis():
 
 @pytest.fixture
 def mock_kafka_producer():
-    """Stand-in for AIOKafkaProducer that satisfies the health probe.
+    """Stand-in for AIOKafkaProducer that satisfies active metadata health probe.
 
-    The probe does `client.cluster.brokers()` (sync iteration). Using an
-    AsyncMock here would auto-create coroutine-returning children. So we
-    hand-build a plain object with MagicMock attributes instead.
+    Health probe calls client.fetch_all_metadata() which returns ClusterMetadata.
     """
     from types import SimpleNamespace
-    client = SimpleNamespace(_closed=False, cluster=SimpleNamespace(brokers=lambda: [("127.0.0.1", 9092)]))
+    from unittest.mock import AsyncMock
+
+    # Mock ClusterMetadata with brokers
+    metadata = SimpleNamespace(brokers=lambda: [("127.0.0.1", 9092)])
+
+    # Mock client with fetch_all_metadata returning metadata
+    client = SimpleNamespace(_closed=False, fetch_all_metadata=AsyncMock(return_value=metadata))
+
     producer = SimpleNamespace(_client=client)
     return producer

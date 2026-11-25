@@ -79,19 +79,13 @@ export class NotificationService {
         });
       }
 
-      const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
-      if (!projectId) {
-        throw new Error('EXPO_PUBLIC_PROJECT_ID is not configured');
+      // The backend delivers through FCM/APNs directly, not Expo's relay.
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      if (typeof deviceToken.data !== 'string') {
+        throw new Error('Unsupported native push token format');
       }
-
-      const token = (
-        await Notifications.getExpoPushTokenAsync({
-          projectId,
-        })
-      ).data;
-
-      this.pushToken = token;
-      return token;
+      this.pushToken = deviceToken.data;
+      return deviceToken.data;
     } catch (error) {
       console.error('Failed to get push token:', error);
       return null;
@@ -107,11 +101,30 @@ export class NotificationService {
       }
 
       await apiClient.post(`/patients/${userId}/push_token`, {
-        push_token: token,
+        token: token,
         platform: Platform.OS,
       });
     } catch (error) {
       console.error('Failed to register push token:', error);
+      throw error;
+    }
+  }
+
+  // Deregister push token from backend - called during logout to prevent
+  // cross-patient notification delivery when the device switches accounts.
+  async deregisterPushToken(): Promise<void> {
+    try {
+      const token = this.pushToken;
+      if (!token) {
+        // No token to deregister
+        return;
+      }
+      await apiClient.delete(`/patients/me/push_token`, {
+        token,
+        platform: Platform.OS,
+      });
+    } catch (error) {
+      console.error('Failed to deregister push token:', error);
       throw error;
     }
   }
@@ -258,13 +271,18 @@ export class NotificationService {
 export const notificationService = NotificationService.getInstance();
 
 // Setup function to be called on app start
-export async function setupNotifications(): Promise<void> {
+export async function setupNotifications(userId?: string): Promise<void> {
   try {
     // Initialize listeners
     notificationService.initializeListeners();
 
     // Get and store push token
     await notificationService.getPushToken();
+
+    // Register with backend if authenticated
+    if (userId) {
+      await notificationService.registerPushToken(userId);
+    }
 
     console.log('Notifications initialized successfully');
   } catch (error) {

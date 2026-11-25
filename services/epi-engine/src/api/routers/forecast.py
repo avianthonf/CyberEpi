@@ -48,25 +48,36 @@ async def get_region_forecast(
 
     # Deterministic hash of parameters
     param_dict = {
-        k: v for k, v in epi_params.__dict__.items()
-        if not k.startswith('_') and k not in ['id', 'updated_at', 'source']
+        k: v for k, v in epi_params.__dict__.items() if not k.startswith("_") and k not in ["id", "updated_at", "source"]
     }
     params_hash = hashlib.sha256(json.dumps(param_dict, sort_keys=True).encode()).hexdigest()
 
-    # 2. Check Redis cache
+    # 2. Get Redis client and load current filter state timestamp for cache versioning
     redis = request.app.state.redis
-    cache_key = f"forecast:{id}:{horizon_days}:{params_hash}"
+    state_key = f"filter_state:{id}"
+    state_version = "bootstrap"
+    try:
+        state_raw = await redis.get(state_key)
+        if state_raw:
+            state_data = json.loads(state_raw)
+            state_version = state_data.get("updated_at", "bootstrap")
+    except (aioredis.RedisError, json.JSONDecodeError):
+        pass
+
+    # 3. Check Redis cache with state version
+    cache_key = f"forecast:{id}:{horizon_days}:{params_hash}:{state_version}"
 
     cached = await _cache_get(redis, cache_key)
     if cached:
         return json.loads(cached)
 
-    # 3. Check DB cache
+    # 4. Check DB cache with state version
     db_cache_result = await db.execute(
         select(ForecastCache).where(
             ForecastCache.region_id == id,
             ForecastCache.horizon_days == horizon_days,
-            ForecastCache.params_hash == params_hash
+            ForecastCache.params_hash == params_hash,
+            ForecastCache.state_version == state_version,
         )
     )
     db_cache = db_cache_result.scalar_one_or_none()
@@ -77,7 +88,7 @@ async def get_region_forecast(
             generated_at=db_cache.generated_at,
             horizon_days=horizon_days,
             trajectory=db_cache.trajectory,
-            params_hash=params_hash
+            params_hash=params_hash,
         ).model_dump_json()
         await _cache_set(redis, cache_key, 3600, resp_data)
         return json.loads(resp_data)
@@ -85,17 +96,20 @@ async def get_region_forecast(
     # 4. Run the forecast. Inline mode awaits directly in the request loop
     # (no Celery worker required). Celery mode dispatches and returns 202.
     from src.config import settings
+
     if settings.run_forecast_inline:
         await _run_forecast_logic(id, horizon_days)
     else:
         _forecast_task.delay(id, horizon_days)
 
     # Re-check the DB cache — the inline task writes it synchronously.
+    # Re-check the DB cache with state version — the inline task writes it synchronously.
     db_cache_result = await db.execute(
         select(ForecastCache).where(
             ForecastCache.region_id == id,
             ForecastCache.horizon_days == horizon_days,
-            ForecastCache.params_hash == params_hash
+            ForecastCache.params_hash == params_hash,
+            ForecastCache.state_version == state_version,
         )
     )
     db_cache = db_cache_result.scalar_one_or_none()
@@ -105,7 +119,7 @@ async def get_region_forecast(
             generated_at=db_cache.generated_at,
             horizon_days=horizon_days,
             trajectory=db_cache.trajectory,
-            params_hash=params_hash
+            params_hash=params_hash,
         ).model_dump_json()
         await _cache_set(redis, cache_key, 3600, resp_data)
         return json.loads(resp_data)

@@ -1,10 +1,35 @@
 """CyberEpi end-to-end verification harness.
 
-Tests every service endpoint from first principles, using real Keycloak tokens
-and live Kafka/Redis/Postgres backends. Exits 0 only when every step succeeds.
+Exercises the main workflows of all six services using real Keycloak tokens
+and live Kafka/Redis/Postgres backends.
+
+SYNTHETIC DATA: All created users, symptoms, prescriptions, notifications, and
+epidemiological records are synthetic demo data for verification only.
+
+DATA MUTATIONS: This harness creates the following in the target stack:
+- User accounts with Keycloak authentication (1 primary + N federated learning clients)
+- Physician role grant via Keycloak admin API
+- Epidemiological region parameters (PUT /api/v1/regions/{region}/params)
+- Symptom reports and risk assessments
+- Prescriptions (local CRUD operations)
+- Notifications and push device token registrations
+- Differential privacy operations (Gaussian noise, publish)
+- Federated learning gradient uploads and model aggregation rounds
+
+EXTERNAL API CALLS: By default, third-party API calls are skipped when credentials
+or opt-in flags are absent:
+- Medication validation (FDA/RxNorm): requires --include-external-lookups flag
+- Push notification delivery: requires VERIFY_PUSH_TOKEN environment variable
+
+Use --include-external-lookups to enable FDA/RxNorm medication validation.
+Set VERIFY_PUSH_TOKEN to a valid device token for real push delivery testing.
 """
+
 from __future__ import annotations
 
+import argparse
+import math
+import os
 import random
 import string
 import sys
@@ -13,22 +38,31 @@ import time
 import requests
 
 # ---------- config ----------
-KC_URL = "http://127.0.0.1:8080"
-REALM = "cyberepi"
+KC_URL = os.environ.get("KEYCLOAK_URL", "http://127.0.0.1:8080").rstrip("/")
+REALM = os.environ.get("KEYCLOAK_REALM", "cyberepi")
 ADMIN_TOKEN_URL = f"{KC_URL}/realms/master/protocol/openid-connect/token"
 USER_TOKEN_URL = f"{KC_URL}/realms/{REALM}/protocol/openid-connect/token"
+SERVICE_PORT_OFFSET = int(os.environ.get("SERVICE_PORT_OFFSET", "0"))
+GATEWAY_URL = os.environ.get("GATEWAY_URL", f"http://127.0.0.1:{8000 + SERVICE_PORT_OFFSET}").rstrip("/")
 SERVICES = {
-    "user": "http://127.0.0.1:8001",
-    "symptom": "http://127.0.0.1:8002",
-    "prescription": "http://127.0.0.1:8003",
-    "notification": "http://127.0.0.1:8004",
-    "epi": "http://127.0.0.1:8005",
-    "privacy": "http://127.0.0.1:8006",
+    name: os.environ.get(environment_variable, f"http://127.0.0.1:{port + SERVICE_PORT_OFFSET}").rstrip("/")
+    for name, environment_variable, port in (
+        ("user", "USER_SERVICE_URL", 8001),
+        ("symptom", "SYMPTOM_SERVICE_URL", 8002),
+        ("prescription", "PRESCRIPTION_SERVICE_URL", 8003),
+        ("notification", "NOTIFICATION_SERVICE_URL", 8004),
+        ("epi", "EPI_ENGINE_URL", 8005),
+        ("privacy", "PRIVACY_SERVICE_URL", 8006),
+    )
 }
-TEST_USER_PASSWORD = "password123!"
+TEST_USER_PASSWORD = os.environ.get("VERIFY_USER_PASSWORD", "password123!")
 EPI_REGION = "region-verify"
+# Authoritative backend risk tier enum from services/symptom-service/src/services/risk.py
+VALID_RISK_TIERS = ("urgent", "consult", "moderate", "low")
 
 results: list[tuple[str, str, bool, str]] = []
+skipped_checks: list[str] = []
+verification_push_token = os.environ.get("VERIFY_PUSH_TOKEN")
 
 
 def step(name: str, ok: bool, detail: str = "") -> None:
@@ -53,8 +87,8 @@ def get_admin_token() -> str:
         data={
             "grant_type": "password",
             "client_id": "admin-cli",
-            "username": "admin",
-            "password": "admin",
+            "username": os.environ.get("KEYCLOAK_ADMIN", "admin"),
+            "password": os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin"),
         },
         timeout=10,
     )
@@ -145,8 +179,35 @@ def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="CyberEpi end-to-end verification harness",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Environment variables:
+  KEYCLOAK_URL          Keycloak base URL (default: http://127.0.0.1:8080)
+  KEYCLOAK_REALM        Realm name (default: cyberepi)
+  SERVICE_PORT_OFFSET   Add offset to default service ports (default: 0)
+  VERIFY_USER_PASSWORD  Test user password (default: password123!)
+  VERIFY_PUSH_TOKEN     Real device token for push delivery (optional, independent of --include-external-lookups)
+  VERIFY_PUSH_PLATFORM  Push platform: android/ios (default: android)
+
+Data mutations: This harness creates synthetic demo data including users,
+prescriptions, notifications, and federated learning rounds.
+        """,
+    )
+    parser.add_argument(
+        "--include-external-lookups",
+        action="store_true",
+        help="Enable third-party API calls (FDA medication validation, RxNorm lookups). "
+        "Default: skip external lookups for local-first/demo environments.",
+    )
+    args = parser.parse_args(argv)
+    include_external = args.include_external_lookups
+
     print("CyberEpi verification harness starting...")
+    if not include_external:
+        print("  [INFO] External lookups disabled (use --include-external-lookups to enable)")
 
     # 1. Health checks
     hr("Health checks")
@@ -187,9 +248,56 @@ def main() -> int:
     except Exception as e:
         step("grant-physician", False, str(e)[:200])
     auth = auth_headers(user_token)
+    region = EPI_REGION
+    try:
+        r = requests.put(
+            f"{SERVICES['epi']}/api/v1/regions/{region}/params",
+            headers=auth,
+            json={
+                "region_id": region,
+                "N_pop": 1000000,
+                "beta": 0.4,
+                "gamma": 0.1,
+                "sigma": 0.2,
+                "mu": 0.05,
+                "alpha": 0.1,
+                "delta": 0.05,
+                "rho": 0.5,
+                "gamma_A": 0.1,
+                "gamma_M": 0.1,
+                "gamma_S": 0.1,
+                "gamma_H": 0.05,
+                "gamma_ICU": 0.02,
+                "h_rate": 0.05,
+                "mu_icu": 0.05,
+                "papp": 0.4,
+                "fA": 0.3,
+                "fM": 0.4,
+                "fS": 0.3,
+                "source": "manual_override",
+            },
+            timeout=30,
+        )
+        svc_step("epi", "PUT region params", r.status_code in (200, 201), f"HTTP {r.status_code} {r.text[:140]}")
+    except Exception as e:
+        svc_step("epi", "PUT region params", False, str(e)[:120])
 
     # ---- user-service ----
     hr("user-service")
+    try:
+        r = requests.get(f"{SERVICES['user']}/api/v1/patients/me", headers=auth, timeout=5)
+        resolved_ok = r.status_code == 200
+        resolved_id = r.json().get("id") if resolved_ok else None
+        matches = resolved_id == patient_id if resolved_id else False
+        svc_step(
+            "user",
+            "GET patients/me",
+            resolved_ok and matches,
+            f"HTTP {r.status_code} resolved_id={resolved_id} matches={matches}",
+        )
+    except Exception as e:
+        svc_step("user", "GET patients/me", False, str(e)[:120])
+
     try:
         r = requests.get(f"{SERVICES['user']}/api/v1/patients/{patient_id}", headers=auth, timeout=5)
         svc_step("user", "GET patient", r.status_code == 200, f"HTTP {r.status_code}")
@@ -211,7 +319,10 @@ def main() -> int:
         r = requests.post(
             f"{SERVICES['user']}/api/v1/patients/{patient_id}/push_token",
             headers=auth,
-            json={"token": "fake-fcm-token-abc", "platform": "android"},
+            json={
+                "token": verification_push_token or "verification-registration-only",
+                "platform": os.environ.get("VERIFY_PUSH_PLATFORM", "android"),
+            },
             timeout=5,
         )
         svc_step("user", "POST push_token", r.status_code in (200, 201), f"HTTP {r.status_code}")
@@ -226,39 +337,95 @@ def main() -> int:
 
     # ---- symptom-service ----
     hr("symptom-service")
-    try:
-        r = requests.post(
-            f"{SERVICES['symptom']}/api/v1/symptoms",
-            headers=auth,
-            json={
+    # Submit three clearly synthetic symptom reports to demonstrate full risk workflow
+    synthetic_reports = [
+        {
+            "symptoms": ["fever", "cough"],
+            "temperature": 37.8,
+            "heart_rate": 85,
+            "spo2": 98.0,
+            "systolic_bp": 118,
+            "diastolic_bp": 78,
+            "note": "mild synthetic case",
+        },
+        {
+            "symptoms": ["fever", "cough", "fatigue", "shortness_of_breath"],
+            "temperature": 38.9,
+            "heart_rate": 102,
+            "spo2": 94.0,
+            "systolic_bp": 125,
+            "diastolic_bp": 82,
+            "note": "moderate synthetic case",
+        },
+        {
+            "symptoms": ["fever", "cough", "fatigue", "shortness_of_breath", "chest_pain"],
+            "temperature": 39.4,
+            "heart_rate": 115,
+            "spo2": 91.0,
+            "systolic_bp": 135,
+            "diastolic_bp": 88,
+            "note": "severe synthetic case",
+        },
+    ]
+
+    for i, report_data in enumerate(synthetic_reports, start=1):
+        try:
+            payload = {
                 "patient_id": patient_id,
-                "symptoms": ["fever", "cough", "fatigue"],
-                "temperature": 38.5,
-                "heart_rate": 95,
-                "spo2": 96.0,
-                "systolic_bp": 120,
-                "diastolic_bp": 80,
                 "region_id": EPI_REGION,
-            },
-            timeout=10,
-        )
-        ok = r.status_code in (200, 201)
-        svc_step("symptom", "POST symptoms", ok, f"HTTP {r.status_code} body={r.text[:140]}")
-    except Exception as e:
-        svc_step("symptom", "POST symptoms", False, str(e)[:120])
+                **report_data,
+            }
+            r = requests.post(
+                f"{SERVICES['symptom']}/api/v1/symptoms",
+                headers=auth,
+                json=payload,
+                timeout=10,
+            )
+            ok = r.status_code in (200, 201)
+            response_risk_score = None
+            response_risk_tier = None
+            response_report_count = None
+            if ok:
+                try:
+                    body = r.json()
+                    response_risk_score = body.get("risk_score")
+                    response_risk_tier = body.get("risk_tier")
+                    response_report_count = body.get("report_count")
+                except Exception:
+                    pass
+            detail = f"HTTP {r.status_code} {report_data['note']}"
+            if i == len(synthetic_reports) and ok:
+                # Validate numeric risk on final report (POST symptoms returns risk_tier and report_count)
+                score_finite = isinstance(response_risk_score, (int, float)) and math.isfinite(response_risk_score)
+                tier_valid = isinstance(response_risk_tier, str) and response_risk_tier in VALID_RISK_TIERS
+                count_valid = isinstance(response_report_count, int) and response_report_count == len(synthetic_reports)
+                ok = ok and score_finite and tier_valid and count_valid
+                detail = (
+                    f"HTTP {r.status_code} score={response_risk_score} tier={response_risk_tier} count={response_report_count}"
+                )
+            svc_step("symptom", f"POST symptoms#{i}", ok, detail)
+        except Exception as e:
+            svc_step("symptom", f"POST symptoms#{i}", False, str(e)[:120])
 
     try:
-        r = requests.get(f"{SERVICES['symptom']}/api/v1/patients/{patient_id}/history", headers=auth, timeout=5)
+        r = requests.get(f"{GATEWAY_URL}/api/v1/patients/{patient_id}/history", headers=auth, timeout=5)
         ok = r.status_code == 200
-        try:
-            j = r.json()
-            items = j.get("items") if isinstance(j, dict) else j
-            count = len(items) if isinstance(items, list) else "n/a"
-        except Exception:
-            count = "?"
-        svc_step("symptom", "GET history", ok, f"HTTP {r.status_code} count={count}")
+        history_items = []
+        if ok:
+            try:
+                history_items = r.json()
+                # Fresh patient: expect exactly the three synthetic reports.
+                ok = isinstance(history_items, list) and len(history_items) == len(synthetic_reports)
+            except Exception:
+                ok = False
+        svc_step(
+            "symptom",
+            "GET history through gateway",
+            ok,
+            f"HTTP {r.status_code} count={len(history_items)} expected={len(synthetic_reports)}",
+        )
     except Exception as e:
-        svc_step("symptom", "GET history", False, str(e)[:120])
+        svc_step("symptom", "GET history through gateway", False, str(e)[:120])
 
     try:
         r = requests.post(
@@ -289,7 +456,26 @@ def main() -> int:
 
     try:
         r = requests.get(f"{SERVICES['symptom']}/v1/risk/score/{patient_id}", headers=auth, timeout=10)
-        svc_step("symptom", "GET risk/score", r.status_code == 200, f"HTTP {r.status_code} {r.text[:120]}")
+        ok = r.status_code == 200
+        risk_score = None
+        tier = None
+        if ok:
+            try:
+                body = r.json()
+                risk_score = body.get("risk_score")
+                tier = body.get("tier")
+                # Verify risk_score is finite numeric (not NaN, not Inf) using math.isfinite
+                score_valid = isinstance(risk_score, (int, float)) and math.isfinite(risk_score)
+                tier_valid = isinstance(tier, str) and tier in VALID_RISK_TIERS
+                ok = score_valid and tier_valid
+            except Exception:
+                ok = False
+        svc_step(
+            "symptom",
+            "GET risk/score",
+            ok,
+            f"HTTP {r.status_code} score={risk_score} tier={tier}",
+        )
     except Exception as e:
         svc_step("symptom", "GET risk/score", False, str(e)[:120])
 
@@ -341,20 +527,31 @@ def main() -> int:
         r = requests.get(f"{SERVICES['prescription']}/api/v1/patients/{patient_id}/prescriptions", headers=auth, timeout=5)
         ok = r.status_code == 200
         items = r.json() if ok else []
-        svc_step("prescription", "GET patient prescriptions", ok, f"HTTP {r.status_code} count={len(items) if isinstance(items, list) else 'n/a'}")
+        svc_step(
+            "prescription",
+            "GET patient prescriptions",
+            ok,
+            f"HTTP {r.status_code} count={len(items) if isinstance(items, list) else 'n/a'}",
+        )
     except Exception as e:
         svc_step("prescription", "GET patient prescriptions", False, str(e)[:120])
 
-    try:
-        r = requests.post(
-            f"{SERVICES['prescription']}/api/v1/medications/scan",
-            headers=auth,
-            json={"ocr_text": "Acetaminophen 500 mg tablet", "patient_id": patient_id},
-            timeout=15,
+    if include_external:
+        try:
+            r = requests.post(
+                f"{SERVICES['prescription']}/api/v1/medications/scan",
+                headers=auth,
+                json={"ocr_text": "Acetaminophen 500 mg tablet", "patient_id": patient_id},
+                timeout=15,
+            )
+            svc_step("prescription", "POST medications/scan", r.status_code == 200, f"HTTP {r.status_code} {r.text[:160]}")
+        except Exception as e:
+            svc_step("prescription", "POST medications/scan", False, str(e)[:120])
+    else:
+        skipped_checks.append(
+            "External medication lookup (POST /api/v1/medications/scan): requires --include-external-lookups flag and FDA/RxNorm API access"
         )
-        svc_step("prescription", "POST medications/scan", r.status_code == 200, f"HTTP {r.status_code} {r.text[:160]}")
-    except Exception as e:
-        svc_step("prescription", "POST medications/scan", False, str(e)[:120])
+        print("  [SKIP] Prescription medication scan (external lookup disabled, local CRUD verified)")
 
     # ---- notification-service ----
     hr("notification-service")
@@ -395,25 +592,38 @@ def main() -> int:
         r = requests.get(f"{SERVICES['notification']}/api/v1/notifications", headers=auth, timeout=5)
         ok = r.status_code == 200
         items = r.json() if ok else []
-        svc_step("notification", "GET notifications", ok, f"HTTP {r.status_code} count={len(items) if isinstance(items, list) else 'n/a'}")
+        svc_step(
+            "notification",
+            "GET notifications",
+            ok,
+            f"HTTP {r.status_code} count={len(items) if isinstance(items, list) else 'n/a'}",
+        )
     except Exception as e:
         svc_step("notification", "GET notifications", False, str(e)[:120])
 
-    try:
-        r = requests.post(
-            f"{SERVICES['notification']}/api/v1/notifications/send",
-            headers=auth,
-            json={
-                "patient_id": patient_id,
-                "title": "Alert",
-                "body": "Risk score increased.",
-                "data": {"risk_score": 0.8},
-            },
-            timeout=10,
+    if verification_push_token:
+        try:
+            r = requests.post(
+                f"{SERVICES['notification']}/api/v1/notifications/send",
+                headers=auth,
+                json={
+                    "patient_id": patient_id,
+                    "title": "Alert",
+                    "body": "Risk score increased.",
+                    "data": {"risk_score": 0.8},
+                },
+                timeout=10,
+            )
+            svc_step(
+                "notification", "POST notifications/send", r.status_code in (200, 202), f"HTTP {r.status_code} {r.text[:140]}"
+            )
+        except Exception as e:
+            svc_step("notification", "POST notifications/send", False, str(e)[:120])
+    else:
+        skipped_checks.append(
+            "External push delivery: set VERIFY_PUSH_TOKEN to a real device token and configure the matching provider."
         )
-        svc_step("notification", "POST notifications/send", r.status_code in (200, 202), f"HTTP {r.status_code} {r.text[:140]}")
-    except Exception as e:
-        svc_step("notification", "POST notifications/send", False, str(e)[:120])
+        print(f"  [SKIP] {skipped_checks[-1]}")
 
     try:
         with requests.get(
@@ -431,26 +641,6 @@ def main() -> int:
 
     # ---- epi-engine ----
     hr("epi-engine")
-    region = EPI_REGION
-    try:
-        r = requests.put(
-            f"{SERVICES['epi']}/api/v1/regions/{region}/params",
-            headers=auth,
-            json={
-                "region_id": region,
-                "N_pop": 1000000,
-                "beta": 0.4, "gamma": 0.1, "sigma": 0.2, "mu": 0.05,
-                "alpha": 0.1, "delta": 0.05, "rho": 0.5,
-                "gamma_A": 0.1, "gamma_M": 0.1, "gamma_S": 0.1, "gamma_H": 0.05, "gamma_ICU": 0.02,
-                "h_rate": 0.05, "mu_icu": 0.05,
-                "papp": 0.4, "fA": 0.3, "fM": 0.4, "fS": 0.3,
-                "source": "manual_override",
-            },
-            timeout=30,
-        )
-        svc_step("epi", "PUT region params", r.status_code in (200, 201), f"HTTP {r.status_code} {r.text[:140]}")
-    except Exception as e:
-        svc_step("epi", "PUT region params", False, str(e)[:120])
 
     try:
         r = requests.get(f"{SERVICES['epi']}/api/v1/regions/{region}/params", headers=auth, timeout=5)
@@ -459,20 +649,69 @@ def main() -> int:
         svc_step("epi", "GET region params", False, str(e)[:120])
 
     try:
-        r = requests.get(f"{SERVICES['epi']}/api/v1/regions/{region}/forecast", headers=auth, params={"horizon": 14}, timeout=30)
-        svc_step("epi", "GET region forecast", r.status_code == 200, f"HTTP {r.status_code} {r.text[:160]}")
+        r = requests.get(
+            f"{SERVICES['epi']}/api/v1/regions/{region}/forecast", headers=auth, params={"horizon_days": 7}, timeout=30
+        )
+        forecast = r.json() if r.status_code == 200 else {}
+        trajectory = forecast.get("trajectory", {})
+        forecast_valid = (
+            forecast.get("region_id") == region
+            and forecast.get("horizon_days") == 7
+            and trajectory.get("t", [None])[-1] == 7
+            and all(
+                len(trajectory.get(compartment, [])) == len(trajectory.get("t", []))
+                and all(
+                    isinstance(value, (int, float)) and math.isfinite(value) and value >= 0 for value in trajectory[compartment]
+                )
+                for compartment in ("S", "E", "IA", "IM", "IS", "H", "ICU", "R", "D")
+            )
+        )
+        svc_step("epi", "GET region forecast", forecast_valid, f"HTTP {r.status_code} {r.text[:160]}")
     except Exception as e:
         svc_step("epi", "GET region forecast", False, str(e)[:120])
 
     try:
-        r = requests.get(f"{SERVICES['epi']}/api/v1/regions/{region}/state", headers=auth, timeout=5)
-        svc_step("epi", "GET region state", r.status_code == 200, f"HTTP {r.status_code} {r.text[:140]}")
+        deadline = time.monotonic() + 20
+        while True:
+            r = requests.get(f"{SERVICES['epi']}/api/v1/regions/{region}/state", headers=auth, timeout=5)
+            if r.status_code != 404 or time.monotonic() >= deadline:
+                break
+            time.sleep(0.5)
+        state = r.json() if r.status_code == 200 else {}
+        observation_processed = (
+            state.get("region_id") == region
+            and state.get("filter_type") in ("ekf", "pf")
+            and state.get("timestamp") is not None
+            and all(
+                isinstance(state.get("state", {}).get(compartment), (int, float))
+                and math.isfinite(state["state"][compartment])
+                and state["state"][compartment] >= 0
+                for compartment in ("S", "E", "IA", "IM", "IS", "H", "ICU", "R", "D")
+            )
+        )
+        svc_step("epi", "Kafka observation → filter state", observation_processed, f"HTTP {r.status_code} {r.text[:140]}")
     except Exception as e:
         svc_step("epi", "GET region state", False, str(e)[:120])
 
     try:
         r = requests.get(f"{SERVICES['epi']}/api/v1/regions/{region}/Rt", headers=auth, timeout=5)
-        svc_step("epi", "GET region Rt", r.status_code == 200, f"HTTP {r.status_code} {r.text[:140]}")
+        reproduction_estimate = r.json() if r.status_code == 200 else {}
+        reproduction_valid = (
+            reproduction_estimate.get("region_id") == region
+            and isinstance(reproduction_estimate.get("latest_Rt"), (int, float))
+            and math.isfinite(reproduction_estimate["latest_Rt"])
+            and reproduction_estimate["latest_Rt"] >= 0
+            and all(
+                lower <= mean <= upper and all(math.isfinite(value) for value in (lower, mean, upper))
+                for lower, mean, upper in zip(
+                    reproduction_estimate.get("Rt_lower", []),
+                    reproduction_estimate.get("Rt_mean", []),
+                    reproduction_estimate.get("Rt_upper", []),
+                    strict=True,
+                )
+            )
+        )
+        svc_step("epi", "GET region Rt", reproduction_valid, f"HTTP {r.status_code} {r.text[:140]}")
     except Exception as e:
         svc_step("epi", "GET region Rt", False, str(e)[:120])
 
@@ -481,8 +720,13 @@ def main() -> int:
             f"{SERVICES['epi']}/api/v1/control/weights/{region}",
             headers=auth,
             json={
-                "C1": 1.0, "C2": 1.0, "C3": 1.0, "C4": 1.0,
-                "W_u1": 0.5, "W_u2": 0.5, "W_u3": 0.5,
+                "C1": 1.0,
+                "C2": 1.0,
+                "C3": 1.0,
+                "C4": 1.0,
+                "W_u1": 0.5,
+                "W_u2": 0.5,
+                "W_u3": 0.5,
                 "ethical_framework": "utilitarian",
                 "notes": "verify-harness",
             },
@@ -499,7 +743,9 @@ def main() -> int:
         svc_step("epi", "GET control weights", False, str(e)[:120])
 
     try:
-        r = requests.get(f"{SERVICES['epi']}/api/v1/control/recommendations", headers=auth, params={"region_id": region}, timeout=20)
+        r = requests.get(
+            f"{SERVICES['epi']}/api/v1/control/recommendations", headers=auth, params={"region_id": region}, timeout=20
+        )
         svc_step("epi", "GET control recommendations", r.status_code == 200, f"HTTP {r.status_code} {r.text[:160]}")
     except Exception as e:
         svc_step("epi", "GET control recommendations", False, str(e)[:120])
@@ -546,23 +792,35 @@ def main() -> int:
     except Exception as e:
         svc_step("privacy", "POST dp/publish", False, str(e)[:120])
 
-    round_id = 1
-    for i in range(3):
+    try:
+        response = requests.get(f"{SERVICES['privacy']}/api/v1/fl/status", headers=auth, timeout=5)
+        response.raise_for_status()
+        round_status = response.json()
+        round_id = round_status["current_round_id"]
+        minimum_clients = round_status["min_clients"]
+        svc_step("privacy", "GET fl/status", True, f"active round={round_id}")
+    except Exception as error:
+        svc_step("privacy", "GET fl/status", False, str(error)[:120])
+        return 1
+
+    for i in range(minimum_clients):
         try:
+            client_email, client_password, _, client_keycloak_id = reg_user(f"fl_{suffix}_{i}")
+            client_token = get_user_token(client_email, client_password)
             r = requests.post(
                 f"{SERVICES['privacy']}/api/v1/fl/upload_gradient",
-                headers=auth,
+                headers=auth_headers(client_token),
                 json={
-                    "user_id": patient_id,
+                    "user_id": client_keycloak_id,
                     "round_id": round_id,
                     "gradient": [0.01, -0.02, 0.03, 0.04, -0.05, 0.06, -0.07, 0.08, -0.09, 0.10],
                     "n_samples": 100,
                 },
                 timeout=10,
             )
-            svc_step("privacy", f"POST fl/upload_gradient#{i+1}", r.status_code in (200, 201), f"HTTP {r.status_code}")
+            svc_step("privacy", f"POST fl/upload_gradient#{i + 1}", r.status_code == 200, f"HTTP {r.status_code}")
         except Exception as e:
-            svc_step("privacy", f"POST fl/upload_gradient#{i+1}", False, str(e)[:120])
+            svc_step("privacy", f"POST fl/upload_gradient#{i + 1}", False, str(e)[:120])
 
     try:
         r = requests.post(
@@ -584,9 +842,11 @@ def main() -> int:
     hr("Kafka cross-service")
     try:
         import socket
-        s = socket.create_connection(("127.0.0.1", 9092), 3)
-        s.close()
-        step("kafka-tcp", True, "9092 reachable")
+
+        kafka_host = os.environ.get("KAFKA_HOST", "127.0.0.1")
+        kafka_port = int(os.environ.get("KAFKA_PORT", "9092"))
+        with socket.create_connection((kafka_host, kafka_port), 3):
+            step("kafka-tcp", True, f"{kafka_host}:{kafka_port} reachable")
     except Exception as e:
         step("kafka-tcp", False, str(e)[:120])
 
@@ -606,12 +866,13 @@ def main() -> int:
     failed = [r for r in results if not r[2]]
     passed = total - len(failed)
     print(f"Passed: {passed}/{total}")
+    print(f"Skipped: {len(skipped_checks)}")
     if failed:
         print("\nFailures:")
         for svc, name, _, msg in failed:
             print(f"  - {svc}/{name}: {msg}")
         return 1
-    print("\nALL ENDPOINTS PASSED")
+    print("\nALL EXERCISED CHECKS PASSED")
     return 0
 
 

@@ -8,27 +8,30 @@ import {
   RefreshControl,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import {useRiskScoreHistory} from '@/hooks/useRiskScore';
+import {useRiskScoreHistory, type RiskHistoryItem} from '@/hooks/useRiskScore';
 import {getRiskTierColor} from '@/store/riskStore';
 import {Svg, Line, Path, Circle} from 'react-native-svg';
-import {RiskTier} from '@/types';
-
-interface HistoryItem {
-  time: string;
-  risk_score: number | null;
-  risk_tier: RiskTier | null;
-  symptoms: Record<string, unknown> | null;
-}
 
 export default function HistoryScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<'7' | '30' | '90'>('7');
   const {
     data: historyData,
     isLoading,
+    error,
     refetch,
-  } = useRiskScoreHistory(parseInt(selectedPeriod));
+  } = useRiskScoreHistory(30); // Backend hardcoded limit 30, ignores days param
 
-  const history: HistoryItem[] = Array.isArray(historyData) ? historyData : [];
+  // Client-side filtering: backend returns last 30, filter by selected period
+  const allHistory: RiskHistoryItem[] = Array.isArray(historyData) ? historyData : [];
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - parseInt(selectedPeriod));
+  
+  const history = allHistory
+    .filter(item => {
+      const itemDate = new Date(item.time);
+      return itemDate >= cutoffDate;
+    })
+    .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()); // Chronological order
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -41,7 +44,7 @@ export default function HistoryScreen() {
 
   const renderChart = () => {
     const chartItems = history.filter(
-      (item): item is HistoryItem & {risk_score: number} =>
+      (item): item is RiskHistoryItem & {risk_score: number} =>
         item.risk_score !== null && item.risk_score !== undefined,
     );
     if (chartItems.length === 0) return null;
@@ -54,15 +57,22 @@ export default function HistoryScreen() {
 
     // Generate points for the line chart
     const points = chartItems.map((item, index) => {
-      const x = padding + (index / (chartItems.length - 1)) * chartWidth;
+      // Handle single point case: center it horizontally
+      const x =
+        chartItems.length === 1
+          ? padding + chartWidth / 2
+          : padding + (index / (chartItems.length - 1)) * chartWidth;
       const y = padding + chartHeight - item.risk_score * chartHeight;
       return {x, y, score: item.risk_score, tier: item.risk_tier};
     });
 
-    // Create path for the line
-    const pathData = points
-      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-      .join(' ');
+    // Create path for the line (only if multiple points)
+    const pathData =
+      chartItems.length > 1
+        ? points
+            .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+            .join(' ')
+        : '';
 
     return (
       <View style={styles.chartContainer}>
@@ -83,8 +93,8 @@ export default function HistoryScreen() {
             );
           })}
 
-          {/* Risk score line */}
-          <Path d={pathData} stroke="#3b82f6" strokeWidth="2" fill="none" />
+          {/* Risk score line (only for multiple points) */}
+          {pathData && <Path d={pathData} stroke="#3b82f6" strokeWidth="2" fill="none" />}
 
           {/* Data points */}
           {points.map((point, index) => (
@@ -150,14 +160,42 @@ export default function HistoryScreen() {
         ))}
       </View>
 
+      {/* Backend limit info */}
+      <View style={styles.periodInfo}>
+        <Ionicons name="information-circle-outline" size={16} color="#6b7280" />
+        <Text style={styles.periodInfoText}>
+          Up to 30 recent reports, filtered by selected period
+        </Text>
+      </View>
+
       {/* Risk Score Chart */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Risk Score Trend</Text>
-        {history.length > 0 ? (
+        {error ? (
+          <View style={styles.errorState}>
+            <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+            <Text style={styles.errorTitle}>Failed to Load History</Text>
+            <Text style={styles.errorDescription}>
+              Unable to fetch your history. Check your connection and try again.
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+              <Ionicons name="refresh-outline" size={20} color="#ffffff" />
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isLoading && allHistory.length === 0 ? (
+          <View style={styles.emptyChart}>
+            <Text style={styles.emptyText}>Loading...</Text>
+          </View>
+        ) : history.length > 0 ? (
           renderChart()
         ) : (
           <View style={styles.emptyChart}>
-            <Text style={styles.emptyText}>No data available</Text>
+            <Text style={styles.emptyText}>
+              {allHistory.length === 0 
+                ? 'No risk score data available. Start tracking symptoms to see your trend.'
+                : 'No data in selected period. Try a longer time range.'}
+            </Text>
           </View>
         )}
       </View>
@@ -165,12 +203,30 @@ export default function HistoryScreen() {
       {/* History List */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Symptom Reports</Text>
-        {history.length === 0 ? (
+        {error ? (
+          <View style={styles.errorState}>
+            <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+            <Text style={styles.errorTitle}>Connection Error</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+              <Ionicons name="refresh-outline" size={20} color="#ffffff" />
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isLoading && allHistory.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="hourglass-outline" size={48} color="#9ca3af" />
+            <Text style={styles.emptyTitle}>Loading History</Text>
+          </View>
+        ) : history.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-outline" size={48} color="#9ca3af" />
-            <Text style={styles.emptyTitle}>No History</Text>
+            <Text style={styles.emptyTitle}>
+              {allHistory.length === 0 ? 'No History' : 'No Reports in This Period'}
+            </Text>
             <Text style={styles.emptyDescription}>
-              Your symptom reports will appear here once you start tracking
+              {allHistory.length === 0 
+                ? 'Your symptom reports will appear here once you start tracking'
+                : `No reports in last ${selectedPeriod} days. Try selecting a longer period.`}
             </Text>
           </View>
         ) : (
@@ -211,20 +267,6 @@ export default function HistoryScreen() {
         )}
       </View>
 
-      {/* Export Options */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Export Data</Text>
-        <View style={styles.exportOptions}>
-          <TouchableOpacity style={styles.exportButton}>
-            <Ionicons name="download-outline" size={20} color="#3b82f6" />
-            <Text style={styles.exportButtonText}>Export as PDF</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.exportButton}>
-            <Ionicons name="share-outline" size={20} color="#3b82f6" />
-            <Text style={styles.exportButtonText}>Share with Doctor</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </ScrollView>
   );
 }
@@ -276,6 +318,20 @@ const styles = StyleSheet.create({
   },
   periodButtonTextActive: {
     color: '#ffffff',
+  },
+  periodInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
+    gap: 8,
+  },
+  periodInfoText: {
+    fontSize: 14,
+    color: '#1e40af',
+    flex: 1,
   },
   section: {
     marginBottom: 24,
@@ -379,22 +435,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  exportOptions: {
-    gap: 12,
+  errorState: {
+    borderRadius: 12,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
   },
-  exportButton: {
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#991b1b',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorDescription: {
+    fontSize: 14,
+    color: '#dc2626',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
   },
-  exportButtonText: {
+  retryButtonText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#3b82f6',
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });

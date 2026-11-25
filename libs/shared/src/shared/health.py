@@ -36,21 +36,23 @@ async def _db_healthy(engine: AsyncEngine | None) -> tuple[bool, str]:
     if engine is None:
         return False, "unhealthy: not initialized"
     try:
-        async with engine.connect() as conn:
-            await asyncio.wait_for(conn.execute(text("SELECT 1")), timeout=2.0)
+        # Bound both connection acquisition AND query execution
+        async with asyncio.timeout(2.0):
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
         return True, "healthy"
+    except TimeoutError:
+        return False, "unhealthy: timeout"
     except Exception as e:  # noqa: BLE001
         return False, f"unhealthy: {e}"
 
 
 async def kafka_health_check(request: Request) -> tuple[bool, str]:
-    """Honest Kafka health probe.
+    """Active Kafka health probe.
 
-    aiokafka's internals (`producer.client`, `_closed`, `cluster.brokers()`)
-    have shifted across versions. We probe the durable contract instead:
-    "we can fetch cluster metadata" — that's what proves the producer is
-    actually connected to a broker. If the producer exposes nothing usable,
-    we treat it as unhealthy rather than claiming green.
+    Forces a real metadata fetch from the broker via network round-trip.
+    Uses client.fetch_all_metadata() which performs _metadata_update with
+    broker network I/O, not cached cluster state.
     """
     producer = getattr(request.app.state, "kafka_producer", None)
     if producer is None:
@@ -59,13 +61,18 @@ async def kafka_health_check(request: Request) -> tuple[bool, str]:
         client = getattr(producer, "client", None) or getattr(producer, "_client", None)
         if client is None:
             return False, "unhealthy: no client"
-        # `client.cluster.brokers()` works across the aiokafka 0.x line we target.
-        brokers = list(client.cluster.brokers())
+        # fetch_all_metadata() returns new ClusterMetadata with broker network I/O
+        metadata = await asyncio.wait_for(client.fetch_all_metadata(), timeout=2.0)
+        # Use returned metadata, not client.cluster which may not be updated
+        brokers = list(metadata.brokers())
         if not brokers:
-            return False, "unhealthy: no brokers known"
+            return False, "unhealthy: no brokers"
         return True, f"healthy: {len(brokers)} broker(s)"
+    except TimeoutError:
+        return False, "unhealthy: timeout"
     except Exception as e:  # noqa: BLE001
         return False, f"unhealthy: {e}"
+
 
 def build_health_router(
     settings: Settings,

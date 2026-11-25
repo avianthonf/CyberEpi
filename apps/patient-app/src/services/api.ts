@@ -2,12 +2,31 @@ import axios, {
   AxiosInstance,
   AxiosError,
   InternalAxiosRequestConfig,
+  AxiosRequestConfig,
 } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import {
+  getPatientSession,
+  assertPatientSession,
+  type PatientSession,
+} from '@/lib/patientSession';
 import {ApiResponse} from '@/types';
+import {authService} from './auth';
+import {useAuthStore} from '@/store/authStore';
 
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || 'https://api.cyberepi.health/api/v1';
+  process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
+
+export interface ApiRequestOptions {
+  patientSession?: PatientSession;
+  signal?: AbortSignal;
+}
+
+type ScopedConfig = InternalAxiosRequestConfig & {
+  metadata?: ApiRequestOptions;
+  _retry?: boolean;
+};
+type RequestOptions = AxiosRequestConfig & {metadata: ApiRequestOptions};
 
 class ApiClient {
   private client: AxiosInstance;
@@ -26,132 +45,133 @@ class ApiClient {
   }
 
   private setupInterceptors() {
-    // Request interceptor to add auth token
     this.client.interceptors.request.use(
-      async config => {
+      config => {
+        const request = config as ScopedConfig;
+        const session = request.metadata?.patientSession || getPatientSession();
+        request.metadata = {...request.metadata, patientSession: session};
+        assertPatientSession(session);
+        let token: string | null;
         try {
-          const token = await SecureStore.getItemAsync('access_token');
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-          }
-        } catch (error) {
-          console.error('Failed to retrieve auth token:', error);
+          token = SecureStore.getItem('access_token');
+        } catch {
+          throw new Error('Stored sign-in credentials are temporarily unavailable. Please try again.');
         }
-        return config;
+        assertPatientSession(session);
+        if (token) request.headers.Authorization = `Bearer ${token}`;
+        return request;
       },
-      error => {
-        return Promise.reject(error);
-      },
+      error => { throw error; },
+      {synchronous: true},
     );
 
-    // Response interceptor to handle token refresh
     this.client.interceptors.response.use(
-      response => response,
+      response => {
+        const session = (response.config as ScopedConfig).metadata?.patientSession;
+        if (session) assertPatientSession(session);
+        return response;
+      },
       async (error: AxiosError) => {
-        const originalRequest = error.config as InternalAxiosRequestConfig & {
-          _retry?: boolean;
-        };
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-
-          try {
-            const refreshed = await this.refreshToken();
-            if (refreshed) {
-              const token = await SecureStore.getItemAsync('access_token');
-              if (token && originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${token}`;
-                return this.client(originalRequest);
-              }
-            }
-          } catch (refreshError) {
-            // Refresh failed, logout user
-            await this.logout();
-            return Promise.reject(refreshError);
-          }
+        if (!error.config) throw error;
+        const request = error.config as ScopedConfig;
+        const session = request.metadata?.patientSession;
+        if (session) assertPatientSession(session);
+        if (error.response?.status !== 401 || request._retry) throw error;
+        request._retry = true;
+        // Transport/5xx refresh failures throw without destroying credentials.
+        const tokens = await authService.refreshAccessToken();
+        if (session) assertPatientSession(session);
+        if (!tokens) {
+          await useAuthStore.getState().logout();
+          throw new Error('Your session has expired. Please sign in again.');
         }
-
-        return Promise.reject(error);
+        request.headers.Authorization = `Bearer ${tokens.access_token}`;
+        return this.client(request);
       },
     );
-  }
-
-  private async refreshToken(): Promise<boolean> {
-    try {
-      const refreshToken = await SecureStore.getItemAsync('refresh_token');
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-
-      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-        refresh_token: refreshToken,
-      });
-
-      const {
-        access_token,
-        refresh_token: newRefreshToken,
-        expires_in,
-      } = response.data;
-
-      await SecureStore.setItemAsync('access_token', access_token);
-      if (newRefreshToken) {
-        await SecureStore.setItemAsync('refresh_token', newRefreshToken);
-      }
-
-      // Set expiry timestamp
-      const expiresAt = Date.now() + expires_in * 1000;
-      await SecureStore.setItemAsync('token_expires_at', expiresAt.toString());
-
-      return true;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      return false;
-    }
-  }
-
-  private async logout() {
-    try {
-      await SecureStore.deleteItemAsync('access_token');
-      await SecureStore.deleteItemAsync('refresh_token');
-      await SecureStore.deleteItemAsync('token_expires_at');
-    } catch (error) {
-      console.error('Failed to clear tokens during logout:', error);
-    }
   }
 
   // Public methods
   async get<T = unknown>(
     url: string,
     params?: Record<string, unknown>,
+    options?: ApiRequestOptions,
   ): Promise<ApiResponse<T>> {
-    const response = await this.client.get(url, {params});
-    return response.data;
+    const config: RequestOptions = {
+      ...(params ? {params} : {}),
+      ...(options?.signal ? {signal: options.signal} : {}),
+      metadata: {patientSession: options?.patientSession || getPatientSession()},
+    };
+    const response = await this.client.get<T>(url, config);
+    return {
+      data: response.data,
+      status: response.status,
+    };
   }
 
   async post<T = unknown>(
     url: string,
     data?: unknown,
+    options?: ApiRequestOptions,
   ): Promise<ApiResponse<T>> {
-    const response = await this.client.post(url, data);
-    return response.data;
+    const config: RequestOptions = {
+      ...(options?.signal ? {signal: options.signal} : {}),
+      metadata: {patientSession: options?.patientSession || getPatientSession()},
+    };
+    const response = await this.client.post<T>(url, data, config);
+    return {
+      data: response.data,
+      status: response.status,
+    };
   }
 
-  async put<T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> {
-    const response = await this.client.put(url, data);
-    return response.data;
+  async put<T = unknown>(
+    url: string,
+    data?: unknown,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<T>> {
+    const config: RequestOptions = {
+      ...(options?.signal ? {signal: options.signal} : {}),
+      metadata: {patientSession: options?.patientSession || getPatientSession()},
+    };
+    const response = await this.client.put<T>(url, data, config);
+    return {
+      data: response.data,
+      status: response.status,
+    };
   }
 
   async patch<T = unknown>(
     url: string,
     data?: unknown,
+    options?: ApiRequestOptions,
   ): Promise<ApiResponse<T>> {
-    const response = await this.client.patch(url, data);
-    return response.data;
+    const config: RequestOptions = {
+      ...(options?.signal ? {signal: options.signal} : {}),
+      metadata: {patientSession: options?.patientSession || getPatientSession()},
+    };
+    const response = await this.client.patch<T>(url, data, config);
+    return {
+      data: response.data,
+      status: response.status,
+    };
   }
 
-  async delete<T = unknown>(url: string): Promise<ApiResponse<T>> {
-    const response = await this.client.delete(url);
-    return response.data;
+  async delete<T = unknown>(
+    url: string,
+    data?: unknown,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<T>> {
+    const config: RequestOptions = {
+      ...(data ? {data} : {}),
+      ...(options?.signal ? {signal: options.signal} : {}),
+      metadata: {patientSession: options?.patientSession || getPatientSession()},
+    };
+    const response = await this.client.delete<T>(url, config);
+    return {
+      data: response.data,
+      status: response.status,
+    };
   }
 }
 

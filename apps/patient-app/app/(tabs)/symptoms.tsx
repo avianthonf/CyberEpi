@@ -104,9 +104,9 @@ export default function SymptomsScreen() {
                 size={24}
                 color="#3b82f6"
               />
-              <Text style={styles.infoTitle}>Privacy First</Text>
+              <Text style={styles.infoTitle}>Research Privacy Controls</Text>
               <Text style={styles.infoDescription}>
-                Your health data is encrypted and secure
+                Privacy mechanisms are experimental. Use synthetic data only.
               </Text>
             </View>
 

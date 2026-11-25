@@ -2,34 +2,11 @@ import {Tabs} from 'expo-router';
 import {Ionicons} from '@expo/vector-icons';
 import {View, Text, TouchableOpacity} from 'react-native';
 import {useAuthStore} from '@/store/authStore';
-import {useRiskStore} from '@/store/riskStore';
-import {useMedicationStore} from '@/store/medicationStore';
 import {useSymptomSubmit} from '@/hooks/useSymptomSubmit';
-import {useEffect} from 'react';
-import NetInfo from '@react-native-community/netinfo';
 
 export default function TabLayout() {
   const {logout} = useAuthStore();
-  const {clearRiskData} = useRiskStore();
-  const {clearMedications} = useMedicationStore();
-  const {getQueuedReportsCount, syncQueuedReports} = useSymptomSubmit();
-
-  useEffect(() => {
-    // Sync when coming back online
-    const unsubscribe = NetInfo.addEventListener(state => {
-      if (state.isConnected) {
-        syncQueuedReports();
-      }
-    });
-
-    return () => unsubscribe();
-  }, [syncQueuedReports]);
-
-  const handleLogout = async () => {
-    await logout();
-    clearRiskData();
-    clearMedications();
-  };
+  const {getQueuedReportsCount} = useSymptomSubmit();
 
   return (
     <Tabs
@@ -60,7 +37,7 @@ export default function TabLayout() {
             const queuedCount = getQueuedReportsCount();
             return (
               <TouchableOpacity
-                onPress={handleLogout}
+                onPress={() => { void logout(); }}
                 style={{marginRight: 16}}>
                 <Ionicons name="log-out-outline" size={24} color="#6b7280" />
                 {queuedCount > 0 && (

@@ -29,44 +29,7 @@ class RegisterRequest(BaseModel):
     last_name: str = Field(..., max_length=100)
     region_id: str | None = Field(None, max_length=50)
     patch_id: str | None = Field(None, max_length=20)
-    role: str = Field("patient", pattern=r"^(patient|physician|admin)$")
-
-
-async def _ensure_realm_role(client: httpx.AsyncClient, admin_token: str, role: str) -> str | None:
-    """Return the realm role id for `role`, creating the role if missing."""
-    headers = {"Authorization": f"Bearer {admin_token}"}
-    resp = await client.get(
-        f"{settings.keycloak_admin_url}/roles/{role}", headers=headers
-    )
-    if resp.status_code == 200:
-        return resp.json().get("id")
-    if resp.status_code == 404:
-        create = await client.post(
-            f"{settings.keycloak_admin_url}/roles",
-            headers=headers,
-            json={"name": role},
-        )
-        if create.status_code == 201:
-            created = await client.get(
-                f"{settings.keycloak_admin_url}/roles/{role}", headers=headers
-            )
-            return created.json().get("id") if created.status_code == 200 else None
-    return None
-
-
-async def _assign_realm_role(
-    client: httpx.AsyncClient, admin_token: str, keycloak_id: str, role: str
-) -> bool:
-    """Assign a realm role to a Keycloak user. Returns True on success."""
-    role_id = await _ensure_realm_role(client, admin_token, role)
-    if not role_id:
-        return False
-    resp = await client.post(
-        f"{settings.keycloak_admin_url}/users/{keycloak_id}/role-mappings/realm",
-        headers={"Authorization": f"Bearer {admin_token}"},
-        json=[{"id": role_id, "name": role}],
-    )
-    return resp.status_code in (200, 204)
+    role: str = Field("patient", pattern=r"^patient$")
 
 
 class RegisterResponse(BaseModel):
@@ -100,9 +63,11 @@ class PatientUpdateRequest(BaseModel):
     patch_id: str | None = Field(None, max_length=20)
     phone: str | None = Field(None, max_length=30)
 
+
 class PushTokenRequest(BaseModel):
     token: str = Field(..., max_length=200)
     platform: str = Field(..., pattern=r"^(ios|android|web)$")
+
 
 class RiskResponse(BaseModel):
     patient_id: uuid.UUID
@@ -153,23 +118,12 @@ async def register_patient(
                     location = create_resp.headers.get("Location", "")
                     keycloak_id = location.rsplit("/", 1)[-1] if location else ""
                 elif create_resp.status_code == 409:
-                    search_resp = await client.get(
-                        f"{settings.keycloak_admin_url}/users",
-                        params={"email": body.email, "exact": "true"},
-                        headers={"Authorization": f"Bearer {admin_token}"},
-                    )
-                    if search_resp.status_code == 200:
-                        users = search_resp.json()
-                        if users:
-                            keycloak_id = users[0]["id"]
-                # Assign the requested realm role so downstream services
-                # see it in the token's realm_access.roles.
-                if keycloak_id and not await _assign_realm_role(
-                    client, admin_token, keycloak_id, body.role
-                ):
+                    # User already exists in Keycloak. An unauthenticated caller attempting
+                    # to register with an existing email should NOT receive the existing
+                    # user's data. Return 409 to indicate the email is taken.
                     raise HTTPException(
-                        status_code=status.HTTP_502_BAD_GATEWAY,
-                        detail=f"Keycloak role assignment failed for role '{body.role}'",
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="An account with this email already exists. Please log in instead.",
                     )
     except httpx.HTTPError as exc:
         if not settings.debug:
@@ -187,7 +141,8 @@ async def register_patient(
             )
         keycloak_id = str(uuid.uuid4())
 
-    # Look up by keycloak_id first so re-registration is idempotent.
+    # At this point, keycloak_id represents a newly created Keycloak user.
+    # Look up by keycloak_id to link the Keycloak account to our Patient table.
     result = await db.execute(select(Patient).where(Patient.keycloak_id == keycloak_id))
     patient = result.scalar_one_or_none()
     if patient is None:
@@ -202,13 +157,38 @@ async def register_patient(
         db.add(patient)
         await db.flush()
         await db.commit()
-        await record_audit(db, actor_sub=keycloak_id, action="patient.register",
-                           patient_id=patient.id)
+        await record_audit(db, actor_sub=keycloak_id, action="patient.register", patient_id=patient.id)
 
     return RegisterResponse(id=patient.id, keycloak_id=keycloak_id)
 
 
 # ─── Patient CRUD ────────────────────────────────────────────────────
+@router.get("/api/v1/patients/me", response_model=PatientResponse)
+async def get_current_patient(
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> PatientResponse:
+    """Get current authenticated patient's profile by JWT subject.
+
+    Resolves JWT sub (Keycloak UUID) to local patient DB UUID.
+    This is the canonical endpoint for mobile apps to get their patient_id.
+    """
+    keycloak_id = user.get("sub")
+    if not keycloak_id:
+        raise HTTPException(status_code=401, detail="Invalid token: missing subject")
+
+    result = await db.execute(select(Patient).where(Patient.keycloak_id == keycloak_id))
+    patient = result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient profile not found. Please complete registration.",
+        )
+
+    await record_audit(db, actor_sub=keycloak_id, action="patient.profile.read", patient_id=patient.id)
+    return PatientResponse.model_validate(patient)
+
+
 @router.get("/api/v1/patients/{patient_id}", response_model=PatientResponse)
 async def get_patient(
     patient_id: uuid.UUID,
@@ -232,8 +212,7 @@ async def get_patient(
             detail="You do not have permission to access this profile",
         )
 
-    await record_audit(db, actor_sub=str(current_keycloak_id), action="patient.read",
-                       patient_id=patient_id)
+    await record_audit(db, actor_sub=str(current_keycloak_id), action="patient.read", patient_id=patient_id)
     return PatientResponse.model_validate(patient)
 
 
@@ -267,8 +246,7 @@ async def update_patient(
 
     await db.flush()
     await db.commit()
-    await record_audit(db, actor_sub=str(_user.get("sub")), action="patient.update",
-                       patient_id=patient_id)
+    await record_audit(db, actor_sub=str(_user.get("sub")), action="patient.update", patient_id=patient_id)
     return PatientResponse.model_validate(patient)
 
 
@@ -298,27 +276,65 @@ async def register_push_token(
             detail="You do not have permission to register devices for this patient",
         )
 
-    # Upsert push token
-    existing = await db.execute(
-        select(PushToken).where(
-            PushToken.patient_id == patient_id,
-            PushToken.platform == body.platform,
-        )
+    # Enforce exclusive token ownership: one token can only belong to one patient at a time
+    # Use advisory lock on token to serialize concurrent transfers
+    from sqlalchemy import text
+
+    # Advisory lock keyed by hash of token string to serialize transfers
+    lock_key = hash(body.token) % 2147483647  # PostgreSQL advisory lock range
+    await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+
+    # Remove this token from any other patient (transfer scenario)
+    await db.execute(
+        text("""
+            DELETE FROM push_tokens 
+            WHERE token = :token 
+            AND platform = :platform 
+            AND patient_id != :patient_id
+        """),
+        {"token": body.token, "platform": body.platform, "patient_id": str(patient_id)},
     )
-    token_record = existing.scalar_one_or_none()
-    if token_record:
-        token_record.token = body.token
-    else:
-        db.add(
-            PushToken(
-                patient_id=patient_id,
-                token=body.token,
-                platform=body.platform,
-            )
-        )
+
+    # Upsert for current patient
     await db.flush()
     await db.commit()
     return {"message": "Push token registered"}
+
+
+@router.delete("/api/v1/patients/me/push_token", status_code=status.HTTP_204_NO_CONTENT)
+async def deregister_push_token(
+    body: PushTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> None:
+    """Deregister a push token for the authenticated patient.
+
+    Idempotent: Returns 204 whether token was bound or not.
+    Body: {"token": "...", "platform": "ios|android|web"}
+    """
+    # Resolve authenticated patient
+    keycloak_id = user.get("sub")
+    if not keycloak_id:
+        raise HTTPException(status_code=401, detail="Invalid token: missing subject")
+
+    result = await db.execute(select(Patient).where(Patient.keycloak_id == keycloak_id))
+    patient = result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient profile not found")
+
+    # Delete token binding if it matches this patient
+    from sqlalchemy import text
+
+    await db.execute(
+        text("""
+            DELETE FROM push_tokens 
+            WHERE patient_id = :patient_id 
+            AND platform = :platform 
+            AND token = :token
+        """),
+        {"patient_id": str(patient.id), "platform": body.platform, "token": body.token},
+    )
+    await db.commit()
 
 
 # ─── Risk Score ──────────────────────────────────────────────────────
@@ -350,8 +366,7 @@ async def get_patient_risk(
         {"pid": str(patient_id)},
     )
     row = result.first()
-    await record_audit(db, actor_sub=str(_user.get("sub")), action="risk.read",
-                       patient_id=patient_id)
+    await record_audit(db, actor_sub=str(_user.get("sub")), action="risk.read", patient_id=patient_id)
     if row and row.risk_score is not None:
         return RiskResponse(
             patient_id=patient_id,

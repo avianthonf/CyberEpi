@@ -17,6 +17,7 @@ def db():
     mock.add = MagicMock()
     return mock
 
+
 @pytest.fixture
 def client(db):
     app.dependency_overrides[get_db] = lambda: db
@@ -29,10 +30,12 @@ def client(db):
         yield c
     app.dependency_overrides.clear()
 
+
 def test_get_recommendation_not_found(client, db):
     db.execute.return_value = MagicMock(scalar_one_or_none=lambda: None)
     response = client.get("/api/v1/control/recommendations?region_id=test-region")
     assert response.status_code == 404
+
 
 def test_update_weights_triggers_task(client, db, mocker):
     mock_task = mocker.patch("src.api.routers.control.solve_optimal_control.delay")
@@ -43,6 +46,7 @@ def test_update_weights_triggers_task(client, db, mocker):
     class MockResult:
         def scalar_one_or_none(self):
             return None
+
     db.execute.return_value = MockResult()
 
     payload = {
@@ -53,7 +57,7 @@ def test_update_weights_triggers_task(client, db, mocker):
         "W_u1": 1.0,
         "W_u2": 1.0,
         "W_u3": 1.0,
-        "ethical_framework": "egalitarian"
+        "ethical_framework": "egalitarian",
     }
 
     # Set ID and dates since the mock DB won't auto-generate them
@@ -71,6 +75,7 @@ def test_update_weights_triggers_task(client, db, mocker):
     assert mock_task.called
     assert mock_task.call_args[0][0] == "test-region"
 
+
 @pytest.mark.asyncio
 async def test_solve_optimal_control_task(mocker):
     # Mock DB calls inside the task
@@ -87,19 +92,33 @@ async def test_solve_optimal_control_task(mocker):
     mock_params.beta = 0.5
     mock_params.gamma = 0.1
     mock_params.id = uuid.uuid4()
+
     # Mock table columns for dict conversion
     class MockCol:
         def __init__(self, name):
             self.name = name
 
     col_names = [
-        'beta', 'sigma', 'gamma', 'rho', 'fM', 'fS', 'gamma_M', 'gamma_S',
-        'h_rate', 'gamma_H', 'delta', 'gamma_ICU', 'mu', 'mu_icu', 'N_pop',
+        "beta",
+        "sigma",
+        "gamma",
+        "rho",
+        "fM",
+        "fS",
+        "gamma_M",
+        "gamma_S",
+        "h_rate",
+        "gamma_H",
+        "delta",
+        "gamma_ICU",
+        "mu",
+        "mu_icu",
+        "N_pop",
     ]
     mock_params.__table__.columns = [MockCol(n) for n in col_names]
 
     for n in col_names:
-        setattr(mock_params, n, 0.1) # Default
+        setattr(mock_params, n, 0.1)  # Default
     mock_params.N_pop = 1000000
     mock_params.beta = 0.5
     mock_params.gamma = 0.1
@@ -112,7 +131,9 @@ async def test_solve_optimal_control_task(mocker):
     mock_weights.ethical_framework = "utilitarian"
 
     class MockResultParams:
-        def scalar_one_or_none(self): return mock_params
+        def scalar_one_or_none(self):
+            return mock_params
+
     class MockResultWeights:
         def scalar_one_or_none(self):
             return mock_weights
@@ -128,6 +149,7 @@ async def test_solve_optimal_control_task(mocker):
     mock_db.execute.side_effect = fake_execute
 
     from src.tasks.control_tasks import async_solve_optimal_control
+
     result = await async_solve_optimal_control("test-region")
 
     assert result["status"] == "success"

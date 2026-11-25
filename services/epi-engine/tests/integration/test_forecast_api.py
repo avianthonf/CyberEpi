@@ -1,4 +1,3 @@
-import os
 import uuid
 
 import httpx
@@ -25,20 +24,37 @@ def redis_container():
 
 
 @pytest_asyncio.fixture
-async def api_client(postgres_container, redis_container):
+async def mock_redis(redis_container):
+    """Override the unit-suite Redis mock with an actual container client."""
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(
+        f"redis://{redis_container.get_container_host_ip()}:{redis_container.get_exposed_port(6379)}/0",
+        decode_responses=True,
+    )
+    try:
+        yield client
+    finally:
+        await client.aclose()
+
+
+@pytest_asyncio.fixture
+async def api_client(postgres_container, redis_container, mock_redis, monkeypatch):
     # Build URLs for the fresh containers
-    db_url = postgres_container.get_connection_url().replace(
-        "postgresql+psycopg2://", "postgresql+asyncpg://"
-    ).replace("postgresql://", "postgresql+asyncpg://")
+    db_url = (
+        postgres_container.get_connection_url()
+        .replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+        .replace("postgresql://", "postgresql+asyncpg://")
+    )
     redis_url = f"redis://{redis_container.get_container_host_ip()}:{redis_container.get_exposed_port(6379)}/0"
 
-    os.environ["DATABASE_URL"] = db_url
-    os.environ["REDIS_URL"] = redis_url
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("REDIS_URL", redis_url)
 
     from src.config import settings
 
-    settings.redis_url = redis_url
-    settings.database_url = db_url
+    monkeypatch.setattr(settings, "redis_url", redis_url)
+    monkeypatch.setattr(settings, "database_url", db_url)
 
     # Create tables directly (avoids requiring alembic to run against the fresh container)
     from src.db.models import Base
@@ -47,20 +63,16 @@ async def api_client(postgres_container, redis_container):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Recreate the app engine bound to the same URL and import the app
-    # Ensure the app's engine targets the test DB (the module-level engine was
-    # created from settings at import time, which we just updated).
-    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
-
     import src.db.connection as db_connection
     from src import main
 
-    db_connection.engine = engine
-    db_connection.AsyncSessionLocal = _asm(engine, class_=AsyncSession, expire_on_commit=False)
-
-    import redis.asyncio as aioredis
-
-    main.app.state.redis = aioredis.from_url(redis_url, decode_responses=True)
+    monkeypatch.setattr(db_connection, "engine", engine)
+    monkeypatch.setattr(
+        db_connection,
+        "AsyncSessionLocal",
+        async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False),
+    )
+    monkeypatch.setattr(main.app.state, "redis", mock_redis, raising=False)
 
     from src.auth import get_current_user
 
@@ -113,9 +125,11 @@ async def _seed_region(db_url: str, region_id: str) -> None:
 
 @pytest.mark.asyncio
 async def test_forecast_returns_200_with_valid_region(api_client, postgres_container):
-    db_url = postgres_container.get_connection_url().replace(
-        "postgresql+psycopg2://", "postgresql+asyncpg://"
-    ).replace("postgresql://", "postgresql+asyncpg://")
+    db_url = (
+        postgres_container.get_connection_url()
+        .replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+        .replace("postgresql://", "postgresql+asyncpg://")
+    )
     region_id = "state-initial"
     await _seed_region(db_url, region_id)
 
@@ -134,9 +148,11 @@ async def test_forecast_returns_200_with_valid_region(api_client, postgres_conta
 async def test_param_update_invalidates_cache(api_client, postgres_container):
     """Updating region params changes the params hash, so the old cached
     forecast is no longer served."""
-    db_url = postgres_container.get_connection_url().replace(
-        "postgresql+psycopg2://", "postgresql+asyncpg://"
-    ).replace("postgresql://", "postgresql+asyncpg://")
+    db_url = (
+        postgres_container.get_connection_url()
+        .replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+        .replace("postgresql://", "postgresql+asyncpg://")
+    )
     region_id = "cache-check"
     await _seed_region(db_url, region_id)
 

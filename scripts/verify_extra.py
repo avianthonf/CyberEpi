@@ -3,16 +3,19 @@
 Covers:
   1. PUT  /api/v1/patients/{id}                    (self update + foreign 403)
   2. POST /api/v1/patients/{id}/push_token         (self ok)
-  3. POST /api/v1/medications/scan                 (OCR text -> drug extraction)
+  3. POST /api/v1/medications/scan                 (opt-in external lookup)
   4. PUT  /api/v1/prescriptions/{rx_id}/status     (physician transitions, patient 403, bad value 422)
   5. PATCH /api/v1/notifications/{id}              (owner marks read, foreign 403)
-  6. POST /api/v1/notifications/send               (physician push path)
+  6. POST /api/v1/notifications/send               (opt-in real device delivery)
   7. GET  /api/v1/physicians/{id}/alerts/stream    (SSE: publish -> receive)
 """
+
 from __future__ import annotations
 
+import argparse
 import base64
 import json
+import os
 import sys
 import threading
 import time
@@ -36,6 +39,9 @@ def jwt_sub(token: str) -> str:
 
 
 def main() -> None:
+    argument_parser = argparse.ArgumentParser(description=__doc__)
+    argument_parser.add_argument("--include-external-lookups", action="store_true")
+    arguments = argument_parser.parse_args()
     usr_svc, rx_svc, notif_svc = SERVICES["user"], SERVICES["prescription"], SERVICES["notification"]
 
     # ── users ──────────────────────────────────────────────
@@ -56,18 +62,29 @@ def main() -> None:
     check("PUT patients/{id} foreign -> 403", r.status_code == 403, f"({r.status_code})")
 
     # 2. Push token registration (self)
-    r = requests.post(f"{usr_svc}/api/v1/patients/{pid_a}/push_token", json={"token": "fcm-xtra-123", "platform": "android"}, headers=ha, timeout=10)
+    r = requests.post(
+        f"{usr_svc}/api/v1/patients/{pid_a}/push_token",
+        json={"token": "fcm-xtra-123", "platform": "android"},
+        headers=ha,
+        timeout=10,
+    )
     check("POST push_token self", r.status_code in (200, 201), f"({r.status_code})")
-    r = requests.post(f"{usr_svc}/api/v1/patients/{pid_a}/push_token", json={"token": "t", "platform": "carrier-pigeon"}, headers=ha, timeout=10)
+    r = requests.post(
+        f"{usr_svc}/api/v1/patients/{pid_a}/push_token", json={"token": "t", "platform": "carrier-pigeon"}, headers=ha, timeout=10
+    )
     check("POST push_token bad platform -> 422", r.status_code == 422, f"({r.status_code})")
 
-    # 3. Medication scan with OCR text
-    r = requests.post(
-        f"{rx_svc}/api/v1/medications/scan",
-        json={"ocr_text": "LIPITOR 20 MG TABLETS\nTake one tablet daily\nNDC 0071-0155-23", "patient_id": str(pid_a)},
-        headers=ha, timeout=20,
-    )
-    check("POST medications/scan", r.status_code == 200, f"({r.status_code}) {r.text[:120]}")
+    # Medication lookup is external, even when the input is synthetic OCR text.
+    if arguments.include_external_lookups:
+        response = requests.post(
+            f"{rx_svc}/api/v1/medications/scan",
+            json={"ocr_text": "LIPITOR 20 MG TABLETS\nTake one tablet daily\nNDC 0071-0155-23", "patient_id": str(pid_a)},
+            headers=ha,
+            timeout=20,
+        )
+        check("POST medications/scan", response.status_code == 200, f"({response.status_code}) {response.text[:120]}")
+    else:
+        print("[SKIP] Medication lookup requires --include-external-lookups")
 
     # 4. Prescription status transitions
     rx_hdr = ha
@@ -95,27 +112,51 @@ def main() -> None:
     # 5 + 6. Notifications: create (as physician/staff path), read as owner, foreign 403, send
     r = requests.post(
         f"{notif_svc}/api/v1/notifications",
-        json={"patient_id": str(pid_a), "title": "Lab ready", "body": "Your labs are in", "type": "reminder", "priority": "medium"},
-        headers=ha, timeout=10,
+        json={
+            "patient_id": str(pid_a),
+            "title": "Lab ready",
+            "body": "Your labs are in",
+            "type": "reminder",
+            "priority": "medium",
+        },
+        headers=ha,
+        timeout=10,
     )
     check("POST notifications", r.status_code in (200, 201), f"({r.status_code}) {r.text[:100]}")
     nid = r.json().get("id") if r.status_code in (200, 201) else None
     if nid:
-        r = requests.patch(f"{notif_svc}/api/v1/notifications/{nid}", params={"read": "true"}, headers=ha, timeout=10)
-        check("PATCH notifications/{id} owner mark-read", r.status_code == 200 and r.json().get("read") is True, f"({r.status_code})")
-        r = requests.patch(f"{notif_svc}/api/v1/notifications/{nid}", params={"read": "false"}, headers=hb, timeout=10)
+        r = requests.patch(f"{notif_svc}/api/v1/notifications/{nid}", json={"read": True}, headers=ha, timeout=10)
+        check(
+            "PATCH notifications/{id} owner mark-read",
+            r.status_code == 200 and r.json().get("read") is True,
+            f"({r.status_code})",
+        )
+        r = requests.patch(f"{notif_svc}/api/v1/notifications/{nid}", json={"read": False}, headers=hb, timeout=10)
         check("PATCH notifications/{id} foreign -> 403", r.status_code == 403, f"({r.status_code})")
         r = requests.get(f"{notif_svc}/api/v1/notifications", headers=ha, timeout=10)
         items = r.json() if r.status_code == 200 else []
         mine = [n for n in items if n.get("id") == nid]
         check("GET notifications shows read=true", bool(mine) and mine[0]["read"] is True, f"({len(items)} items)")
 
-    r = requests.post(
-        f"{notif_svc}/api/v1/notifications/send",
-        json={"patient_id": str(pid_a), "title": "Push", "body": "Test push"},
-        headers=ha, timeout=15,
-    )
-    check("POST notifications/send", r.status_code == 200, f"({r.status_code}) {r.text[:120]}")
+    verification_push_token = os.environ.get("VERIFY_PUSH_TOKEN")
+    if verification_push_token:
+        response = requests.post(
+            f"{usr_svc}/api/v1/patients/{pid_a}/push_token",
+            json={"token": verification_push_token, "platform": os.environ.get("VERIFY_PUSH_PLATFORM", "android")},
+            headers=ha,
+            timeout=10,
+        )
+        check("Register real delivery token", response.status_code in (200, 201), f"({response.status_code})")
+        if response.status_code in (200, 201):
+            response = requests.post(
+                f"{notif_svc}/api/v1/notifications/send",
+                json={"patient_id": str(pid_a), "title": "Push", "body": "Synthetic verification push"},
+                headers=ha,
+                timeout=15,
+            )
+            check("POST notifications/send", response.status_code == 200, f"({response.status_code}) {response.text[:120]}")
+    else:
+        print("[SKIP] Device delivery requires VERIFY_PUSH_TOKEN and provider credentials")
 
     # 7. SSE alert stream: subscribe, publish to redis, expect alert event
     physician_sub = jwt_sub(tok_a)  # after role grant, tok_a may be pre-grant; refresh
@@ -129,7 +170,8 @@ def main() -> None:
             with requests.get(
                 f"{notif_svc}/api/v1/physicians/{physician_sub}/alerts/stream",
                 headers={"Authorization": f"Bearer {tok_phys}"},
-                stream=True, timeout=(5, 12),
+                stream=True,
+                timeout=(5, 12),
             ) as resp:
                 if resp.status_code != 200:
                     sse_error.append(f"status={resp.status_code}")
@@ -146,10 +188,11 @@ def main() -> None:
     t = threading.Thread(target=listen, daemon=True)
     t.start()
     time.sleep(2.5)  # let SSE subscribe and heartbeat
-    rc = sync_redis.Redis.from_url("redis://localhost:6379/0")
+    rc = sync_redis.Redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
     rc.publish(f"alerts:{physician_sub}", json.dumps({"alert": "cyberepi-sse-probe", "severity": "high"}))
     t.join(timeout=8)
     check("SSE alerts/stream delivers published alert", bool(received), f"({len(received)} events; errors: {sse_error})")
+    rc.close()
 
     # SSE authz: patient (no role) streaming another physician's channel
     r = requests.get(f"{notif_svc}/api/v1/physicians/{physician_sub}/alerts/stream", headers=hb, stream=True, timeout=(5, 8))

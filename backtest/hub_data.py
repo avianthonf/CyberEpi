@@ -101,7 +101,7 @@ def nssp_ili_by_location() -> pd.DataFrame:
     """
     wk = nssp_ili_weekly()
     locs = load_locations()
-    name2fips = dict(zip(locs["location_name"], locs["location"]))
+    name2fips = dict(zip(locs["location_name"], locs["location"], strict=False))
     wk["location"] = wk["geography"].map(name2fips)
     wk = wk.dropna(subset=["location"])[["week_end", "location", "ili_frac"]]
     pops = locs.set_index("location")["population"]

@@ -14,6 +14,8 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app/svc/alembic.ini ./alembic.ini
+COPY --from=builder /app/svc/alembic ./alembic
 COPY --from=builder /app/svc/src ./src
 COPY --from=builder /app/svc/healthcheck.py ./healthcheck.py
 RUN chown -R appuser:appuser /app
@@ -21,4 +23,4 @@ USER appuser
 EXPOSE 8006
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python healthcheck.py || exit 1
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8006", "--workers", "2"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8006", "--workers", "1"]

@@ -109,6 +109,13 @@ jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: jest.fn(() => jest.fn()),
 }));
 
+// Icon glyph/font loading is a native asset boundary, not screen behavior.
+jest.mock('@expo/vector-icons', () => {
+  const React = require('react');
+  return {Ionicons: (props: Record<string, unknown>) =>
+    React.createElement('Icon', props)};
+});
+
 // Mock react-native-svg
 jest.mock('react-native-svg', () => {
   const React = require('react');
@@ -117,6 +124,7 @@ jest.mock('react-native-svg', () => {
     default: (props: Record<string, unknown>) =>
       React.createElement('Svg', props),
     Svg: (props: Record<string, unknown>) => React.createElement('Svg', props),
+    Line: (props: Record<string, unknown>) => React.createElement('Line', props),
     Path: (props: Record<string, unknown>) =>
       React.createElement('Path', props),
     Circle: (props: Record<string, unknown>) =>

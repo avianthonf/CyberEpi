@@ -14,8 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-
-from seir_fast import DIM, E, I, LB, LC, LHIR, R, S, W, FluParams, integrate
+from seir_fast import DIM, LB, LC, LHIR, E, FluParams, I, R, S, W, integrate
 
 
 @dataclass
@@ -119,10 +118,7 @@ class EAKF:
         """Full week: forecast 7 days, admissions update, ILI update, W reset."""
         self.forecast_week()
         adm = self.update_admissions(y_adm)
-        if self.cfg.use_ili:
-            ili = self.update_ili(y_ili)
-        else:
-            ili = None
+        ili = self.update_ili(y_ili) if self.cfg.use_ili else None
         self.reset_week()
         return {"adm": adm, "ili": ili}
 

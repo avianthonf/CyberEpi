@@ -2,25 +2,37 @@ import * as AuthSession from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
+import {
+  getPatientSession,
+  isPatientSessionCurrent,
+  SessionChangedError,
+  type PatientSession,
+} from '@/lib/patientSession';
 import {AuthTokens, PKCECodePair, UserProfile} from '@/types';
+import {notificationService} from './notifications';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const KEYCLOAK_URL =
-  process.env.EXPO_PUBLIC_KEYCLOAK_URL || 'https://auth.cyberepi.health';
+  process.env.EXPO_PUBLIC_KEYCLOAK_URL || 'http://127.0.0.1:8080';
 const KEYCLOAK_REALM = process.env.EXPO_PUBLIC_KEYCLOAK_REALM || 'cyberepi';
 const KEYCLOAK_CLIENT_ID =
-  process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID || 'patient-app';
+  process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID || 'cyberepi-patient-app';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
 const discovery = {
   authorizationEndpoint: `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`,
   tokenEndpoint: `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`,
   revocationEndpoint: `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/revoke`,
-  userInfoEndpoint: `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo`,
 };
 
 export class AuthService {
   private static instance: AuthService;
+  private refreshPromise: Promise<AuthTokens | null> | null = null;
+  private refreshSession: PatientSession | null = null;
+  private refreshVersion = -1;
+  private credentialVersion = 0;
 
   static getInstance(): AuthService {
     if (!AuthService.instance) {
@@ -32,7 +44,6 @@ export class AuthService {
   async generatePKCE(): Promise<PKCECodePair> {
     const codeVerifier = this.generateRandomString(128);
     const codeChallenge = await this.sha256(codeVerifier);
-
     return {
       codeVerifier,
       codeChallenge,
@@ -41,17 +52,18 @@ export class AuthService {
   }
 
   private generateRandomString(length: number): string {
-    const array = new Uint8Array(length);
-    Crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join(
-      '',
-    );
+    const bytes = new Uint8Array(Math.ceil(length / 2));
+    Crypto.getRandomValues(bytes);
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, length);
   }
 
   private async sha256(input: string): Promise<string> {
     const hash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       input,
+      {encoding: Crypto.CryptoEncoding.BASE64},
     );
     return this.base64UrlEncode(hash);
   }
@@ -60,227 +72,233 @@ export class AuthService {
     return input.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
-  async login(): Promise<AuthTokens> {
-    const pkce = await this.generatePKCE();
-
-    // Store code verifier for token exchange
-    await SecureStore.setItemAsync('pkce_code_verifier', pkce.codeVerifier);
-
-    const authRequest = new AuthSession.AuthRequest({
-      clientId: KEYCLOAK_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri: AuthSession.makeRedirectUri({
-        scheme: 'cyberepi-patient',
-      }),
-      responseType: AuthSession.ResponseType.Code,
-      codeChallenge: pkce.codeChallenge,
-      codeChallengeMethod:
-        pkce.codeChallengeMethod as AuthSession.CodeChallengeMethod,
-      extraParams: {
-        kc_idp_hint: 'keycloak', // Optional: specify identity provider
-      },
-    });
-
-    const result = await authRequest.promptAsync(discovery);
-
-    if (result.type === 'success') {
-      const {code} = result.params;
-      if (!code) {
-        throw new Error('Authorization response missing code');
-      }
-      return await this.exchangeCodeForTokens(code);
-    } else {
-      throw new Error('Authentication cancelled or failed');
+  private assertCredentialSession(session: PatientSession, version: number): void {
+    if (!isPatientSessionCurrent(session) || version !== this.credentialVersion) {
+      throw new SessionChangedError();
     }
   }
 
-  private async exchangeCodeForTokens(code: string): Promise<AuthTokens> {
-    const codeVerifier = await SecureStore.getItemAsync('pkce_code_verifier');
-    if (!codeVerifier) {
-      throw new Error('PKCE code verifier not found');
+  private clearCredentials(): string | null {
+    ++this.credentialVersion;
+    let refreshToken: string | null = null;
+    try {
+      refreshToken = SecureStore.getItem('refresh_token');
+    } catch {
+      // A failed read must not prevent attempts to clear the stored secrets.
     }
+    let failed = false;
+    for (const key of ['access_token', 'refresh_token', 'token_expires_at', 'pkce_code_verifier']) {
+      try {
+        // SecureStore has no synchronous delete. Empty values remove the
+        // secrets atomically within this JS turn; no delayed delete can erase
+        // the next login's credentials.
+        SecureStore.setItem(key, '');
+      } catch {
+        failed = true;
+      }
+    }
+    if (failed) throw new Error('Stored credentials could not be cleared. Please try signing out again.');
+    return refreshToken;
+  }
 
-    const formData = new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: KEYCLOAK_CLIENT_ID,
-      code,
-      redirect_uri: AuthSession.makeRedirectUri({
-        scheme: 'cyberepi-patient',
-      }),
-      code_verifier: codeVerifier,
+  async login(): Promise<AuthTokens> {
+    const session = getPatientSession();
+    const version = ++this.credentialVersion;
+    const pkce = await this.generatePKCE();
+    this.assertCredentialSession(session, version);
+    SecureStore.setItem('pkce_code_verifier', pkce.codeVerifier);
+
+    const request = new AuthSession.AuthRequest({
+      clientId: KEYCLOAK_CLIENT_ID,
+      scopes: ['openid', 'profile', 'email'],
+      redirectUri: AuthSession.makeRedirectUri({scheme: 'cyberepi-patient'}),
+      responseType: AuthSession.ResponseType.Code,
+      codeChallengeMethod: pkce.codeChallengeMethod as AuthSession.CodeChallengeMethod,
     });
+    // Expo otherwise generates a different pair. The browser request and
+    // authorization-code exchange must use this exact verifier/challenge.
+    request.codeVerifier = pkce.codeVerifier;
+    request.codeChallenge = pkce.codeChallenge;
+    const result = await request.promptAsync(discovery);
+    this.assertCredentialSession(session, version);
+    if (result.type !== 'success') throw new Error('Authentication cancelled or failed');
+    const code = result.params.code;
+    if (!code) throw new Error('Authorization response missing code');
+    return this.exchangeCodeForTokens(code, pkce.codeVerifier, session, version);
+  }
 
+  private async exchangeCodeForTokens(
+    code: string,
+    verifier: string,
+    session: PatientSession,
+    version: number,
+  ): Promise<AuthTokens> {
+    this.assertCredentialSession(session, version);
     const response = await fetch(discovery.tokenEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString(),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: KEYCLOAK_CLIENT_ID,
+        code,
+        redirect_uri: AuthSession.makeRedirectUri({scheme: 'cyberepi-patient'}),
+        code_verifier: verifier,
+      }).toString(),
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Token exchange failed: ${error}`);
-    }
-
+    this.assertCredentialSession(session, version);
+    if (!response.ok) throw new Error(`Token exchange failed: HTTP ${response.status}`);
     const tokens: AuthTokens = await response.json();
-
-    // Store tokens securely
-    await SecureStore.setItemAsync('access_token', tokens.access_token);
-    await SecureStore.setItemAsync('refresh_token', tokens.refresh_token);
-
-    const expiresAt = Date.now() + tokens.expires_in * 1000;
-    await SecureStore.setItemAsync('token_expires_at', expiresAt.toString());
-
-    // Clean up PKCE verifier
-    await SecureStore.deleteItemAsync('pkce_code_verifier');
-
+    this.assertCredentialSession(session, version);
+    SecureStore.setItem('access_token', tokens.access_token);
+    SecureStore.setItem('refresh_token', tokens.refresh_token);
+    SecureStore.setItem('token_expires_at', String(Date.now() + tokens.expires_in * 1000));
+    SecureStore.setItem('pkce_code_verifier', '');
     return tokens;
   }
 
   async logout(): Promise<void> {
-    const refreshToken = await SecureStore.getItemAsync('refresh_token');
-
+    const session = getPatientSession();
+    const version = this.credentialVersion;
+    // Deregister push token BEFORE clearing credentials to use authenticated
+    // API call that prevents stale cleanup from unbinding a new owner.
+    try {
+      await notificationService.deregisterPushToken();
+    } catch {
+      // Push token deregistration is best-effort; proceed with credential clearing.
+    }
+    // Verify session hasn't changed during async deregistration
+    if (!isPatientSessionCurrent(session) || version !== this.credentialVersion) {
+      // Another login started; do not clear its credentials.
+      return;
+    }
+    const refreshToken = this.clearCredentials();
+    // Local credentials are already cleared before any remote I/O. Nothing
+    // after this await may mutate credentials belonging to a later login.
     if (refreshToken) {
       try {
-        // Revoke token at Keycloak
-        const formData = new URLSearchParams({
-          client_id: KEYCLOAK_CLIENT_ID,
-          refresh_token: refreshToken,
-        });
-
         await fetch(discovery.revocationEndpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: formData.toString(),
+          headers: {'Content-Type': 'application/x-form-urlencoded'},
+          body: new URLSearchParams({
+            client_id: KEYCLOAK_CLIENT_ID,
+            token: refreshToken,
+            token_type_hint: 'refresh_token',
+          }).toString(),
         });
-      } catch (error) {
-        console.error('Failed to revoke token:', error);
+      } catch {
+        // Remote revocation is best-effort; local sign-out has completed.
       }
     }
-
-    // Clear stored tokens
-    await SecureStore.deleteItemAsync('access_token');
-    await SecureStore.deleteItemAsync('refresh_token');
-    await SecureStore.deleteItemAsync('token_expires_at');
-    await SecureStore.deleteItemAsync('pkce_code_verifier');
   }
 
   async getStoredTokens(): Promise<AuthTokens | null> {
-    try {
-      const accessToken = await SecureStore.getItemAsync('access_token');
-      const refreshToken = await SecureStore.getItemAsync('refresh_token');
-      const expiresAt = await SecureStore.getItemAsync('token_expires_at');
-
-      if (!accessToken || !refreshToken || !expiresAt) {
-        return null;
-      }
-
-      // Check if token is expired or will expire within 60 seconds
-      const now = Date.now();
-      const expiryTime = parseInt(expiresAt, 10);
-
-      if (expiryTime - now < 60000) {
-        // Token will expire soon, refresh it
-        const refreshed = await this.refreshAccessToken();
-        return refreshed;
-      }
-
-      return {
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_in: Math.floor((expiryTime - now) / 1000),
-        token_type: 'Bearer',
-      };
-    } catch (error) {
-      console.error('Failed to retrieve stored tokens:', error);
-      return null;
+    const session = getPatientSession();
+    const version = this.credentialVersion;
+    const accessToken = SecureStore.getItem('access_token');
+    const refreshToken = SecureStore.getItem('refresh_token');
+    const expiry = SecureStore.getItem('token_expires_at');
+    this.assertCredentialSession(session, version);
+    if (!accessToken || !refreshToken || !expiry) return null;
+    const expiresAt = Number(expiry);
+    if (!Number.isFinite(expiresAt) || expiresAt - Date.now() < 60000) {
+      const refreshed = await this.refreshAccessToken();
+      if (!isPatientSessionCurrent(session)) throw new SessionChangedError();
+      // A denied refresh intentionally clears credentials and returns null.
+      if (refreshed) this.assertCredentialSession(session, version);
+      return refreshed;
     }
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_in: Math.floor((expiresAt - Date.now()) / 1000),
+      token_type: 'Bearer',
+    };
   }
 
   async refreshAccessToken(): Promise<AuthTokens | null> {
-    try {
-      const refreshToken = await SecureStore.getItemAsync('refresh_token');
+    const session = getPatientSession();
+    const version = this.credentialVersion;
+    if (this.refreshPromise && this.refreshVersion === version &&
+      this.refreshSession && isPatientSessionCurrent(this.refreshSession)) {
+      return this.refreshPromise;
+    }
+    const promise = (async () => {
+      const refreshToken = SecureStore.getItem('refresh_token');
+      this.assertCredentialSession(session, version);
       if (!refreshToken) {
-        throw new Error('No refresh token available');
+        this.clearCredentials();
+        return null;
       }
-
-      const formData = new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: KEYCLOAK_CLIENT_ID,
-        refresh_token: refreshToken,
-      });
-
       const response = await fetch(discovery.tokenEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString(),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: KEYCLOAK_CLIENT_ID,
+          refresh_token: refreshToken,
+        }).toString(),
       });
-
+      this.assertCredentialSession(session, version);
       if (!response.ok) {
-        throw new Error('Token refresh failed');
+        let reason: unknown;
+        try {
+          const body = await response.json();
+          reason = body?.error;
+        } catch {
+          // Classification still works for a non-JSON 401/403 response.
+        }
+        this.assertCredentialSession(session, version);
+        if (response.status === 401 || response.status === 403 || reason === 'invalid_grant') {
+          this.clearCredentials();
+          return null;
+        }
+        throw new Error(`Session refresh is temporarily unavailable (HTTP ${response.status}). Please try again.`);
       }
-
-      const tokens: AuthTokens = await response.json();
-
-      // Update stored tokens
-      await SecureStore.setItemAsync('access_token', tokens.access_token);
-      if (tokens.refresh_token) {
-        await SecureStore.setItemAsync('refresh_token', tokens.refresh_token);
-      }
-
-      const expiresAt = Date.now() + tokens.expires_in * 1000;
-      await SecureStore.setItemAsync('token_expires_at', expiresAt.toString());
-
+      const received: AuthTokens = await response.json();
+      this.assertCredentialSession(session, version);
+      const tokens = {...received, refresh_token: received.refresh_token || refreshToken};
+      SecureStore.setItem('access_token', tokens.access_token);
+      SecureStore.setItem('refresh_token', tokens.refresh_token);
+      SecureStore.setItem('token_expires_at', String(Date.now() + tokens.expires_in * 1000));
       return tokens;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      await this.logout();
-      return null;
-    }
+    })().finally(() => {
+      if (this.refreshPromise === promise) {
+        this.refreshPromise = null;
+        this.refreshSession = null;
+      }
+    });
+    this.refreshPromise = promise;
+    this.refreshSession = session;
+    this.refreshVersion = version;
+    return promise;
   }
 
   async getUserProfile(): Promise<UserProfile | null> {
-    try {
-      const tokens = await this.getStoredTokens();
-      if (!tokens) {
-        return null;
-      }
-
-      const response = await fetch(discovery.userInfoEndpoint, {
-        headers: {
-          Authorization: `Bearer ${tokens.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user profile');
-      }
-
-      const profile = await response.json();
-
-      // Transform Keycloak profile to our UserProfile format
-      return {
-        id: profile.sub,
-        email: profile.email,
-        name: profile.name || profile.preferred_username,
-        phone: profile.phone_number,
-        role: profile.realm_access?.roles?.includes('physician')
-          ? 'physician'
-          : profile.realm_access?.roles?.includes('admin')
-            ? 'admin'
-            : 'patient',
-        created_at: profile.created_at || new Date().toISOString(),
-        updated_at: profile.updated_at || new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      return null;
+    const session = getPatientSession();
+    const version = this.credentialVersion;
+    const tokens = await this.getStoredTokens();
+    if (!isPatientSessionCurrent(session)) throw new SessionChangedError();
+    if (!tokens) return null;
+    this.assertCredentialSession(session, version);
+    const response = await fetch(`${API_BASE_URL}/patients/me`, {
+      headers: {Authorization: `Bearer ${tokens.access_token}`},
+    });
+    this.assertCredentialSession(session, version);
+    if (!response.ok) {
+      if ([401, 403, 404].includes(response.status)) return null;
+      throw new Error(`Patient profile is temporarily unavailable (HTTP ${response.status}). Please try again.`);
     }
+    const patient = await response.json();
+    this.assertCredentialSession(session, version);
+    return {
+      id: patient.id, // Local patient UUID, deliberately not the Keycloak sub.
+      email: patient.email,
+      name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
+      phone: patient.phone,
+      role: 'patient',
+      created_at: patient.created_at || new Date().toISOString(),
+      updated_at: patient.updated_at || new Date().toISOString(),
+    };
   }
 }
 

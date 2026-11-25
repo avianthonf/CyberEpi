@@ -1,5 +1,12 @@
 # Kafka Topic Fix Plan
 
+> Historical plan, superseded by the current implementation. The symptom
+> publisher, notification consumer, and epi-engine observation consumer now
+> use `symptom-reports`; do not apply the rollback or container commands below
+> to the current stack. See [DEPLOYMENT.md](DEPLOYMENT.md) for the authoritative
+> single-host topology and verification workflow. The original analysis is
+> retained as historical context, not outstanding work.
+
 ## Root Cause Analysis
 - **What**: Kafka topic mismatch: `symptom-service` produces to `patient.events`, `notification-service` consumes `alerts.push`. `symptom-reports` is missing.
 - **Why**: Hardcoded topic names in both services.

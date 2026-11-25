@@ -11,6 +11,7 @@ For each event we:
   2. Run the orchestrator (EKF/PF) to update filter state in Redis.
   3. Compute Rt from the latest state and persist a row in `rt_estimates`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,12 +38,25 @@ logger = structlog.get_logger()
 
 def _seir_params_from_row(row: EpiParams) -> SEIRParams:
     return SEIRParams(
-        beta=row.beta, sigma=row.sigma, gamma=row.gamma,
-        rho=row.rho, fA=row.fA, fM=row.fM, fS=row.fS,
-        alpha=row.alpha, h_rate=row.h_rate, delta=row.delta,
-        mu=row.mu, mu_icu=row.mu_icu, gamma_A=row.gamma_A,
-        gamma_M=row.gamma_M, gamma_S=row.gamma_S, gamma_H=row.gamma_H,
-        gamma_ICU=row.gamma_ICU, papp=row.papp, N_pop=row.N_pop,
+        beta=row.beta,
+        sigma=row.sigma,
+        gamma=row.gamma,
+        rho=row.rho,
+        fA=row.fA,
+        fM=row.fM,
+        fS=row.fS,
+        alpha=row.alpha,
+        h_rate=row.h_rate,
+        delta=row.delta,
+        mu=row.mu,
+        mu_icu=row.mu_icu,
+        gamma_A=row.gamma_A,
+        gamma_M=row.gamma_M,
+        gamma_S=row.gamma_S,
+        gamma_H=row.gamma_H,
+        gamma_ICU=row.gamma_ICU,
+        papp=row.papp,
+        N_pop=row.N_pop,
     )
 
 
@@ -73,9 +87,9 @@ def _observations_from_event(event: dict) -> dict:
 def _compute_rt(params: SEIRParams, x_state: list[float]) -> tuple[float, float, float]:
     """Compute a simple Rt estimate from the current filter state.
 
-    Rt ≈ (β · S / N) / γ. Bootstrap bounds by ±20% so the API contract
-    (Rt_mean/Rt_lower/Rt_upper) is fulfilled even before we have enough
-    posterior samples to derive empirical quantiles.
+    Rt ≈ (β · S / N) / γ. Heuristic ±20% display bounds; not calibrated/posterior
+    confidence intervals. The API contract (Rt_mean/Rt_lower/Rt_upper) is fulfilled
+    even before we have enough posterior samples to derive empirical quantiles.
     """
     S = float(x_state[0]) if x_state else params.N_pop * 0.9
     N = float(params.N_pop)
@@ -105,9 +119,7 @@ async def _process_batch(
 
     async with AsyncSessionLocal() as db:
         for region_id, region_events in by_region.items():
-            result = await db.execute(
-                select(EpiParams).where(EpiParams.region_id == region_id)
-            )
+            result = await db.execute(select(EpiParams).where(EpiParams.region_id == region_id))
             params_row = result.scalar_one_or_none()
             if params_row is None:
                 logger.debug("region_params_missing", region_id=region_id)
@@ -115,7 +127,9 @@ async def _process_batch(
 
             params = _seir_params_from_row(params_row)
             orchestrator = FilterOrchestrator(
-                region_id, redis_client, kafka_producer,
+                region_id,
+                redis_client,
+                kafka_producer,
                 session_maker=AsyncSessionLocal,
             )
 
@@ -184,36 +198,28 @@ async def consume_observations(app) -> None:
                         msg = await asyncio.wait_for(consumer.getone(), timeout=2.0)
                     except TimeoutError:
                         if batch:
-                            await _process_batch(
-                                batch, app.state.redis, app.state.kafka_producer
-                            )
+                            await _process_batch(batch, app.state.redis, app.state.kafka_producer)
                             batch.clear()
                         continue
                     try:
                         event = json.loads(msg.value.decode("utf-8"))
                         batch.append(event)
                         if len(batch) >= 25:
-                            await _process_batch(
-                                batch, app.state.redis, app.state.kafka_producer
-                            )
+                            await _process_batch(batch, app.state.redis, app.state.kafka_producer)
                             batch.clear()
                     except Exception:
                         logger.exception("observation_decode_error")
             finally:
                 if batch:
                     try:
-                        await _process_batch(
-                            batch, app.state.redis, app.state.kafka_producer
-                        )
+                        await _process_batch(batch, app.state.redis, app.state.kafka_producer)
                     except Exception:
                         logger.exception("final_batch_flush_failed")
                     batch.clear()
                 with contextlib.suppress(Exception):
                     await consumer.stop()
         except KafkaError as exc:
-            logger.warning(
-                "epi_consumer_kafka_error", error=str(exc), backoff=backoff
-            )
+            logger.warning("epi_consumer_kafka_error", error=str(exc), backoff=backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30.0)
         except asyncio.CancelledError:

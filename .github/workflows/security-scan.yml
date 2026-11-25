@@ -34,13 +34,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [user-service, symptom-service, prescription-service, notification-service]
+        service: [user-service, symptom-service, prescription-service, notification-service, privacy-service, epi-engine]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install core libraries
+        run: |
+          pip install -e ./libs/seir-core
+          pip install -e ./libs/shared
+
 
       - name: Audit ${{ matrix.service }}
         working-directory: services/${{ matrix.service }}
@@ -55,7 +61,7 @@ jobs:
     if: github.event_name == 'pull_request'
     strategy:
       matrix:
-        service: [user-service, symptom-service, prescription-service, notification-service]
+        service: [user-service, symptom-service, prescription-service, notification-service, privacy-service, epi-engine]
     steps:
       - uses: actions/checkout@v4
 

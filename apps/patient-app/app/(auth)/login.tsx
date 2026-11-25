@@ -11,19 +11,10 @@ import {
 } from 'react-native';
 import {useRouter} from 'expo-router';
 import {useAuthStore} from '@/store/authStore';
-import {useNetworkSync} from '@/hooks/useRiskScore';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const {login, isLoading, error, isAuthenticated, checkAuth} = useAuthStore();
-
-  // Initialize network sync listener
-  useNetworkSync();
-
-  useEffect(() => {
-    // Check if user is already authenticated
-    checkAuth();
-  }, [checkAuth]);
+  const {login, isLoading, error, isAuthenticated} = useAuthStore();
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -36,9 +27,8 @@ export default function LoginScreen() {
     try {
       await login();
       // Navigation will happen in useEffect when isAuthenticated changes
-    } catch (err) {
-      console.error('Login error:', err);
-      // Error is handled by the store
+    } catch {
+      // The store exposes a useful sign-in error without logging credentials.
     }
   };
 

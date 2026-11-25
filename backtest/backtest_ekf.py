@@ -29,9 +29,7 @@ sys.path.insert(0, str(ROOT / "services" / "epi-engine"))
 # Force CPU
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
-from scipy.integrate import solve_ivp
-from seir_core import SEIRParams, seir_extended, compute_Rt
-
+from seir_core import SEIRParams
 
 # ─── Data loading ─────────────────────────────────────────────────────────
 
@@ -71,7 +69,7 @@ def estimate_rt_cori(
     from scipy.stats import gamma as gamma_dist
 
     T = len(ili_series)
-    if T <= window:
+    if window >= T:
         return np.zeros(T)
 
     var = serial_interval_sd ** 2
@@ -193,7 +191,7 @@ def run_ekf_on_series(
     for t in range(n_weeks):
         # Step EKF
         try:
-            x, P, innovation, chi2 = ekf.step(x, P, y_obs[t])
+            x, P, _innovation, _chi2 = ekf.step(x, P, y_obs[t])
             # Recover Rt from state: Rt = (beta * S/N) / gamma
             S = max(x[0], 1.0)
             est_rt = (beta * S / N_pop) / gamma
@@ -252,10 +250,7 @@ def analyze_lead_time(
     # RMSE on overlap
     valid = ~np.isnan(rt_ekf) & ~np.isnan(rt_truth)
     rmse_ekf_truth = float(np.sqrt(np.mean((rt_ekf[valid] - rt_truth[valid]) ** 2))) if valid.any() else None
-    if valid.sum() > 1:
-        corr_ekf_truth = float(np.corrcoef(rt_ekf[valid], rt_truth[valid])[0, 1])
-    else:
-        corr_ekf_truth = None
+    corr_ekf_truth = float(np.corrcoef(rt_ekf[valid], rt_truth[valid])[0, 1]) if valid.sum() > 1 else None
 
     return {
         "crossings": crossings,
@@ -294,7 +289,7 @@ def main():
 
     # ─── Test 3: EKF on lead signal with synthetic noise ──────────────────
     print("\n[Test 3] SEIR EKF on noisy lead signal")
-    t_weeks, y_obs = simulate_seir_observations(wili_lead, n_weeks=len(wili_lead))
+    _t_weeks, y_obs = simulate_seir_observations(wili_lead, n_weeks=len(wili_lead))
     rt_ekf = run_ekf_on_series(y_obs, n_weeks=len(y_obs))
     print(f"  EKF Rt range: [{rt_ekf.min():.3f}, {rt_ekf.max():.3f}]")
 
@@ -303,13 +298,13 @@ def main():
     # Use full retrospective Cori as truth
     analysis = analyze_lead_time(rt_cori_retro, rt_ekf, rt_cori_retro, weeks)
 
-    print(f"  First crossing ABOVE Rt=1:")
+    print("  First crossing ABOVE Rt=1:")
     for k, v in analysis["crossings"].items():
         if "above" in k:
             print(f"    {k}: week {v}")
     print(f"  EKF lead over surveillance (up): {analysis['lead_weeks_up']} weeks")
 
-    print(f"  First crossing BELOW Rt=1:")
+    print("  First crossing BELOW Rt=1:")
     for k, v in analysis["crossings"].items():
         if "below" in k:
             print(f"    {k}: week {v}")
@@ -329,7 +324,7 @@ def main():
         if mask.sum() > 20:
             seasons.append((yr, season_start, season_end, mask))
 
-    for yr, start, end, mask in seasons:
+    for yr, _start, _end, mask in seasons:
         rt_t = rt_cori_retro[mask]
         rt_e = rt_ekf[mask]
         idx_peak_t = int(np.argmax(rt_t))
@@ -353,7 +348,7 @@ def main():
     }
     with open(ROOT / "backtest" / "results.json", "w") as f:
         json.dump(output, f)
-    print(f"\nResults saved to backtest/results.json")
+    print("\nResults saved to backtest/results.json")
 
     # ─── Summary verdict ──────────────────────────────────────────────────
     print("\n" + "=" * 70)

@@ -58,10 +58,7 @@ def integrate(x: np.ndarray, n_days: int, p: FluParams,
     """
     m = x.shape[0]
     y0 = x.ravel()
-    if daily:
-        t_eval = np.arange(1, n_days + 1, dtype=float)
-    else:
-        t_eval = [float(n_days)]
+    t_eval = np.arange(1, n_days + 1, dtype=float) if daily else [float(n_days)]
     sol = solve_ivp(
         rhs_flat, (0.0, float(n_days)), y0, args=(m, p.N_pop, p),
         method="RK45", t_eval=t_eval, rtol=rtol, atol=atol,
