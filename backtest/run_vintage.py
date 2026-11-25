@@ -17,9 +17,12 @@ This driver rebuilds that view. For every origin R it:
 Scoring is against the final values (`oracle-output.csv`), as the hub does,
 and is reported relative to both FluSight-baseline and FluSight-ensemble.
 
-ED-visit input: as-of versions of the ED series exist in the hub only from
-Nov 2025. `--ili final` uses final ED values (mild leakage, labelled);
-`--ili none` uses admissions only and is fully vintage-correct.
+ED-visit input (the model's second observation stream):
+`--ili final`   final ED values (small leakage; versions do not exist before
+                Nov 2025, so this is the only option for earlier seasons);
+`--ili vintage` as-published ED values too (fully vintage-correct); origins
+                before the first archived ED version are skipped;
+`--ili none`    admissions only.
 
 Usage:
     python3 backtest/run_vintage.py --seasons 2024-25,2025-26 \
@@ -29,6 +32,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -96,6 +100,40 @@ def series_at(as_of: pd.Timestamp, loc: str, last_week: pd.Timestamp) -> pd.Seri
     return s.reindex(grid)
 
 
+@lru_cache(maxsize=1)
+def load_ed_vintages() -> pd.DataFrame:
+    """As-published ED flu-visit fractions: (vintage, max_week, location, week_end, ili_frac).
+
+    Two hub sources: weekly archive files `target-ed-visits-prop_<last week>.csv`
+    (labelled by their newest week) and the `as_of` rows of time-series.csv.
+    """
+    parts = []
+    for f in glob.glob(os.path.join(HUB_DIR, "target-data-archive", "target-ed-visits-prop_*.csv")):
+        d = pd.read_csv(f, parse_dates=["date"], dtype={"location": str})
+        label = pd.Timestamp(os.path.basename(f).split("_")[1][:-4])
+        parts.append(pd.DataFrame({"vintage": label, "location": d["location"],
+                                   "week_end": d["date"], "ili_frac": d["value"]}))
+    ts = pd.read_csv(os.path.join(HUB_DIR, "time-series.csv"),
+                     usecols=["as_of", "target", "target_end_date", "location", "observation"],
+                     parse_dates=["as_of", "target_end_date"], dtype={"location": str})
+    ts = ts[ts["target"] == "wk inc flu prop ed visits"]
+    parts.append(pd.DataFrame({"vintage": ts["as_of"], "location": ts["location"],
+                               "week_end": ts["target_end_date"], "ili_frac": ts["observation"]}))
+    ed = pd.concat(parts, ignore_index=True).dropna()
+    ed["max_week"] = ed.groupby("vintage")["week_end"].transform("max")
+    return ed
+
+
+def ed_map_at(origin: pd.Timestamp, loc: str) -> dict | None:
+    """ED values for `loc` from the newest version usable at origin R."""
+    ed = load_ed_vintages()
+    ok = ed[(ed["vintage"] <= origin) & (ed["max_week"] <= origin - WEEK)]
+    if ok.empty:
+        return None
+    sub = ok[(ok["vintage"] == ok["vintage"].max()) & (ok["location"] == loc)]
+    return dict(zip(sub["week_end"].values, sub["ili_frac"].values, strict=True))
+
+
 def _cfg(a: dict) -> EakfConfig:
     return EakfConfig(
         n_members=a["members"], sd_beta=a["sd_beta"], sd_hir=a["sd_hir"],
@@ -128,6 +166,10 @@ def _run_job(job: dict) -> dict:
             trace.append({"location": loc, "reference_date": str(R.date()), "as_of": None, "stale_weeks": None})
             continue
         as_of, max_week = pick
+        if a["ili"] == "vintage":
+            ili_map = ed_map_at(R, loc)
+            if not ili_map:
+                continue
         tw = series_at(as_of, loc, R - WEEK)
         if tw.notna().sum() < 10:
             continue
@@ -159,7 +201,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--locations", default="US,06,12,36,48")
     ap.add_argument("--seasons", default="2024-25,2025-26")
-    ap.add_argument("--ili", choices=["none", "final"], default="none")
+    ap.add_argument("--ili", choices=["none", "final", "vintage"], default="none")
     ap.add_argument("--members", type=int, default=300)
     ap.add_argument("--sd-beta", type=float, default=0.05)
     ap.add_argument("--sd-hir", type=float, default=0.005)
@@ -183,6 +225,8 @@ def main() -> None:
     # Load shared data once in the parent so forked workers inherit it.
     load_vintages()
     vintage_index()
+    if args.ili == "vintage":
+        load_ed_vintages()
     baseline = load_model_output("FluSight-baseline")
     seasons = args.seasons.split(",")
     jobs = [
