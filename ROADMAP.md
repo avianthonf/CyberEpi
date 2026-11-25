@@ -99,8 +99,9 @@ and first pull request, and gave standing approval for weekly submissions
 still needs approval.
 
 ### Phase 3 — Show it
-- README rewritten around the forecaster; the platform becomes a labelled
-  "systems demo" section.
+- README rewritten around the forecaster. The platform (app, services,
+  deploy configs) was removed from main on 2026-11-25 rather than kept as a
+  demo; it is preserved at the git tag `platform-archive`.
 - Results page: honest backtest + live scores, updated weekly.
 - Stop. From here the work is watching scores, not building.
 
@@ -111,9 +112,7 @@ still needs approval.
   is the natural next step once both have live scores.
 
 - Public forecast dashboard fed by the live pipeline (first candidate after
-  Phase 3; would reuse epi-engine and the app).
-- Patient app and services beyond keeping them building.
-- Cloud deployment configs in `deploy/free/`.
+  Phase 3).
 
 ## Rules for working autonomously
 

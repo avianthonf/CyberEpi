@@ -1,16 +1,14 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "CyberEpi: SEIHDR-EAKF Influenza Hospitalization Forecasting Platform"
+title: "CyberEpi: influenza hospitalization forecasting for CDC FluSight"
 authors:
   - name: "Avinash"
     email: "avianthonf@pm.me"
 repository-code: "https://github.com/avianthonf/CyberEpi"
 license: MIT
 abstract: >-
-  Automated disease surveillance and forecasting platform: a SEIHDR
-  mechanistic model with ensemble square-root filter (EAKF) assimilation of
-  NHSN influenza admissions and NSSP ED ILI data, plus a six-service
-  FastAPI backend with differential privacy and federated learning support.
-  Backtested against CDC FluSight targets (pooled relWIS 0.714 vs the CDC
-  baseline across three seasons, 53 locations, 18,020 scored forecasts,
-  h=0..3).
+  Weekly influenza hospital admission forecasts for the US and 52
+  jurisdictions, submitted live to the CDC FluSight challenge for 2026-27.
+  Model 1 is a SEIHDR mechanistic model with ensemble adjustment Kalman
+  filter assimilation; model 2 is gradient-boosted quantile regression.
+  Backtested on data as published each week (BACKTEST_RESULTS.md).

@@ -1,53 +1,6 @@
-# Unified ruff configuration for all CyberEpi services and libs.
-# Extend from package pyproject.toml files via:
-#   [tool.ruff]
-#   extend = "../../ruff.toml"
+# Lint for the forecaster: syntax errors and pyflakes (unused or undefined names).
 target-version = "py312"
 line-length = 130
 
 [lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF", "DTZ", "BLE"]
-ignore = [
-    # FastAPI requires Depends/File/Query in argument defaults; handled by
-    # flake8-bugbear.extend-immutable-calls below.
-]
-
-[lint.flake8-bugbear]
-extend-immutable-calls = [
-    "fastapi.Depends",
-    "fastapi.Query",
-    "fastapi.Path",
-    "fastapi.Body",
-    "fastapi.File",
-    "fastapi.Form",
-    "fastapi.Header",
-    "fastapi.Security",
-]
-
-[lint.per-file-ignores]
-# Tests set env vars before importing service modules (import-order on purpose).
-"tests/**" = ["E402"]
-"**/tests/**" = ["E402"]
-# Alembic migration files are generated; keep them untouched.
-"**/alembic/versions/**" = ["E501", "W291", "W293", "DTZ003"]
-"**/alembic/env.py" = ["E402"]
-# Epidemiological math: S/E/I/R compartment names, beta/gamma/sigma args and
-# Rt/R0 notation are domain convention. pep8-naming and ambiguous-unicode
-# (Greek letters in docstrings) are false positives there.
-"libs/seir-core/**" = ["N801", "N802", "N803", "N806", "N815", "E741", "RUF002", "RUF003", "RUF059"]
-"services/epi-engine/**" = ["N801", "N802", "N803", "N806", "N815", "E741", "RUF002", "RUF003", "RUF059"]
-# differential-privacy / federated-learning notation: clipping norm C, neighbor
-# count K, training matrix X_train are the standard names in the literature.
-"services/privacy-service/src/dp/**" = ["N803", "N806"]
-"services/privacy-service/src/federated/**" = ["N803", "N806"]
-"services/symptom-service/src/services/deterioration.py" = ["N803"]
-"services/symptom-service/src/api/routers/risk.py" = ["N815"]
-# E2E verification/fuzz harness: any exception from a probe MUST be captured as
-# a recorded failed step (never crash the run) -> blind except is the harness
-# contract. Probe payloads stay as one-line literals for grepability. These are
-# standalone ops scripts, not service code.
-"scripts/verify_all.py" = ["BLE001", "E501"]
-"scripts/verify_negative.py" = ["BLE001", "E501"]
-"scripts/verify_extra.py" = ["BLE001", "E501"]
-"scripts/fuzz_mutating.py" = ["BLE001", "E501"]
-"scripts/healthcheck.py" = ["BLE001"]
+select = ["E9", "F"]

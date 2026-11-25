@@ -1,7 +1,0 @@
-{
-  "testEnvironment": "./environment",
-  "testRunner": "jest-circus/runner",
-  "testTimeout": 120000,
-  "rootDir": "..",
-  "testMatch": ["<rootDir>/e2e/**/*.e2e.ts"]
-}
