@@ -44,13 +44,15 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install numpy pandas scipy jsonschema pyyaml
+        run: pip install numpy pandas scipy jsonschema pyyaml lightgbm scikit-learn
 
       - name: Fetch FluSight hub data
         run: |
           git clone --depth 1 --filter=blob:none --sparse \
             https://github.com/cdcepi/FluSight-forecast-hub hub
           git -C hub sparse-checkout set target-data auxiliary-data hub-config
+          # time-series.csv is large and only the backtest needs it
+          rm -f hub/target-data/time-series.csv
 
       - name: Skip if this week is already committed
         id: done
@@ -87,8 +89,11 @@ jobs:
             echo "stale=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          [ $rc -eq 0 ] || exit $rc
+          # Model 2 (CyberEpi-GBQR), same data and checks.
+          python3 backtest/live.py --hub hub --out forecasts --kind gbqr \
+            --reference-date "${{ steps.done.outputs.ref }}"
           rm -rf forecasts/_work
-          exit $rc
 
       - name: Upload forecast files
         if: steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'

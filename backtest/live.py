@@ -70,7 +70,9 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(ROOT, "forecasts"))
     ap.add_argument("--ncpus", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--team", default="CyberEpi")
-    ap.add_argument("--model", default="EAKF")
+    ap.add_argument("--kind", choices=["eakf", "gbqr"], default="eakf",
+                    help="eakf: model 1 (mechanistic); gbqr: model 2 (quantile regression)")
+    ap.add_argument("--model", default=None, help="model abbreviation (default: EAKF or GBQR)")
     ap.add_argument("--name", default=os.environ.get("FORECAST_CONTRIBUTOR_NAME", ""))
     ap.add_argument("--email", default=os.environ.get("FORECAST_CONTRIBUTOR_EMAIL", ""))
     ap.add_argument("--affiliation", default=os.environ.get("FORECAST_CONTRIBUTOR_AFFILIATION", "Independent"))
@@ -78,6 +80,7 @@ def main() -> int:
                     help="forecast even if this week's data is not out yet (testing only)")
     args = ap.parse_args()
 
+    args.model = args.model or args.kind.upper()
     ref = (dt.date.fromisoformat(args.reference_date) if args.reference_date
            else default_reference_date(dt.datetime.now(ZoneInfo("America/New_York")).date()))
     if ref.weekday() != 5:
@@ -98,15 +101,21 @@ def main() -> int:
     if newest > expected:
         raise SystemExit("hub data is newer than the reference date; wrong --reference-date?")
 
-    with open(os.path.join(HERE, "model_config.json")) as f:
-        cfg = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
-    locations = ",".join(load_locations()["location"])
     work = os.path.join(args.out, "_work")
     os.makedirs(work, exist_ok=True)
     label = f"{args.team}-{args.model}"
-    prospective(str(ref), SimpleNamespace(**cfg, locations=locations, ncpus=args.ncpus,
-                                          out=work, label=label))
     rows_csv = os.path.join(work, f"rows-{label}-{ref}.csv")
+    if args.kind == "eakf":
+        with open(os.path.join(HERE, "model_config.json")) as f:
+            cfg = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+        locations = ",".join(load_locations()["location"])
+        prospective(str(ref), SimpleNamespace(**cfg, locations=locations, ncpus=args.ncpus,
+                                              out=work, label=label))
+    else:
+        from gbqr import forecast_origin
+        with open(os.path.join(HERE, "model2_config.json")) as f:
+            params = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+        pd.DataFrame(forecast_origin(pd.Timestamp(ref), params, live=True)).to_csv(rows_csv, index=False)
 
     rows = pd.read_csv(rows_csv, dtype={"location": str})
     print(f"{rows['location'].nunique()} locations, horizons {sorted(rows['horizon'].unique())}")
@@ -114,7 +123,8 @@ def main() -> int:
     subprocess.run([sys.executable, os.path.join(HERE, "package_submission.py"), rows_csv,
                     "--team", args.team, "--model", args.model, "--out", args.out,
                     "--name", args.name, "--email", args.email,
-                    "--affiliation", args.affiliation], check=True)
+                    "--affiliation", args.affiliation, "--kind", args.kind]
+                   + (["--not-designated"] if args.kind == "gbqr" else []), check=True)
     draft = not (args.name and args.email)
     cmd = [sys.executable, os.path.join(HERE, "validate_submission.py"),
            args.out, "--model-id", label, "--hub", args.hub]

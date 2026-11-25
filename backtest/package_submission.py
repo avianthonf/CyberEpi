@@ -36,6 +36,22 @@ METHODS_LONG = (
     "from its own observations."
 )
 
+GBQR_DATA_INPUTS = DATA_INPUTS
+GBQR_METHODS = ("Gradient-boosted quantile regression on recent admission "
+                "trends and ED visit share, pooled across locations.")
+GBQR_METHODS_LONG = (
+    "LightGBM quantile regression, one model per horizon and quantile, pooled "
+    "across all locations. Target: change in log(1 + admissions per 100k) from "
+    "the last reported week. Features: current log rate, its 1-4 week changes, "
+    "log ED influenza visit share and its 1-2 week changes, and week of year. "
+    "Refitted every week on all data published by the forecast date; quantiles "
+    "sorted to prevent crossing."
+)
+KINDS = {
+    "eakf": (DATA_INPUTS, METHODS, METHODS_LONG),
+    "gbqr": (GBQR_DATA_INPUTS, GBQR_METHODS, GBQR_METHODS_LONG),
+}
+
 METADATA_TEMPLATE = """team_name: {team_name}
 team_abbr: {team}
 model_name: {model_name}
@@ -48,7 +64,7 @@ model_contributors: [
   }}
 ]
 license: CC-BY-4.0
-designated_model: true
+designated_model: {designated}
 data_inputs: "{data_inputs}"
 methods: "{methods}"
 methods_long: "{methods_long}"
@@ -76,6 +92,9 @@ def main() -> None:
     ap.add_argument("--website", default="https://github.com/avianthonf/CyberEpi")
     ap.add_argument("--repo", default="https://github.com/avianthonf/CyberEpi")
     ap.add_argument("--out", default="backtest/submission")
+    ap.add_argument("--kind", choices=sorted(KINDS), default="eakf")
+    ap.add_argument("--not-designated", action="store_true",
+                    help="designated_model: false (not included in the CDC ensemble)")
     args = ap.parse_args()
 
     if not (valid_part(args.team) and valid_part(args.model)):
@@ -105,8 +124,9 @@ def main() -> None:
             team_name=args.team_name, team=args.team,
             model_name=args.model_name, model=args.model,
             name=args.name, affiliation=args.affiliation, email=args.email,
-            methods=METHODS, methods_long=METHODS_LONG,
-            data_inputs=DATA_INPUTS,
+            data_inputs=KINDS[args.kind][0], methods=KINDS[args.kind][1],
+            methods_long=KINDS[args.kind][2],
+            designated="false" if args.not_designated else "true",
             website=args.website, repo=args.repo))
 
     print(f"wrote {out_csv} ({len(df)} rows) and {out_yml}")

@@ -23,7 +23,14 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from hub_data import PRIMARY_TARGET, STANDARD_QUANTILES, ed_frac_by_location, load_locations, load_model_output
+from hub_data import (
+    PRIMARY_TARGET,
+    STANDARD_QUANTILES,
+    ed_frac_by_location,
+    load_locations,
+    load_model_output,
+    load_truth,
+)
 from run_flusight import season_origins
 from run_vintage import WEEK, ed_map_at, load_ed_vintages, load_vintages, pick_vintage, score, series_at, vintage_index
 
@@ -54,19 +61,38 @@ def _ed_at(ref: pd.Timestamp) -> pd.DataFrame | None:
     return ed
 
 
-def build_panel(ref: pd.Timestamp) -> pd.DataFrame | None:
-    """Weekly panel (location, week) with features, from the version usable at R."""
-    pick = pick_vintage(ref)
-    if pick is None:
-        return None
-    as_of, _ = pick
+def _latest_series(loc: str, last_week: pd.Timestamp) -> pd.Series:
+    """Live mode: the newest published admissions file is the as-of data."""
+    t = load_truth()
+    s = t[t["location"] == loc].set_index("date")["value"].sort_index()
+    s = s[s.index <= last_week]
+    if s.empty:
+        return s
+    return s.reindex(pd.date_range(end=last_week, start=s.index.min(), freq="7D"))
+
+
+def build_panel(ref: pd.Timestamp, live: bool = False) -> pd.DataFrame | None:
+    """Weekly panel (location, week) with features, from the version usable at R.
+
+    live=True reads the latest published files (target-hospital-admissions.csv
+    and target-ed-visits-prop.csv), which at forecast time are the as-of data.
+    """
+    if live:
+        as_of = None
+        ed = ed_frac_by_location()
+        ed = ed[ed["week_end"] <= ref - WEEK]
+    else:
+        pick = pick_vintage(ref)
+        if pick is None:
+            return None
+        as_of, _ = pick
+        ed = _ed_at(ref)
+        if ed is None:
+            return None
     locs = load_locations().set_index("location")["population"]
-    ed = _ed_at(ref)
-    if ed is None:
-        return None
     frames = []
     for loc, pop in locs.items():
-        s = series_at(as_of, loc, ref - WEEK)
+        s = _latest_series(loc, ref - WEEK) if live else series_at(as_of, loc, ref - WEEK)
         if s.empty:
             continue
         df = pd.DataFrame({"week": s.index, "adm": s.to_numpy(float)})
@@ -91,11 +117,11 @@ def build_panel(ref: pd.Timestamp) -> pd.DataFrame | None:
     return p
 
 
-def forecast_origin(ref: pd.Timestamp, params: dict) -> list[dict]:
+def forecast_origin(ref: pd.Timestamp, params: dict, live: bool = False) -> list[dict]:
     """Fit on everything known at R, emit hub-format rows for all locations."""
     import lightgbm as lgb
 
-    p = build_panel(ref)
+    p = build_panel(ref, live=live)
     if p is None:
         return []
     # Anchor each location at its newest observed week; if that lags R-7
