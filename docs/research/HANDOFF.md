@@ -34,7 +34,7 @@ Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMIT
   - It never resubmits a file that is already in the hub, and never opens a second PR
     for the same week.
 - **Today's scheduled run** (2026-11-25, for 2026-11-28) had not started by 19:45 UTC.
-  Check the Actions tab. The EAKF file is already in the hub, so it should only commit
+  As of 23:30 UTC no forecast commit had reached main, so check the Actions tab. The EAKF file is already in the hub, so it should only commit
   forecasts and skip submission. GBQR is skipped for reference dates before 2026-12-05.
 - **Next submission:** Wednesday 2026-12-02 (reference date 2026-12-05), the first week
   with both models. It also adds the GBQR metadata. Check that run.
@@ -78,9 +78,9 @@ Thirteen background agents were launched, each writing
 `docs/research/families/NN-<slug>.md`. **All 13 stopped at the account's 5-hour usage
 limit** (reset 22:40 UTC). Only one report was written:
 
-- `12-rare-cross-domain.md` (65 KB). It may be incomplete; check the end of the file.
+- `12-rare-cross-domain.md` (65 KB), complete (ends with its reference list).
 
-Relaunch the other 12 (and finish 12 if it's incomplete). The families and file names:
+Relaunch the other 12. The families and file names:
 
 | # | File | Family |
 |---|---|---|
