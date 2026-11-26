@@ -149,6 +149,7 @@ def _cfg(a: dict) -> EakfConfig:
         ed_intercept=a.get("ed_intercept", 0.0), beta_revert_hl_wk=a.get("beta_revert_hl_wk", 0.0),
         beta_anchor=a.get("beta_anchor", "trailing6"),
         delay_mean_days=a.get("delay_mean_days", 0.0), depletion_gamma=a.get("depletion_gamma", 1.0),
+        delay_consistent=a.get("delay_consistent", False),
     )
 
 

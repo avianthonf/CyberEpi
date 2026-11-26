@@ -33,6 +33,7 @@ def forecast_quantiles(
     lb_anchor: float | None = None,
     delay_mean_days: float = 0.0,
     depletion_gamma: float = 1.0,
+    hist: np.ndarray | None = None,
 ) -> dict[int, np.ndarray]:
     """Return {horizon: quantile array aligned to STANDARD_QUANTILES}.
 
@@ -44,7 +45,7 @@ def forecast_quantiles(
     seasonal level from the filter history) after each day's noise, with that
     half-life in weeks (0 = off).
     delay_mean_days > 0 convolves daily admission incidence with an Erlang-2
-    delay kernel; days before the origin repeat the first forward day's
+    delay kernel; pre-origin days come from `hist` (M, days, oldest first) if given, else repeat the first forward day's
     incidence (0 = off). depletion_gamma != 1 adds (gamma-1)*dlog(S) to
     log_beta each forward day, i.e. extra depletion relative to the origin
     (1 = off).
@@ -81,7 +82,8 @@ def forecast_quantiles(
     if kern is not None:
         inc = np.maximum(np.array(daily_inc), 0.0)  # (days, M)
         n_lag = len(kern)
-        pad = np.concatenate([np.repeat(inc[:1], n_lag - 1, axis=0), inc])
+        pre = np.repeat(inc[:1], n_lag - 1, axis=0) if hist is None else hist[:, -(n_lag - 1):].T
+        pad = np.concatenate([pre, inc])
         delayed = np.stack([kern @ pad[t + n_lag - 1 - np.arange(n_lag)] for t in range(len(inc))])
         for i, h in enumerate(hs):
             adm = delayed[7 * i:7 * i + 7].sum(axis=0)
@@ -103,6 +105,7 @@ def emit_rows(
     lb_anchor: float | None = None,
     delay_mean_days: float = 0.0,
     depletion_gamma: float = 1.0,
+    hist: np.ndarray | None = None,
 ) -> list[dict]:
     """Emit hubverse-format rows for one location at one origin date."""
     rng = rng or np.random.default_rng(0)
@@ -110,7 +113,7 @@ def emit_rows(
     qs = forecast_quantiles(X, p, horizons=(0, 1, 2, 3), s_obs=s_obs,
                             sd_beta_fwd=sd_beta_fwd, rng=rng, beta_revert_hl_wk=beta_revert_hl_wk,
                             lb_anchor=lb_anchor, delay_mean_days=delay_mean_days,
-                            depletion_gamma=depletion_gamma)
+                            depletion_gamma=depletion_gamma, hist=hist)
 
     ref = np.datetime64(reference_date).astype("datetime64[D]")
     if last_obs_week_value is not None:

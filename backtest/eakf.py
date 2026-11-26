@@ -15,6 +15,16 @@ from dataclasses import dataclass
 
 import numpy as np
 from seir_fast import DIM, LB, LC, LHIR, E, FluParams, I, R, S, W, integrate
+from forecast import delay_kernel
+
+
+def _adm_obs_coef(kern: np.ndarray, n_buf: int) -> np.ndarray:
+    """Weights from the daily incidence buffer (oldest first; last 7 entries = the observed week) to that week's delayed admissions."""
+    coef = np.zeros(n_buf)
+    for t in range(7):
+        for lag, k_lag in enumerate(kern):
+            coef[n_buf - 7 + t - lag] += k_lag
+    return coef
 
 
 @dataclass
@@ -37,6 +47,7 @@ class EakfConfig:
     beta_anchor: str = "trailing6"  # reversion target: "trailing6" (mean posterior log-beta, last 6 weeks) or "season"
     delay_mean_days: float = 0.0  # forward infection-to-admission Erlang-2 delay mean (days); 0.0 = off
     depletion_gamma: float = 1.0  # forward extra S depletion: log-beta += (gamma-1)*dlog(S); 1.0 = off
+    delay_consistent: bool = False  # admissions obs + forward pre-origin use the delay kernel on filtered incidence history; False = off
     seed: int = 0
 
 
@@ -46,6 +57,15 @@ class EAKF:
         self.cfg = cfg
         self.rng = np.random.default_rng(cfg.seed)
         self.X = self._init_ensemble()
+        self.H: np.ndarray | None = None  # (M, n_buf) daily incidence buffer, oldest first (delayed-admissions operator)
+        self._adm_coef: np.ndarray | None = None
+        if cfg.delay_consistent:
+            if cfg.delay_mean_days <= 0:
+                raise ValueError("delay_consistent needs delay_mean_days > 0")
+            kern = delay_kernel(cfg.delay_mean_days)
+            n_buf = len(kern) - 1 + 7
+            self.H = np.zeros((cfg.n_members, n_buf))
+            self._adm_coef = _adm_obs_coef(kern, n_buf)
 
     # ---- initialization --------------------------------------------------
     def _init_ensemble(self) -> np.ndarray:
@@ -70,11 +90,16 @@ class EAKF:
     # ---- forecast --------------------------------------------------------
     def forecast_week(self) -> None:
         x = self.X
+        inc: list[np.ndarray] = []
         for _ in range(7):
+            w0 = x[:, W].copy()
             x = integrate(x, 1, self.p)[0]
+            inc.append(x[:, W] - w0)
             x[:, LB] += self.rng.normal(0.0, self.cfg.sd_beta, len(x))
             x[:, LHIR] += self.rng.normal(0.0, self.cfg.sd_hir, len(x))
             x[:, LC] += self.rng.normal(0.0, self.cfg.sd_lc, len(x))
+        if self.H is not None:
+            self.H = np.concatenate([self.H[:, 7:], np.maximum(np.stack(inc, axis=1), 0.0)], axis=1)
         self.X = self._clip(x)
 
     # ---- generic EnSRF scalar update -------------------------------------
@@ -99,6 +124,14 @@ class EAKF:
         chi2 = float(innov**2 / (pyy + r_var))
         return x, {"ybar": ybar, "pyy": pyy, "chi2": chi2, "skipped": False}
 
+    def _aug_update(self, ens: np.ndarray, y: float, r_var: float) -> tuple[np.ndarray, dict]:
+        """EnSRF update of X; with a delay buffer the buffer is updated jointly as part of the state."""
+        if self.H is None:
+            return self._ensrf_update(self.X, ens, y, r_var)
+        x, info = self._ensrf_update(np.hstack([self.X, self.H]), ens, y, r_var)
+        self.H = np.maximum(x[:, DIM:], 0.0)
+        return x[:, :DIM], info
+
     # ---- observation updates ----------------------------------------------
     def update_admissions(self, y: float | None, sd_mult: float = 1.0) -> dict | None:
         if y is None or not np.isfinite(y):
@@ -106,7 +139,8 @@ class EAKF:
         r_var = max((self.cfg.r_rel * y) ** 2, self.cfg.r_floor**2)
         if sd_mult != 1.0:
             r_var *= sd_mult**2
-        x, info = self._ensrf_update(self.X, self.X[:, W].copy(), float(y), r_var)
+        ens = self.X[:, W].copy() if self.H is None else self.H @ self._adm_coef
+        x, info = self._aug_update(ens, float(y), r_var)
         self.X = self._clip(x)
         return info
 
@@ -117,7 +151,7 @@ class EAKF:
         if self.cfg.ed_intercept != 0.0:
             ens = ens + self.cfg.ed_intercept
         r_var = max((self.cfg.r_ili_rel * y_ili) ** 2, self.cfg.r_ili_floor**2)
-        x, info = self._ensrf_update(self.X, ens, float(y_ili), r_var)
+        x, info = self._aug_update(ens, float(y_ili), r_var)
         self.X = self._clip(x)
         return info
 

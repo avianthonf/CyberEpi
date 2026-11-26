@@ -120,6 +120,7 @@ def run_location(
                 lb_anchor=lb_anchor,
                 delay_mean_days=cfg.delay_mean_days,
                 depletion_gamma=cfg.depletion_gamma,
+                hist=filt.H if cfg.delay_consistent else None,
             )
             rows.extend(recs)
             trace.append(
