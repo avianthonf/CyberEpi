@@ -12,11 +12,21 @@ Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMIT
 - **Report acceptance bar:** sources opened, ≤3 unverified (exceptions noted below), top-5 at end.
 - **2026-11-28 run:** the schedule never fired; dispatched by hand, committed `fcbb614`.
   The CDC PR step skipped (no `FLUSIGHT_PR_TOKEN`; still missing). Check the 2026-12-02 run fires.
-- **Done and pushed:** shadow wiring + `score_live.py` + `SHADOW_PROTOCOL.md` (`160fcf7`);
-  archive scoring + `ARCHIVE_ANALYSIS.md` (`ccccf8e`); reports 01, 03 (4 unverified),
-  04, 06, 07 (4 unverified), 08 (12 [U], core papers verified), 10, 12.
-- **In flight:** 02 (running ablation D-0 on dev seasons), 05, 09, 11. **Not started:** 13.
-- **Then:** `SYNTHESIS.md` (Track A/B ranking), implement lab models in `backtest/shadow.py`.
+- **Research done:** all 13 family reports, `ARCHIVE_ANALYSIS.md`, and `SYNTHESIS.md`
+  (ranked Track A/B plan; §5 lab models, §6 dev-season experiments). Report 02 ablation
+  D-0: model 1's decline bias (~−0.35 h3) is not forward noise or backfill; D-3 mean
+  reversion, D-2 ED intercept, admission delay, depletion still open.
+- **Lab (shadow) live:** `shadow.py` runs MIX_QA, MIX_LP, BOCD_MIX, ETS_DECL, EAKF_ACI,
+  MIX_LAG (`backtest/lab/`); hypotheses registered in `SHADOW_PROTOCOL.md` §5a; 2026-11-28
+  lab forecasts committed before truth. Workflow links hub data into `data/flusight/`.
+- **PHASE_SHIFT held back:** `backtest/lab/phase_shift.py` exists but is not in `MODELS`.
+  Its shift table was estimated on a trend-drift proxy, not on the pool it corrects (sign
+  in rises is the opposite of the pool's known bias). Re-estimate once dev-season pool
+  forecasts exist, then register it.
+- **In flight:** `DevMembers` agent: as-of EAKF/GBQR/MIX_LP forecasts for every 2023-24
+  and 2024-25 reference week → `backtest/results/dev_members/`. Needed by PHASE_SHIFT,
+  BOCD κ check, and Track A experiments A1–A3.
+- **Then:** Track A per SYNTHESIS §6 (A0 as-of audit gates A1, A3; A2 after A3).
 - **Known, not new:** GBQR backtest ED is final-vintage; disclosed in `MODEL2_PROTOCOL.md`
   with an as-published robustness run (0.410 / 0.622).
 
