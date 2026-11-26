@@ -1,0 +1,11 @@
+model,kind,n_rows,n_ref_weeks,wis,cov50,cov95,rel_wis_vs_CyberEpi-EAKF,rel_wis_vs_FluSight-ensemble
+CyberEpi-EAKF,submitted,0,,,,,,
+CyberEpi-GBQR,submitted,0,,,,,,
+CyberEpi-BOCD_MIX,lab,0,,,,,,
+CyberEpi-EAKF_ACI,lab,0,,,,,,
+CyberEpi-ETS_DECL,lab,0,,,,,,
+CyberEpi-MIX_LAG,lab,0,,,,,,
+CyberEpi-MIX_LP,lab,0,,,,,,
+CyberEpi-MIX_QA,lab,0,,,,,,
+FluSight-ensemble,reference,1166,7.0,40.68993325378477,0.6698113207547169,0.9922813036020584,,
+FluSight-baseline,reference,1166,7.0,91.7669688269073,0.2993138936535163,0.9922813036020584,,2.2552744988435585
