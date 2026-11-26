@@ -226,7 +226,7 @@ Run first: D-0 ablation (§0.4). It separates drift, backfill and depletion befo
 ## 8. Top 5 recommendations (final, supersedes §5 and §6 where they differ)
 
 1. **Test D-3 (forward mean reversion) as the top candidate.** D-0 arm b removes forward β noise only and leaves the median unchanged, so it neither supports nor rules out reversion. D-3 is untested. §6's "most likely" ranking still stands as a hypothesis, not as a result.
-2. **Test the ED intercept (D-2) next.** It is the main surviving candidate: post-peak h3 bias of about −0.3 log units persists after both ablations.
+2. **Test the ED intercept (D-2) alongside D-3.** Co-candidate, not ranked below it: post-peak h3 bias of about −0.3 log units persists after both ablations, so the cause is not identified yet.
 3. **Test an infection-to-admission delay kernel (§3.3) and S depletion (§0.2 item 7)** in the same D-2 pass. Neither was ablated yet.
 4. **Keep backfill (D-5) as a small-effect item.** Dropping the last week moves post-peak bias about 11% and worsens WIS; low priority for model 1.
 5. **Do not change `model_config.json` or widen intervals.** Diagnosis is a median bias; repair the observation and structure first, then re-run D-0-style ablations on all dev locations under a fresh pre-registration. Fix `METHODS.md` drift separately.
