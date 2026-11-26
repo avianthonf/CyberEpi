@@ -42,6 +42,38 @@ DEFAULT_PARAMS = {"num_leaves": 15, "n_estimators": 300, "learning_rate": 0.05, 
 
 
 ED_SOURCE = os.environ.get("GBQR_ED", "final")  # "final" or "vintage" (robustness check)
+# A1 experiment options (opt-in; defaults leave forecasts unchanged).
+# LABEL_DROP_M > 0 drops training rows whose label week lies within m weeks of R-7.
+# BACKFILL=True rescales as-of admissions by f(age) estimated from older vintages only.
+LABEL_DROP_M = 0
+BACKFILL = False
+BACKFILL_MAX_AGE = 8  # weeks; older weeks are treated as mature (f = 1)
+
+
+def backfill_ratios(ref: pd.Timestamp) -> dict[int, float]:
+    """f(age) = sum(final) / sum(published) per age in weeks behind the vintage's newest week.
+
+    Published values come from vintages with as_of <= R - 8 weeks; "final" is the newest
+    vintage usable at R, so no value after R enters. Empty when no such vintage pair exists.
+    """
+    idx = vintage_index()
+    pick = pick_vintage(ref)
+    if pick is None:
+        return {}
+    final = load_vintages()
+    final = final[final["as_of"] == pick[0]][["location", "target_end_date", "observation"]]
+    old = idx[idx["as_of"] <= ref - BACKFILL_MAX_AGE * WEEK]
+    if old.empty:
+        return {}
+    v = load_vintages()
+    pub = v[v["as_of"].isin(old["as_of"])].merge(old, on="as_of")
+    pub["age"] = ((pub["max_week"] - pub["target_end_date"]) / WEEK).astype(int)
+    pub = pub[pub["age"] < BACKFILL_MAX_AGE]
+    m = pub.merge(final, on=["location", "target_end_date"], suffixes=("_pub", "_fin")).dropna(
+        subset=["observation_pub", "observation_fin"])
+    agg = m.groupby("age")[["observation_fin", "observation_pub"]].sum()
+    agg = agg[agg["observation_pub"] > 0]
+    return {int(a): float(r.observation_fin / r.observation_pub) for a, r in agg.iterrows()}
 
 
 def _ed_at(ref: pd.Timestamp) -> pd.DataFrame | None:
@@ -85,10 +117,11 @@ def build_panel(ref: pd.Timestamp, live: bool = False) -> pd.DataFrame | None:
         pick = pick_vintage(ref)
         if pick is None:
             return None
-        as_of, _ = pick
+        as_of, newest = pick
         ed = _ed_at(ref)
         if ed is None:
             return None
+        ratios = backfill_ratios(ref) if BACKFILL else {}
     locs = load_locations().set_index("location")["population"]
     frames = []
     for loc, pop in locs.items():
@@ -96,6 +129,9 @@ def build_panel(ref: pd.Timestamp, live: bool = False) -> pd.DataFrame | None:
         if s.empty:
             continue
         df = pd.DataFrame({"week": s.index, "adm": s.to_numpy(float)})
+        if BACKFILL and not live:
+            age = ((newest - s.index) / WEEK).astype(int)
+            df["adm"] = df["adm"] * np.array([ratios.get(int(a), 1.0) for a in age])
         df["location"] = loc
         df["pop"] = float(pop)
         frames.append(df)
@@ -137,6 +173,8 @@ def forecast_origin(ref: pd.Timestamp, params: dict, live: bool = False) -> list
     def fitted(k: int) -> list:
         if k not in models:
             train = p.dropna(subset=["lr", f"y{k}"])
+            if LABEL_DROP_M:
+                train = train[train["week"] + k * WEEK <= ref - WEEK - LABEL_DROP_M * WEEK]
             models[k] = [
                 lgb.LGBMRegressor(objective="quantile", alpha=float(q), verbose=-1, n_jobs=1,
                                   **params).fit(train[FEATURES], train[f"y{k}"])
