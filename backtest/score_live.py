@@ -47,7 +47,7 @@ def model_paths(forecasts: str, hub: str) -> list[tuple[str, str, str]]:
     out = []
     for kind, sub in (("submitted", "model-output"), ("lab", "shadow")):
         for p in sorted(glob.glob(os.path.join(forecasts, sub, "*"))):
-            if os.path.isdir(p):
+            if os.path.isdir(p) and os.path.basename(p) != "diagnostics":
                 out.append((os.path.basename(p), p, kind))
     for name in HUB_REFS:
         p = os.path.join(hub, "model-output", name)

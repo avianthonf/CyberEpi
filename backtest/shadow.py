@@ -81,10 +81,36 @@ def mix_linear_pool(ref, ctx) -> pd.DataFrame:
     return to_long(pd.DataFrame(out, index=a.index, columns=a.columns))
 
 
+def _lab(module: str):
+    """Lazy import of backtest/lab/<module>.run. Lab modules import this file as
+    `shadow`, so importing them at load time would be circular."""
+
+    def fn(ref, ctx):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lab"))
+        return __import__(module).run(ref, ctx)
+
+    return fn
+
+
+def bocd_mix(ref, ctx) -> pd.DataFrame:
+    """BOCD mixture; also writes the per-location changepoint weights."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lab"))
+    df, diag = __import__("bocd_mix").run_with_diagnostics(ref, ctx)
+    d = os.path.join(ctx.forecasts, "shadow", "diagnostics")
+    os.makedirs(d, exist_ok=True)
+    diag.to_csv(os.path.join(d, f"bocd_mix-{ref}.csv"), index=False)
+    return df
+
+
 # name -> function. Names follow the hub's team-model convention but are never submitted.
+# Lab models B2-B5 are specified in docs/research/SYNTHESIS.md §5.
 MODELS = {
     "CyberEpi-MIX_QA": mix_quantile_average,
     "CyberEpi-MIX_LP": mix_linear_pool,
+    "CyberEpi-BOCD_MIX": bocd_mix,
+    "CyberEpi-ETS_DECL": _lab("ets_decl"),
+    "CyberEpi-EAKF_ACI": _lab("eakf_aci"),
+    "CyberEpi-MIX_LAG": _lab("mix_lag"),
 }
 
 

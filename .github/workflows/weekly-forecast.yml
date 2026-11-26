@@ -39,6 +39,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # CyberEpi-MIX_LAG checks when last week's files were first committed
 
       - uses: actions/setup-python@v5
         with:
@@ -53,8 +55,14 @@ jobs:
             https://github.com/cdcepi/FluSight-forecast-hub hub
           git -C hub sparse-checkout set target-data auxiliary-data hub-config \
             model-output/FluSight-ensemble model-output/FluSight-baseline
-          # time-series.csv is large and only the backtest needs it
-          rm -f hub/target-data/time-series.csv
+          # Lab models read as-of vintages (time-series.csv, target-data-archive)
+          # through the backtest layout data/flusight/.
+          mkdir -p data/flusight
+          for f in target-data/time-series.csv target-data/oracle-output.csv \
+                   target-data/target-ed-visits-prop.csv target-data/target-hospital-admissions.csv \
+                   auxiliary-data/locations.csv auxiliary-data/target-data-archive model-output; do
+            ln -s "$PWD/hub/$f" "data/flusight/$(basename "$f")"
+          done
 
       - name: Skip if this week is already committed
         id: done

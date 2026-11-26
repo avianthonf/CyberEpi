@@ -91,6 +91,25 @@ Failing any condition, the model stays in the lab. A model with a bug fix that c
 its forecasts restarts its clock from the fix week. The graduation decision is recorded
 in this file with the commit it was based on.
 
+## 5a. Registered lab models
+
+Specs: `docs/research/SYNTHESIS.md` §5. Every model is tested under sections 3–5 above;
+the rows below add each model's own hypothesis, so a verdict cannot be reframed after
+the fact. Frozen constants live in each module header (`backtest/lab/`); all were chosen
+on 2023-24 and 2024-25 only. Past seasons (including 2025-26) may be used as training
+history for a live forecast, never to choose a parameter.
+
+| Model | First week | Hypothesis | Phase-level check (descriptive, reported at verdict) |
+|---|---|---|---|
+| `CyberEpi-MIX_QA`, `CyberEpi-MIX_LP` | 2026-11-28 | Equal-weight pools of models 1 and 2 beat model 1. | none |
+| `CyberEpi-BOCD_MIX` | 2026-11-28 | Mixing in a "trend turned" forecast (full reversal of the 3-week slope, κ = 1) weighted by the changepoint posterior beats `CyberEpi-MIX_LP` around turning points. κ = 1 is a large frozen choice; the verdict may hinge on it. | relWIS vs `CyberEpi-MIX_LP` in the ±2 weeks around each location's peak |
+| `CyberEpi-ETS_DECL` | 2026-11-28 | A damped-trend ETS on log1p counts (φ = 0.9) is a better declining-phase forecaster than model 1, which runs low in declines (report 02, ablation D-0). Assumption: interval width grows with √horizon. | relWIS vs `CyberEpi-EAKF` in declining-phase rows |
+| `CyberEpi-EAKF_ACI` | 2026-11-28 | Adaptive conformal widening (γ = 0.01) brings model 1's 50% and 90% coverage to nominal without a WIS loss. Its raw input is `CyberEpi-EAKF` itself. | coverage gap vs `CyberEpi-EAKF` at 50% and 90% |
+| `CyberEpi-MIX_LAG` | 2026-11-28 | Adding last week's model 1 and 2 forecasts to the pool beats `CyberEpi-MIX_LP`. Falls back to the two-member pool when a lagged file was not committed before the reference date (logged in diagnostics). | relWIS vs `CyberEpi-MIX_LP` |
+
+`CyberEpi-MIX_LAG` equals `CyberEpi-MIX_LP` on 2026-11-28 (no lagged file exists yet); that
+week is excluded from its test.
+
 ## 6. Scope limits
 
 - No model is tuned on live scores once it is shadowed. Changes to a lab model are bug
@@ -101,3 +120,4 @@ in this file with the commit it was based on.
 ## Change log
 
 - 2026-11-26: protocol written (before any shadow truth exists).
+- 2026-11-26: section 5a added; four lab models registered before their first scored week.
