@@ -118,6 +118,8 @@ def run_location(
                 rng=emit_rng,
                 beta_revert_hl_wk=cfg.beta_revert_hl_wk,
                 lb_anchor=lb_anchor,
+                delay_mean_days=cfg.delay_mean_days,
+                depletion_gamma=cfg.depletion_gamma,
             )
             rows.extend(recs)
             trace.append(

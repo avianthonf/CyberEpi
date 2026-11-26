@@ -35,6 +35,8 @@ class EakfConfig:
     ed_intercept: float = 0.0     # fixed ED baseline b in the ED observation c*I/N + b; 0.0 = off
     beta_revert_hl_wk: float = 0.0  # forward log-beta mean-reversion half-life (weeks); 0.0 = off
     beta_anchor: str = "trailing6"  # reversion target: "trailing6" (mean posterior log-beta, last 6 weeks) or "season"
+    delay_mean_days: float = 0.0  # forward infection-to-admission Erlang-2 delay mean (days); 0.0 = off
+    depletion_gamma: float = 1.0  # forward extra S depletion: log-beta += (gamma-1)*dlog(S); 1.0 = off
     seed: int = 0
 
 

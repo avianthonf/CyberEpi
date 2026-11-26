@@ -148,6 +148,7 @@ def _cfg(a: dict) -> EakfConfig:
         sd_beta_fwd=a["sd_beta_fwd"], seed=a["seed"], lag0_sd_mult=a.get("lag0_sd_mult", 1.0),
         ed_intercept=a.get("ed_intercept", 0.0), beta_revert_hl_wk=a.get("beta_revert_hl_wk", 0.0),
         beta_anchor=a.get("beta_anchor", "trailing6"),
+        delay_mean_days=a.get("delay_mean_days", 0.0), depletion_gamma=a.get("depletion_gamma", 1.0),
     )
 
 
