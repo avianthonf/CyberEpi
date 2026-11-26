@@ -44,3 +44,7 @@ forecasts/_work/
 
 # Archive scorer per-forecast rows (regenerable, 12 MB)
 backtest/results/archive/rows.parquet
+
+# Dev-season member forecasts (52 MB; regenerate with backtest/dev_members.py)
+backtest/results/dev_members/*.csv
+!backtest/results/dev_members/mix_lp_phase_error.csv
