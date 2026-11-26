@@ -19,14 +19,14 @@ Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMIT
 - **Lab (shadow) live:** `shadow.py` runs MIX_QA, MIX_LP, BOCD_MIX, ETS_DECL, EAKF_ACI,
   MIX_LAG (`backtest/lab/`); hypotheses registered in `SHADOW_PROTOCOL.md` §5a; 2026-11-28
   lab forecasts committed before truth. Workflow links hub data into `data/flusight/`.
-- **PHASE_SHIFT held back:** `backtest/lab/phase_shift.py` exists but is not in `MODELS`.
-  Its shift table was estimated on a trend-drift proxy, not on the pool it corrects (sign
-  in rises is the opposite of the pool's known bias). Re-estimate once dev-season pool
-  forecasts exist, then register it.
-- **In flight:** `DevMembers` agent: as-of EAKF/GBQR/MIX_LP forecasts for every 2023-24
-  and 2024-25 reference week → `backtest/results/dev_members/`. Needed by PHASE_SHIFT,
-  BOCD κ check, and Track A experiments A1–A3.
-- **Then:** Track A per SYNTHESIS §6 (A0 as-of audit gates A1, A3; A2 after A3).
+- **PHASE_SHIFT dropped (2026-11-26):** re-estimated on the dev-season pool, phase adds
+  almost nothing beyond a horizon-level shift, and that shift comes mostly from 2024-25
+  (2023-24 pool is near unbiased). Not registered; module kept in `backtest/lab/`.
+- **Dev-season members built** (`bf19bd8`, `backtest/dev_members.py`, ~3 min on 8 CPUs,
+  needs Python ≥3.10): relWIS vs baseline EAKF 0.689, GBQR 0.654, **MIX_LP 0.577** pooled;
+  pool coverage 0.49/0.87. Submitting the pool is an open owner decision (new hub model).
+- **In flight:** `A0Audit` (as-of data audit → `docs/research/A0_ASOF_AUDIT.md`).
+- **Then:** Track A per SYNTHESIS §6 (A0 gates A1, A3; A2 after A3), using dev_members.
 - **Known, not new:** GBQR backtest ED is final-vintage; disclosed in `MODEL2_PROTOCOL.md`
   with an as-published robustness run (0.410 / 0.622).
 
