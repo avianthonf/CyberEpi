@@ -3,6 +3,23 @@
 This is everything a new session needs to continue CyberEpi from an empty context.
 Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMITTING.md`.
 
+## 0. Live status (updated 2026-11-26 by the orchestrating session; supersedes §2–3 where they differ)
+
+- **Working mode:** this session orchestrates; dense work goes to subagents, at most 4
+  running at once (owner's instruction). Local paths: repo `/Users/avinash/Projects/CyberEpi`,
+  hub clone `/Users/avinash/Projects/flusight-forecast-hub`, linked into gitignored
+  `data/flusight/`. Commits as `Claude <noreply@anthropic.com>` (repo-local config).
+- **Report acceptance bar:** sources opened, ≤3 unverified (exceptions noted below), top-5 at end.
+- **2026-11-28 run:** the schedule never fired; dispatched by hand, committed `fcbb614`.
+  The CDC PR step skipped (no `FLUSIGHT_PR_TOKEN`; still missing). Check the 2026-12-02 run fires.
+- **Done and pushed:** shadow wiring + `score_live.py` + `SHADOW_PROTOCOL.md` (`160fcf7`);
+  archive scoring + `ARCHIVE_ANALYSIS.md` (`ccccf8e`); reports 01, 03 (4 unverified),
+  04, 06, 07 (4 unverified), 08 (12 [U], core papers verified), 10, 12.
+- **In flight:** 02 (running ablation D-0 on dev seasons), 05, 09, 11. **Not started:** 13.
+- **Then:** `SYNTHESIS.md` (Track A/B ranking), implement lab models in `backtest/shadow.py`.
+- **Known, not new:** GBQR backtest ED is final-vintage; disclosed in `MODEL2_PROTOCOL.md`
+  with an as-published robustness run (0.410 / 0.622).
+
 ## 1. The goal and the owner's standing instructions
 
 - **Goal:** an honest, hard-to-attack flu forecaster submitted live to CDC FluSight
