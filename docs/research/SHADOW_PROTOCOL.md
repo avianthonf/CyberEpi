@@ -123,3 +123,4 @@ week is excluded from its test.
 - 2026-11-26: protocol written (before any shadow truth exists).
 - 2026-11-26: section 5a added; four lab models registered before their first scored week.
 - 2026-11-26: `CyberEpi-GBQR_CQR` registered (A5 window b on model 2) before its first scored week.
+- 2026-11-26: `CyberEpi-GBQR_CQR` warm table embedded in the module and warm-start index aligned to the season calendar (≤3% change to its 2026-11-28 forecast); fixed before any truth for that week existed.

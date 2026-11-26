@@ -47,7 +47,7 @@ Per-horizon relWIS and large-count coverage are reported, not part of the decisi
 
 ## Results
 
-Run 2026-11-26T03:52Z–03:53Z, after pre-registration. Driver `backtest/a4_intervals.py`; output `backtest/results/a4/summary.json`. The first run was discarded before any decision was made, for two reasons. First, NaN oracle values were cast to int inside the φ fit. Second, the small-count window was taken per model, and EAKF's horizon −1 rows widened it, so the models got different small-location sets. The fixed run drops NaN rows before fitting and uses one shared small-location set per fold. The method and pass rule did not change.
+Decision run 2026-11-26T03:53Z; rerun with the post-hoc NB-small arm 03:55Z–03:56Z (U and NB numbers unchanged), both after pre-registration. Driver `backtest/a4_intervals.py`; output `backtest/results/a4/summary.json`. The first run was discarded before any decision was made, for two reasons. First, NaN oracle values were cast to int inside the φ fit. Second, the small-count window was taken per model, and EAKF's horizon −1 rows widened it, so the models got different small-location sets. The fixed run drops NaN rows before fitting and uses one shared small-location set per fold. The method and pass rule did not change.
 
 **U arm** = the dev_members files themselves. They are read only and were not changed (mtimes predate the run). Scoring tests pass (4/4). `ruff check backtest` passes. Runtime: 44 s for everything.
 
@@ -96,3 +96,18 @@ Overall relWIS vs baseline, U → NB: EAKF 0.799→1.056 and 0.650→0.681; GBQR
 - **The cost is at h0–h1.** h3 is roughly neutral (0.99–1.05). h0 roughly doubles WIS in 2023-24, because a horizon-independent φ discards the models' horizon-growing spread.
 - **Small counts are not the coverage problem in dev.** In 2024-25 no location has a median below 10/wk. On rows with observed < 10, unmodified coverage is closer to nominal than overall coverage is (e.g. MIX_LP 2024-25 .582/.916 vs .444/.827). The undercoverage is at large counts, in line with A5/B4 (calibration by horizon), not with a count-noise layer.
 - **Phase bias:** NB keeps the unmodified median (the 0.5 quantile is the U value; the cummax monotonisation can only raise it when NB lower quantiles exceed it, which is rare). Phase bias therefore equals U's to within that effect and was not recomputed.
+
+### Scope deviation and post-hoc arm NB-small (not part of the decision)
+
+The pre-registered NB arm rewrites the intervals of **every** location, but the A4 idea targets small counts. The failure comes from the large-count stratum: NB/U relWIS on large locations is 1.32 / 1.15 / 1.17 in 2023-24, while the small location stays close to 1 (GBQR 0.90). So the decision of record tests "NB for all locations", not "NB for small counts". A labelled post-hoc arm, **NB-small**, applies NB only to locations whose **training-season** median is below 10/wk (no look-ahead) and leaves every other location unmodified:
+
+| Model | Fold | gate | NB-small relWIS vs U | gated-location cov50/cov90, U → NB-small |
+|---|---|---|---|---|
+| EAKF | 2023-24 | none (2024-25 has no small location) | 1.000 (identical to U) | n/a |
+| EAKF | 2024-25 | 02 | 1.000 | .389/.722 → .407/.741 |
+| GBQR | 2023-24 | none | 1.000 | n/a |
+| GBQR | 2024-25 | 02 | 1.000 | .324/.620 → .417/.815 |
+| MIX_LP | 2023-24 | none | 1.000 | n/a |
+| MIX_LP | 2024-25 | 02 | 1.000 | .417/.732 → .370/.732 |
+
+The NB-small arm is WIS-neutral overall by construction, because it touches only one location (108 rows), and it is untestable on 2023-24. Coverage on location 02 improves for EAKF and GBQR but not for MIX_LP. The dev seasons contain too few small-count locations (1, or 0 with the strict < 10 cut) to test A4 as intended. **The small-count question is unresolved, not refuted.** Every small-count statement here rests on one location. No φ was tuned after seeing results.
