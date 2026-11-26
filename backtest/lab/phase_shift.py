@@ -11,15 +11,29 @@ Shift: an additive log1p-scale shift per (phase, horizon), applied to every
 quantile of the base pool, so quantile ordering is preserved.
 
 Table estimation (estimate(), dev seasons 2023-24 and 2024-25 only):
-  - Base proxy used for estimation: persistence, log1p(y_L) for every horizon.
-    Dev-season EAKF/GBQR outputs are not in the repo, so the shift is estimated
-    on this proxy, not on MIX_LP. The table is a phase correction to trend
-    extrapolation, and is not verified on MIX_LP.
-  - Error e = log1p(truth at ref+7h) - log1p(y_L), with truth = latest vintage.
-  - Cell (phase, h) = median e over both seasons pooled. Required: at least
-    MIN_ROWS rows in each season, and the two single-season medians share a sign
-    (LOSO: each season checks the other). Otherwise the cell is 0.
-  - Never 2025-26 or later.
+  - Base proxy used for estimation: log-linear drift from as-of data,
+    log1p(y_L) + g * (gap + h), where gap = (R - L) in weeks (1 normally, 2 when
+    a vintage is missing; rows with gap > MAX_GAP dropped). Dev-season
+    EAKF/GBQR outputs are not in the repo (forecasts/model-output holds only
+    2026-11-28; backtest/results holds summaries only), so the table is the
+    phase bias of trend extrapolation, not a measured MIX_LP bias. The FluSight
+    ensemble and persistence were not used: the ensemble is published after the
+    deadline, and persistence's error is just the trend (≈ g*(h+1)), which
+    MIX_LP already models.
+  - Error e = log1p(truth at R+7h) - proxy, with truth = latest vintage.
+  - Cell (phase, h) = median e over both seasons pooled, rounded to 3 dp.
+    Required: at least MIN_ROWS rows in each season, and the two single-season
+    medians share a sign (LOSO: each season checks the other). Otherwise 0.
+  - Never 2025-26 or later. Rows: 12,708 (2023-24: 6,772; 2024-25: 5,936).
+
+Frozen LOSO record (median e; 2023-24 | 2024-25 -> shift):
+  rising     h0 -0.128|-0.062 -> -0.100  h1 -0.244|-0.196 -> -0.236
+             h2 -0.363|-0.448 -> -0.396  h3 -0.571|-0.795 -> -0.654
+  peak       h0 -0.020|+0.000 ->  0 (sign unstable)  h1 -0.042|-0.158 -> -0.067
+             h2 -0.123|-0.315 -> -0.154  h3 -0.168|-0.456 -> -0.249
+  declining  h0 +0.077|+0.188 -> +0.132  h1 +0.089|+0.272 -> +0.182
+             h2 +0.166|+0.368 -> +0.254  h3 +0.167|+0.500 -> +0.299
+Reproduce: estimate(proxy_rows()).
 
 Diagnostics: module-level `last_diagnostics` (one row per location). Written to
 ctx.diagnostics_dir/phase_shift-<ref>.csv if that attribute exists.
@@ -47,11 +61,12 @@ DEV_SEASONS = (2023, 2024)  # season start years
 MIN_ROWS = 20
 SEASON_MONTHS = (10, 11, 12, 1, 2, 3, 4, 5)
 
+MAX_GAP = 2  # drop dev rows whose as-of vintage is more than 2 weeks stale
 # ---- frozen table: log1p-scale additive shift, rows = phase, columns = horizon 0..3 ----
 SHIFT = {
-    "rising": (0.0, 0.0, 0.0, 0.0),
-    "peak": (0.0, 0.0, 0.0, 0.0),
-    "declining": (0.0, 0.0, 0.0, 0.0),
+    "rising": (-0.100, -0.236, -0.396, -0.654),
+    "peak": (0.0, -0.067, -0.154, -0.249),
+    "declining": (0.132, 0.182, 0.254, 0.299),
 }
 
 last_diagnostics: pd.DataFrame = pd.DataFrame()
@@ -83,7 +98,7 @@ def growth_asof(loc: str, ref: pd.Timestamp):
 
 
 def proxy_rows() -> pd.DataFrame:
-    """Dev-season rows: as-of phase, persistence error per horizon. Dev seasons only."""
+    """Dev-season rows: as-of phase, drift-proxy log1p error per horizon. Dev seasons only."""
     v = load_vintages()
     truth = {(l, t): o for l, t, o in
              v.sort_values("as_of")[["location", "target_end_date", "observation"]].itertuples(index=False)}
@@ -98,12 +113,16 @@ def proxy_rows() -> pd.DataFrame:
                 continue
             s = series_at(as_of, loc, last)
             base = np.log1p(float(s.iloc[-1]))
+            gap = int((ref - last) / WEEK)  # 1 normally; larger when a vintage is missing
+            if gap > MAX_GAP:
+                continue
             for h in HORIZONS:
                 t = truth.get((loc, ref + h * WEEK))
                 if t is None or pd.isna(t):
                     continue
+                pred = base + g * (gap + h)  # drift proxy: log1p(y_L) + g * weeks ahead of L
                 rows.append({"season": season_start(ref), "ref": ref, "location": loc, "horizon": h,
-                             "phase": phase_of(g), "err": np.log1p(float(t)) - base})
+                             "phase": phase_of(g), "gap": gap, "err": np.log1p(float(t)) - pred})
     return pd.DataFrame(rows)
 
 
