@@ -86,19 +86,19 @@ WIS and decomposition on hub quantiles for 15 models: ~20 s on this machine (sin
 
 ## 6. Power analysis (relWIS differences)
 
-Per-week log ratio d_r = log(Σ WIS_lab / Σ WIS_FluSight-ensemble) for 9 pairs × 2 completed seasons (2024-25, 2025-26), from `backtest/results/archive/rows.parquet` (`/tmp/r13/power.py`).
+Per-week d_r = log(Σ WIS_lab / Σ WIS_FluSight-ensemble) over identical rows (horizons 0–3), from `backtest/results/archive/rows.parquet` (`/tmp/r13/power.py`). Lab set: 8 models × 2 completed seasons (2024-25, 2025-26) = 15 season rows. FluSight-baseline is excluded: it is a reference, not a lab model. An earlier pass included it and inflated σ and ρ.
 
-- Pooled within-season SD of d_r: σ ≈ 0.276 (range 0.077–0.501 across pairs; FluSight-baseline excluded as it is not a lab model).
-- Mean lag-1 autocorrelation of within-season residuals: ρ₁ ≈ 0.54 (range −0.03 to 0.89); mean lag-2 ρ₂ ≈ 0.25 (range −0.27 to 0.75), computed over the same eight pairs (`/tmp/r13`). An AR(1) fit with ρ₁=0.58 gives variance inflation (1+ρ)/(1−ρ) ≈ 3.8. Using the empirical autocorrelations directly, 1+2(ρ₁+ρ₂) ≈ 2.6 with truncation at lag 2; the truth lies between these, so I report both.
-- Weeks T for 80% power at two-sided α=0.05, effect = relWIS reduction of x (δ = −ln(1−x)), AR(1)-inflated:
+- Pooled within-season SD of d_r: σ ≈ 0.239 (RMS over 15 rows). Worst lab row: CU-ensemble 2025-26, SD 0.432.
+- Lag-1 autocorrelation of within-season residuals: ρ₁ ≈ 0.54 (range −0.03 to 0.76). Lag-2: ρ₂ ≈ 0.25 (range −0.27 to 0.54). AR(1) with ρ₁=0.54 gives inflation (1+ρ)/(1−ρ) ≈ 3.36; truncated at lag 2, 1+2(ρ₁+ρ₂) ≈ 2.57. I report both.
+- Weeks T for 80% power, two-sided α=0.05, effect = relWIS reduction x (δ = −ln(1−x)), AR-inflated (factor 3.36):
 
-| effect | T (pooled σ) | T (worst pair σ=0.50) | T if iid |
+| effect | T (pooled σ=0.239) | T (worst row σ=0.432) | T if iid |
 |---|---|---|---|
-| 5% | ≈ 858 | ≈ 2,800 | ≈ 228 |
-| 10% | ≈ 203 | ≈ 670 | ≈ 54 |
-| 20% | ≈ 45 | ≈ 149 | ≈ 12 |
+| 5% | ≈ 573 | ≈ 1,870 | ≈ 171 |
+| 10% | ≈ 136 | ≈ 444 | ≈ 40 |
+| 20% | ≈ 30 | ≈ 99 | ≈ 9 |
 
-With the protocol's minimum T = 20 weeks, the minimal detectable effect is ≈ 24–28% (pooled σ; inflation 2.6 to 3.8), far above the 5–20% range of interest. [INFERENCE] The estimate rests on two seasons and eight pairs chosen as top models, so it is optimistic for weaker pairs and the pooled σ is probably understated for a fresh season. The conclusion (20 weeks cannot resolve 5–10% differences) is robust to these caveats: even the iid case needs 54 weeks for 10%.
+With the protocol's minimum T = 20 weeks, the minimal detectable effect is ≈ 21–24% (pooled σ; inflation 2.57 to 3.36). [INFERENCE] Two seasons and eight pairs chosen as top models make this optimistic for weaker pairs, and a fresh season may have larger σ. The conclusion holds: 20 weeks cannot resolve 5–10% differences, and even iid needs 40 weeks for 10%.
 
 ## 7. Audit of SHADOW_PROTOCOL.md and score_live.py
 
@@ -137,5 +137,5 @@ Track A (no 2025-26 holdout; pre-registered; leave-one-season-out over 2023-24, 
 1. Add log-scale WIS as a pre-registered co-primary or sensitivity analysis; the count and log relWIS disagree in sign for several models.
 2. Replace the US-weighted d_r with a per-location pooled log-relWIS as a sensitivity check, since the US is 45.6% of ensemble WIS from 1.9% of rows.
 3. Implement the protocol's DM/HAC, bootstrap, Holm, horizon check, and truth-vintage recording in `score_live.py`; today it outputs only ratio-of-means relWIS.
-4. Recognise that T = 20 weeks gives ≈ 28% minimal detectable effect (AR-inflated, pooled σ); tighten the gate or extend the minimum.
+4. Recognise that T = 20 weeks gives ≈ 21–24% minimal detectable effect (lab models only, AR-inflated, pooled σ); tighten the gate or extend the minimum.
 5. Replace the t(T−1) reference with a block-bootstrap or Andrews-HAC check, verified by size simulation on archived d_r before graduation.
