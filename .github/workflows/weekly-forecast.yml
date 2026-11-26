@@ -10,9 +10,10 @@
 #       override the contributor details below (defaults are the ones
 #       registered with the hub for CyberEpi-EAKF).
 #   COMMIT_FORECASTS = "false"
-#       stop committing each week's files to forecasts/ on main. On by
-#       default: the commits are a public, timestamped record that each
-#       forecast existed before its scores did.
+#       stop committing each week's files to forecasts/ and the weekly live
+#       scores to backtest/results/live/ on main. On by default: the commits
+#       are a public, timestamped record that each forecast existed before
+#       its scores did.
 name: weekly-forecast
 
 on:
@@ -50,7 +51,8 @@ jobs:
         run: |
           git clone --depth 1 --filter=blob:none --sparse \
             https://github.com/cdcepi/FluSight-forecast-hub hub
-          git -C hub sparse-checkout set target-data auxiliary-data hub-config
+          git -C hub sparse-checkout set target-data auxiliary-data hub-config \
+            model-output/FluSight-ensemble model-output/FluSight-baseline
           # time-series.csv is large and only the backtest needs it
           rm -f hub/target-data/time-series.csv
 
@@ -94,6 +96,13 @@ jobs:
           python3 backtest/live.py --hub hub --out forecasts --kind gbqr \
             --reference-date "${{ steps.done.outputs.ref }}"
           rm -rf forecasts/_work
+
+      # Lab models (shadow mode, SHADOW_PROTOCOL.md): written to forecasts/shadow/,
+      # committed with forecasts/, never submitted. Cannot block the forecast.
+      - name: Shadow lab models
+        if: steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'
+        continue-on-error: true
+        run: python3 backtest/shadow.py --forecasts forecasts --reference-date "${{ steps.done.outputs.ref }}"
 
       - name: Upload forecast files
         if: steps.done.outputs.already != 'true' && steps.run.outputs.stale != 'true'
@@ -163,3 +172,25 @@ jobs:
           gh pr create --repo "$UPSTREAM" --base main --head "$owner:$branch" \
             --title "CyberEpi forecasts for $REF" \
             --body "Weekly forecast submission for reference date $REF:$models. Generated and validated by https://github.com/avianthonf/CyberEpi/blob/main/.github/workflows/weekly-forecast.yml"
+
+      # Scores submitted and lab models against the latest CDC truth. Runs last
+      # and cannot block the submission above.
+      - name: Score live forecasts
+        id: score
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: python3 backtest/score_live.py --hub hub --forecasts forecasts --out backtest/results/live
+
+      - name: Commit live scores
+        if: ${{ !cancelled() && steps.score.outcome == 'success' && (vars.COMMIT_FORECASTS || 'true') == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backtest/results/live
+          if git diff --cached --quiet; then
+            echo "No change in live scores."
+            exit 0
+          fi
+          git commit -m "live scores: $(date -u +%Y-%m-%d)"
+          git pull --rebase origin main
+          git push origin HEAD:main
