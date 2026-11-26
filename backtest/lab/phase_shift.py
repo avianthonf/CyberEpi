@@ -11,35 +11,38 @@ Shift: an additive log1p-scale shift per (phase, horizon), applied to every
 quantile of the base pool, so quantile ordering is preserved.
 
 Table estimation (estimate(), dev seasons 2023-24 and 2024-25 only):
-  - Base proxy used for estimation: log-linear drift from as-of data,
-    log1p(y_L) + g * (gap + h), where gap = (R - L) in weeks (1 normally, 2 when
-    a vintage is missing; rows with gap > MAX_GAP dropped). Dev-season
-    EAKF/GBQR outputs are not in the repo (forecasts/model-output holds only
-    2026-11-28; backtest/results holds summaries only), so the table is the
-    phase bias of trend extrapolation, not a measured MIX_LP bias. The FluSight
-    ensemble and persistence were not used: the ensemble is published after the
-    deadline, and persistence's error is just the trend (≈ g*(h+1)), which
-    MIX_LP already models.
-  - Error e = log1p(truth at R+7h) - proxy, with truth = latest vintage.
+  - Source: as-of dev-season MIX_LP forecasts,
+    backtest/results/dev_members/<ref>-CyberEpi-MIX_LP.csv (57 reference dates;
+    regenerate with backtest/dev_members.py). This is the same pool run() shifts.
+  - Error e = log1p(truth) - log1p(pool median), truth = latest vintage;
+    e > 0 means the pool is low. Phase per (ref, location) by the rule above.
   - Cell (phase, h) = median e over both seasons pooled, rounded to 3 dp.
     Required: at least MIN_ROWS rows in each season, and the two single-season
     medians share a sign (LOSO: each season checks the other). Otherwise 0.
-  - Never 2025-26 or later. Rows: 12,708 (2023-24: 6,772; 2024-25: 5,936).
+  - Never 2025-26 or later. Rows: 12,078 (2023-24: 6,354; 2024-25: 5,724).
 
 Frozen LOSO record (median e; 2023-24 | 2024-25 -> shift):
-  rising     h0 -0.128|-0.062 -> -0.100  h1 -0.244|-0.196 -> -0.236
-             h2 -0.363|-0.448 -> -0.396  h3 -0.571|-0.795 -> -0.654
-  peak       h0 -0.020|+0.000 ->  0 (sign unstable)  h1 -0.042|-0.158 -> -0.067
-             h2 -0.123|-0.315 -> -0.154  h3 -0.168|-0.456 -> -0.249
-  declining  h0 +0.077|+0.188 -> +0.132  h1 +0.089|+0.272 -> +0.182
-             h2 +0.166|+0.368 -> +0.254  h3 +0.167|+0.500 -> +0.299
-Reproduce: estimate(proxy_rows()).
+  rising     h0 +0.033|+0.213 -> +0.111  h1 +0.051|+0.362 -> +0.163
+             h2 +0.087|+0.497 -> +0.254  h3 +0.134|+0.633 -> +0.387
+  peak       h0  0.000|+0.197 -> 0 (no sign)  h1 +0.033|+0.248 -> +0.105
+             h2  0.000|+0.327 -> 0 (no sign)  h3  0.000|+0.405 -> 0 (no sign)
+  (2023-24 peak medians are exactly 0 with errors split evenly, e.g. h2 109
+  above / 110 below, only 5-16 exact ties: no direction rather than a sign flip.)
+  declining  h0 +0.066|+0.175 -> +0.128  h1 +0.087|+0.249 -> +0.173
+             h2 +0.095|+0.357 -> +0.222  h3 +0.031|+0.405 -> +0.248
+Phase-free comparator (estimate_horizon_only): +0.113, +0.161, +0.226, +0.288,
+all sign-stable (2023-24 +0.04..+0.08; 2024-25 +0.19..+0.51). Phase residual
+beyond that season x horizon level (median, 2023-24 | 2024-25): rising
++0.005|+0.069, peak -0.043|-0.030, declining +0.012|-0.037 (sign flips). The
+table is mostly a level shift driven by 2024-25; phase adds little.
+Reproduce: estimate(pool_rows()).
 
 Diagnostics: module-level `last_diagnostics` (one row per location). Written to
 ctx.diagnostics_dir/phase_shift-<ref>.csv if that attribute exists.
 """
 from __future__ import annotations
 
+import glob
 import os
 import sys
 
@@ -59,14 +62,13 @@ PHASES = ("rising", "peak", "declining")
 HORIZONS = (0, 1, 2, 3)
 DEV_SEASONS = (2023, 2024)  # season start years
 MIN_ROWS = 20
-SEASON_MONTHS = (10, 11, 12, 1, 2, 3, 4, 5)
 
-MAX_GAP = 2  # drop dev rows whose as-of vintage is more than 2 weeks stale
+DEV_DIR = os.path.join(_BT, "results", "dev_members")
 # ---- frozen table: log1p-scale additive shift, rows = phase, columns = horizon 0..3 ----
 SHIFT = {
-    "rising": (-0.100, -0.236, -0.396, -0.654),
-    "peak": (0.0, -0.067, -0.154, -0.249),
-    "declining": (0.132, 0.182, 0.254, 0.299),
+    "rising": (0.111, 0.163, 0.254, 0.387),
+    "peak": (0.0, 0.105, 0.0, 0.0),
+    "declining": (0.128, 0.173, 0.222, 0.248),
 }
 
 last_diagnostics: pd.DataFrame = pd.DataFrame()
@@ -97,39 +99,42 @@ def growth_asof(loc: str, ref: pd.Timestamp):
     return (ly[-1] - ly[0]) / LAG, as_of, last, ""
 
 
-def proxy_rows() -> pd.DataFrame:
-    """Dev-season rows: as-of phase, drift-proxy log1p error per horizon. Dev seasons only."""
+def pool_rows(dev_dir: str = DEV_DIR) -> pd.DataFrame:
+    """Dev-season rows: as-of phase, log1p error of the MIX_LP median vs latest-vintage truth."""
     v = load_vintages()
     truth = {(l, t): o for l, t, o in
              v.sort_values("as_of")[["location", "target_end_date", "observation"]].itertuples(index=False)}
-    locs = sorted(v["location"].unique())
     rows = []
-    for ref in pd.date_range("2023-10-01", "2025-05-31", freq="W-SAT"):
-        if ref.month not in SEASON_MONTHS or season_start(ref) not in DEV_SEASONS:
+    for f in sorted(glob.glob(os.path.join(dev_dir, "*-CyberEpi-MIX_LP.csv"))):
+        df = pd.read_csv(f, dtype={"location": str}, parse_dates=["reference_date", "target_end_date"])
+        ref = df["reference_date"].iloc[0]
+        if season_start(ref) not in DEV_SEASONS:
             continue
-        for loc in locs:
-            g, as_of, last, why = growth_asof(loc, ref)
-            if why:
+        med = df[(df.output_type_id.round(3) == 0.5) & df.horizon.isin(HORIZONS)]
+        phase = {}
+        for r in med.itertuples(index=False):
+            if r.location not in phase:
+                g, _, _, why = growth_asof(r.location, ref)
+                phase[r.location] = None if why else phase_of(g)
+            t = truth.get((r.location, r.target_end_date))
+            if phase[r.location] is None or t is None or pd.isna(t):
                 continue
-            s = series_at(as_of, loc, last)
-            base = np.log1p(float(s.iloc[-1]))
-            gap = int((ref - last) / WEEK)  # 1 normally; larger when a vintage is missing
-            if gap > MAX_GAP:
-                continue
-            for h in HORIZONS:
-                t = truth.get((loc, ref + h * WEEK))
-                if t is None or pd.isna(t):
-                    continue
-                pred = base + g * (gap + h)  # drift proxy: log1p(y_L) + g * weeks ahead of L
-                rows.append({"season": season_start(ref), "ref": ref, "location": loc, "horizon": h,
-                             "phase": phase_of(g), "gap": gap, "err": np.log1p(float(t)) - pred})
+            rows.append({"season": season_start(ref), "ref": ref, "location": r.location,
+                         "horizon": int(r.horizon), "phase": phase[r.location],
+                         "err": np.log1p(float(t)) - np.log1p(max(float(r.value), 0.0))})
     return pd.DataFrame(rows)
 
 
-def estimate(rows: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
+def estimate_horizon_only(rows: pd.DataFrame) -> tuple[tuple, pd.DataFrame]:
+    """Phase-free comparator: same LOSO rule, all phases pooled."""
+    t, rep = estimate(rows.assign(phase="all"), phases=("all",))
+    return t["all"], rep
+
+
+def estimate(rows: pd.DataFrame, phases=PHASES) -> tuple[dict, pd.DataFrame]:
     """Frozen-table estimator and LOSO sign report. Returns (table, loso_report)."""
     table, report = {}, []
-    for p in PHASES:
+    for p in phases:
         table[p] = []
         for h in HORIZONS:
             per = {}
