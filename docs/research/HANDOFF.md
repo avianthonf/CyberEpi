@@ -10,8 +10,9 @@ Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMIT
   hub clone `/Users/avinash/Projects/flusight-forecast-hub`, linked into gitignored
   `data/flusight/`. Commits as `Claude <noreply@anthropic.com>` (repo-local config).
 - **Report acceptance bar:** sources opened, ≤3 unverified (exceptions noted below), top-5 at end.
-- **2026-11-28 run:** the schedule never fired; dispatched by hand, committed `fcbb614`.
-  The CDC PR step skipped (no `FLUSIGHT_PR_TOKEN`; still missing). Check the 2026-12-02 run fires.
+- **Weekly run:** the 2026-11-28 forecast was dispatched by hand (`fcbb614`); the schedule
+  then fired on its own 2026-11-26 02:22 UTC (scored, committed live scores). The CDC PR
+  step skips until the owner adds `FLUSIGHT_PR_TOKEN`.
 - **Research done:** all 13 family reports, `ARCHIVE_ANALYSIS.md`, and `SYNTHESIS.md`
   (ranked Track A/B plan; §5 lab models, §6 dev-season experiments). Report 02 ablation
   D-0: model 1's decline bias (~−0.35 h3) is not forward noise or backfill; D-3 mean
@@ -25,8 +26,18 @@ Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMIT
 - **Dev-season members built** (`bf19bd8`, `backtest/dev_members.py`, ~3 min on 8 CPUs,
   needs Python ≥3.10): relWIS vs baseline EAKF 0.689, GBQR 0.654, **MIX_LP 0.577** pooled;
   pool coverage 0.49/0.87. Submitting the pool is an open owner decision (new hub model).
-- **In flight:** `A0Audit` (as-of data audit → `docs/research/A0_ASOF_AUDIT.md`).
-- **Then:** Track A per SYNTHESIS §6 (A0 gates A1, A3; A2 after A3), using dev_members.
+- **Track A results (all in `docs/research/experiments/`, all FAIL, models unchanged; new
+  options default off and byte-identical):**
+  - A0 audit (`A0_ASOF_AUDIT.md`): NHSN vintages pass for 2024-25, 2023-24 unverifiable;
+    dev-season ED is final-only; `run_vintage` now writes explicit skip rows.
+  - A1 model 2 labels: label-drop worsens 2024-25; revisions are a ~1.03 level shift,
+    not lag-dependent backfill.
+  - A3 model 1 lag-aware obs error: no gain at h0/h1; biases unchanged.
+  - A2 model 1 structure: D-1 shows the filter is ~unbiased at analysis, so the decline
+    bias builds in the forward horizon. D-3 hl2 reversion lowers WIS (2024-25 h3 0.622 →
+    0.556) but misses the bias rule and worsens rises; D-2 ED intercept inconsistent.
+- **In flight:** A2b (admission-delay kernel, S depletion in model 1) and A4 (count-aware
+  NegBin intervals on dev members). A5 (CQR) queued.
 - **Known, not new:** GBQR backtest ED is final-vintage; disclosed in `MODEL2_PROTOCOL.md`
   with an as-published robustness run (0.410 / 0.622).
 
