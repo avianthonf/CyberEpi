@@ -53,7 +53,7 @@ _BT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BT not in sys.path:
     sys.path.insert(0, _BT)
 
-from run_vintage import WEEK, load_vintages, pick_vintage, series_at  # noqa: E402
+from run_vintage import load_vintages, pick_vintage, series_at  # noqa: E402
 from shadow import KEY, mix_linear_pool  # noqa: E402
 
 LAG = 3
