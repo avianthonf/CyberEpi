@@ -36,8 +36,16 @@ Read this first, then `docs/research/PROBLEM_BRIEF.md`, `ROADMAP.md` and `SUBMIT
   - A2 model 1 structure: D-1 shows the filter is ~unbiased at analysis, so the decline
     bias builds in the forward horizon. D-3 hl2 reversion lowers WIS (2024-25 h3 0.622 →
     0.556) but misses the bias rule and worsens rises; D-2 ED intercept inconsistent.
-- **In flight:** A2b (admission-delay kernel, S depletion in model 1) and A4 (count-aware
-  NegBin intervals on dev members). A5 (CQR) queued.
+  - A4 NegBin intervals: fail all members; width does not transfer across seasons;
+    undercoverage is in large-count locations, not small counts.
+  - A2b delay kernel (forward only) passed its bias rule, but A2c (same delay inside the
+    filter's observation operator, the consistent model) fails: 2024-25 better, 2023-24
+    worse to 1.33 at h3. Treat A2b's gain as an artefact. S depletion fails.
+  - A5 horizon-wise CQR: only model 2 with a rolling 8-week window passes, thinly → lab
+    model `CyberEpi-GBQR_CQR` (registered §5a, `65d61e9`).
+- **Net:** no Track A change to models 1 or 2 has survived. Strongest dev-season fact is
+  the pool (MIX_LP 0.577 vs 0.689/0.654). Open owner decisions: submit the pool as a third
+  hub model; add `FLUSIGHT_PR_TOKEN`.
 - **Known, not new:** GBQR backtest ED is final-vintage; disclosed in `MODEL2_PROTOCOL.md`
   with an as-published robustness run (0.410 / 0.622).
 
