@@ -31,6 +31,7 @@ class EakfConfig:
     use_ili: bool = True
     s_obs: float = 0.10           # quantile jitter on emitted forecasts
     sd_beta_fwd: float = 0.03     # per-day log-beta drift during forecasts
+    lag0_sd_mult: float = 1.0     # admissions obs SD multiplier for the newest (lag-0) week; 1.0 = off
     seed: int = 0
 
 
@@ -94,10 +95,12 @@ class EAKF:
         return x, {"ybar": ybar, "pyy": pyy, "chi2": chi2, "skipped": False}
 
     # ---- observation updates ----------------------------------------------
-    def update_admissions(self, y: float | None) -> dict | None:
+    def update_admissions(self, y: float | None, sd_mult: float = 1.0) -> dict | None:
         if y is None or not np.isfinite(y):
             return None
         r_var = max((self.cfg.r_rel * y) ** 2, self.cfg.r_floor**2)
+        if sd_mult != 1.0:
+            r_var *= sd_mult**2
         x, info = self._ensrf_update(self.X, self.X[:, W].copy(), float(y), r_var)
         self.X = self._clip(x)
         return info
@@ -114,10 +117,10 @@ class EAKF:
     def reset_week(self) -> None:
         self.X[:, W] = 0.0
 
-    def step_week(self, y_adm: float | None, y_ili: float | None = None) -> dict:
+    def step_week(self, y_adm: float | None, y_ili: float | None = None, adm_sd_mult: float = 1.0) -> dict:
         """Full week: forecast 7 days, admissions update, ILI update, W reset."""
         self.forecast_week()
-        adm = self.update_admissions(y_adm)
+        adm = self.update_admissions(y_adm, adm_sd_mult)
         ili = self.update_ili(y_ili) if self.cfg.use_ili else None
         self.reset_week()
         return {"adm": adm, "ili": ili}

@@ -87,7 +87,8 @@ def run_location(
         ili = None
         if ili_map is not None:
             ili = ili_map.get(w_end.normalize().to_datetime64())
-        diag = filt.step_week(None if pd.isna(y) else float(y), ili)
+        sd_mult = cfg.lag0_sd_mult if w_end == wk.index[-1] else 1.0  # newest week = first report (lag 0)
+        diag = filt.step_week(None if pd.isna(y) else float(y), ili, sd_mult)
         ref = np.datetime64((w_end + pd.Timedelta(days=7)).date())
         if ref in origins:
             # Per-origin RNG: emission draws depend only on (loc, season,

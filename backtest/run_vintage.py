@@ -143,7 +143,7 @@ def _cfg(a: dict) -> EakfConfig:
         n_members=a["members"], sd_beta=a["sd_beta"], sd_hir=a["sd_hir"],
         r_rel=a["r_rel"], r_ili_rel=a["r_ili_rel"], sd_lc=a["sd_lc"],
         inflation=a["inflation"], s_obs=a["s_obs"], use_ili=a["ili"] != "none",
-        sd_beta_fwd=a["sd_beta_fwd"], seed=a["seed"],
+        sd_beta_fwd=a["sd_beta_fwd"], seed=a["seed"], lag0_sd_mult=a.get("lag0_sd_mult", 1.0),
     )
 
 
