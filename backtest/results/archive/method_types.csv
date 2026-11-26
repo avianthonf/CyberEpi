@@ -1,0 +1,159 @@
+model,team,scored,ensemble_flag,mechanistic,statistical,ML,deep_learning,ensemble,human_judgement,baseline,llm_agent,matched
+ACCIDDA-Chromantis,ACCIDDA,1,False,0,0,1,1,0,0,0,0,ML=trees; deep_learning=neural; ensemble=flag
+ACCIDDA-insightcast,ACCIDDA,1,True,0,1,0,1,1,0,0,0,"statistical=arima,random walk; deep_learning=chronos,foundation model,pretrained,timesfm; ensemble=flag"
+BFrimpong-baseline,BFrimpong,1,False,1,0,0,0,0,0,1,0,"mechanistic=mechanistic,sirs; ensemble=flag"
+BFrimpong-sirs,BFrimpong,1,False,1,1,0,0,0,0,0,0,mechanistic=sirs; statistical=growth rate; ensemble=flag
+BFrimpong-sirs_hol,BFrimpong,1,False,1,0,0,0,0,0,0,0,mechanistic=sirs; ensemble=flag
+BFrimpong-trend,BFrimpong,1,False,0,1,0,0,0,0,0,0,"statistical=damped,growth rate; ensemble=flag"
+BYFlu-STMGGP,BYFlu,1,False,0,1,0,0,0,0,0,0,statistical=gaussian process; ensemble=flag
+CADPH-FluCAT_Ensemble,CADPH,1,True,0,1,0,1,1,0,0,0,"statistical=arima,autoregress,damped,exponential smoothing,holt; deep_learning=neural; ensemble=flag"
+CADPH-FluCAT_HJudge_BU,CADPH,1,True,0,0,0,0,1,1,0,0,human_judgement=human judg; name:HJudge; ensemble=flag
+CADPH-FluCAT_HJudge_TD,CADPH,1,True,0,0,0,0,1,1,0,0,name:HJudge; ensemble=flag
+CCC_and_Tom-ARX23,CCC_and_Tom,1,True,0,1,1,0,1,0,0,0,statistical=autoregress; ML=quantile regression; ensemble=flag
+CEPH-Rtrend_fluH,CEPH,1,False,1,0,0,0,0,0,0,0,mechanistic=renewal; ensemble=flag
+CFA-NowcastAutoGP,CFA,0,True,0,1,0,0,1,0,0,0,statistical=gaussian process; ensemble=flag
+CFA-PyRenew_E,CFA,0,False,1,0,0,0,0,0,0,0,"mechanistic=pyrenew,renewal; ensemble=flag"
+CFA-PyRenew_H,CFA,1,False,1,0,0,0,0,0,0,0,"mechanistic=pyrenew,renewal; ensemble=flag"
+CFA-PyRenew_HE,CFA,1,False,1,0,0,0,0,0,0,0,"mechanistic=pyrenew,renewal; ensemble=flag"
+CFA_Pyrenew-Pyrenew_E_Flu,CFA_Pyrenew,0,False,1,0,0,0,0,0,0,0,"mechanistic=pyrenew,renewal; ensemble=flag"
+CFA_Pyrenew-Pyrenew_HE_Flu,CFA_Pyrenew,1,False,1,0,0,0,0,0,0,0,"mechanistic=pyrenew,renewal; ensemble=flag"
+CFA_Pyrenew-Pyrenew_H_Flu,CFA_Pyrenew,1,False,1,0,0,0,0,0,0,0,"mechanistic=pyrenew,renewal; ensemble=flag"
+CMU-TimeSeries,CMU,1,True,0,0,1,0,1,0,1,0,ML=quantile regression; ensemble=flag
+CMU-TimeSeries_Cal,CMU,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+CMU-climate_baseline,CMU,1,True,0,0,0,0,1,0,1,0,ensemble=flag
+CU-ARNB_Net,CU,1,False,0,1,0,1,0,0,0,0,statistical=negative binomial; deep_learning=neural; ensemble=flag
+CU-STS_Residual,CU,1,True,1,1,1,1,1,0,1,0,"mechanistic=eakf,mechanistic,sir; statistical=kalman; ML=lightgbm; deep_learning=attention,chronos,foundation model,lstm,timesfm; ensemble=flag"
+CU-STS_base,CU,1,True,1,1,1,1,1,0,1,0,"mechanistic=eakf,mechanistic,sir; statistical=kalman; ML=lightgbm; deep_learning=chronos,foundation model,timesfm; ensemble=flag"
+CU-ensemble,CU,1,True,1,1,1,1,1,0,0,0,"mechanistic=eakf,sir; statistical=exponential smoothing,holt,kalman,statistical model; ML=gradient boost,lightgbm,tree; deep_learning=neural; ensemble=flag"
+ChinaCDC-seasAR,ChinaCDC,0,False,0,1,0,0,0,0,0,0,"statistical=arima,autoregress; ensemble=flag"
+Cornell_JHU-SCARCHhierarSIR,Cornell_JHU,1,False,1,1,0,0,0,0,0,0,"mechanistic=mechanistic,sir; statistical=bayesian hierarch,statistical model; ensemble=flag"
+Cornell_JHU-hierarchSIR,Cornell_JHU,1,False,1,1,0,0,0,0,0,0,"mechanistic=mechanistic,sir; statistical=bayesian hierarch,statistical model; ensemble=flag"
+CyberEpi-EAKF,CyberEpi,0,False,1,0,0,0,0,0,0,0,"mechanistic=compartment,eakf,mechanistic,seihdr; ensemble=flag"
+DMAPRIME-DLM,DMAPRIME,1,False,0,1,0,0,0,0,0,0,"statistical=dlm,kalman,state-space; ensemble=flag"
+DMAPRIME-HYB,DMAPRIME,1,False,0,0,0,1,0,0,0,0,"deep_learning=attention,cnn,lstm; ensemble=flag"
+DMAPRIME-QR,DMAPRIME,1,False,0,0,1,0,0,0,0,0,"ML=boosted,lightgbm,quantile regression,trees; ensemble=flag"
+DMAPRIME-RF,DMAPRIME,1,False,0,0,1,0,0,0,0,0,ML=random forest; ensemble=flag
+DXRSI-RSI,DXRSI,0,True,0,0,0,0,1,0,0,1,llm_agent=llm; ensemble=flag
+DXRSI-T0,DXRSI,0,True,0,0,1,0,1,1,1,0,"ML=lightgbm,quantile regression; human_judgement=forecasters; ensemble=flag"
+DXRSI-T0_refit,DXRSI,0,True,0,0,1,0,1,1,1,0,"ML=lightgbm,quantile regression; human_judgement=forecasters; ensemble=flag"
+DXRSI-fixed_improver,DXRSI,0,True,0,0,0,0,1,0,0,1,"llm_agent=large language,llm; ensemble=flag"
+Emory-EpiRSI,Emory,1,True,1,0,1,1,1,0,0,1,"mechanistic=mechanistic; ML=boosted,lightgbm,quantile regression,trees; deep_learning=chronos,diffusion,foundation model,timesfm; llm_agent=llm; ensemble=flag"
+Epistorm-Ensemble_Flu,Epistorm,1,True,1,0,0,0,1,0,0,0,mechanistic=gleam; ensemble=flag
+FluCast-SeasonalRidge,FluCast,1,False,0,1,0,0,0,0,0,0,statistical=ridge; ensemble=flag
+FluSight-HJudge_ensemble,FluSight,1,True,0,0,0,0,1,1,0,0,name:HJudge; ensemble=flag
+FluSight-base_seasonal,FluSight,0,False,0,1,0,0,0,0,0,0,statistical=kernel density; ensemble=flag
+FluSight-baseline,FluSight,1,False,0,0,0,0,0,0,1,0,ensemble=flag
+FluSight-baseline_cat,FluSight,0,False,0,0,0,0,0,0,1,0,ensemble=flag
+FluSight-dist_cat,FluSight,0,False,0,0,0,0,0,0,0,0,ensemble=flag
+FluSight-ens_q_cat,FluSight,0,False,0,0,0,0,0,0,0,0,ensemble=flag
+FluSight-ens_q_cat_sub,FluSight,0,False,0,0,0,0,0,0,0,0,ensemble=flag
+FluSight-ensemble,FluSight,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+FluSight-equal_cat,FluSight,0,False,0,0,0,0,0,0,0,0,ensemble=flag
+FluSight-lop_norm,FluSight,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+FluSight-national_cat,FluSight,0,False,0,0,0,0,0,0,0,0,ensemble=flag
+FluSight-trained_mean,FluSight,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+FluSight-trained_med,FluSight,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+FluTurists-ensemble,FluTurists,1,True,0,1,1,1,1,0,0,0,"statistical=autoregress; ML=lightgbm,quantile regression; deep_learning=attention,lstm,temporal fusion,transformer; ensemble=flag"
+FluTurists-gbqr,FluTurists,1,False,0,0,1,0,0,0,0,0,"ML=gbqr,lightgbm; ensemble=flag"
+GH-model,GH,1,False,0,0,0,0,0,0,0,0,ensemble=flag
+GT-FluFNP,GT,1,False,0,0,0,1,0,0,0,0,ensemble=flag; manual:deep_learning
+GT_Influencers-ensemble,GT_Influencers,1,True,0,1,1,1,1,0,0,0,"statistical=growth rate,negative binomial,particle filter; ML=lightgbm,quantile regression; deep_learning=cnn; ensemble=flag"
+Gatech-ensemble_point,Gatech,1,True,0,1,0,0,1,0,0,0,"statistical=arima,autoregress; ensemble=flag"
+Gatech-ensemble_prob,Gatech,1,True,0,0,0,1,1,0,0,0,deep_learning=attention; ensemble=flag
+Gatech-ensemble_stat,Gatech,1,True,0,1,1,0,1,0,0,0,"statistical=arima,autoregress; ML=lightgbm,machine learning; ensemble=flag"
+Google_SAI-FluBoostQR,Google_SAI,1,True,0,0,1,0,1,0,0,0,"ML=gradient boost,lightgbm,quantile regression; ensemble=flag"
+Google_SAI-FluEns,Google_SAI,1,True,1,0,0,0,1,0,0,0,mechanistic=mechanistic; ensemble=flag
+HallAI-FluTrend,HallAI,1,False,0,1,0,0,0,0,0,0,"statistical=damped,growth rate; ensemble=flag"
+ISU_NiemiLab-ENS,ISU_NiemiLab,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+ISU_NiemiLab-GPE,ISU_NiemiLab,1,False,0,0,0,0,0,0,0,0,ensemble=flag
+ISU_NiemiLab-NLH,ISU_NiemiLab,1,False,0,1,0,0,0,0,0,0,statistical=hierarchical; ensemble=flag; manual:statistical
+ISU_NiemiLab-SIR,ISU_NiemiLab,1,False,1,0,0,0,0,0,0,0,mechanistic=sir; ensemble=flag
+JGracey-prime_radiant,JGracey,0,True,0,0,1,0,1,0,0,0,"ML=lightgbm,quantile regression; ensemble=flag"
+JHUAPL-DMD,JHUAPL,1,False,0,0,0,0,0,0,0,0,ensemble=flag
+JHUAPL-Morris,JHUAPL,1,False,0,1,0,1,0,0,0,0,"statistical=hierarchical; deep_learning=neural,surrogate; ensemble=flag"
+JHU_CSSE-CSSE_Ensemble,JHU_CSSE,1,True,0,1,0,1,1,0,0,0,"statistical=exponential smoothing,hierarchical,holt; deep_learning=lstm; ensemble=flag"
+JPAT-FluGBM,JPAT,0,True,0,0,1,1,1,0,0,0,"ML=boosted,catboost,histgb,lightgbm,quantile regression,xgboost; deep_learning=neural; ensemble=flag"
+LUcompUncertLab-chimera,LUcompUncertLab,1,False,1,0,0,0,0,0,0,0,mechanistic=seir; ensemble=flag
+LUcompUncertLab-puca,LUcompUncertLab,1,False,0,1,0,0,0,0,0,0,"statistical=hierarchical,random walk; ensemble=flag"
+LosAlamos-DoSiDo,LosAlamos,1,False,0,1,0,0,0,0,0,0,statistical=analog; ensemble=flag
+LosAlamos-ThinMint,LosAlamos,1,False,0,0,0,1,0,0,0,0,deep_learning=transformer; ensemble=flag; manual:deep_learning
+LosAlamos_NAU-CModel_Flu,LosAlamos_NAU,1,False,1,0,0,0,0,0,0,0,mechanistic=compartment; ensemble=flag
+MDPredict-SIRS,MDPredict,1,False,1,0,0,0,0,0,0,0,mechanistic=sirs; ensemble=flag
+MIGHTE-Base,MIGHTE,1,False,0,0,1,0,0,0,0,0,ML=lightgbm; ensemble=flag
+MIGHTE-Joint,MIGHTE,1,True,0,1,1,0,1,0,0,0,"statistical=arima,autoregress; ML=lightgbm; ensemble=flag"
+MIGHTE-Linear,MIGHTE,1,False,0,1,0,0,0,0,0,0,statistical=autoregress; ensemble=flag
+MIGHTE-Nsemble,MIGHTE,1,True,0,0,1,0,1,0,0,0,ML=lightgbm; ensemble=flag
+MOBS-EpyStrain_Flu,MOBS,1,False,1,0,0,0,0,0,0,0,mechanistic=slir; ensemble=flag
+MOBS-GLEAM_FLUH,MOBS,1,False,1,0,0,0,0,0,0,0,"mechanistic=compartment,epidemic model,gleam,metapopulation,slir; ensemble=flag"
+MOBS-GLEAM_NCB_FLUH,MOBS,1,False,1,0,1,1,0,0,0,0,"mechanistic=gleam; ML=bandit,reinforcement; deep_learning=neural; ensemble=flag"
+MOBS-GLEAM_PONG,MOBS,1,False,1,0,1,0,0,0,0,0,mechanistic=gleam; ML=reinforcement; ensemble=flag
+MOBS-GLEAM_RL_FLUH,MOBS,1,False,1,0,1,0,0,0,0,0,"mechanistic=gleam; ML=q-learning,reinforcement; ensemble=flag"
+MTsim-FluCast,MTsim,0,False,0,1,0,0,0,0,0,0,statistical=prophet; ensemble=flag
+Metaculus-cp,Metaculus,1,True,0,0,0,0,1,1,0,0,human_judgement=forecasters; ensemble=flag
+MetroCast-ensemble,MetroCast,0,True,0,0,0,0,1,0,0,0,ensemble=flag
+NAU-ABERT,NAU,1,False,0,0,1,0,0,0,0,0,"ML=boosted,lightgbm,quantile regression; ensemble=flag"
+NAU-FourCAT,NAU,1,False,0,0,1,1,0,0,0,0,ML=quantile regression; deep_learning=transformer; ensemble=flag; manual:deep_learning
+NAU-epymorph,NAU,1,False,1,1,0,0,0,0,0,0,mechanistic=compartment; statistical=particle filter; ensemble=flag
+NAU-vulPES,NAU,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+NAU_PyBNF-GroundHogCGR,NAU_PyBNF,1,False,0,0,0,0,0,0,0,0,ensemble=flag
+NAU_PyBNF-OracleSIHRS,NAU_PyBNF,1,False,1,1,0,0,0,0,0,0,"mechanistic=compartment,sihrs; statistical=particle filter; ensemble=flag"
+NDP-v1,NDP,1,False,0,1,0,0,0,0,0,0,statistical=statistical model; ensemble=flag; manual:statistical
+NEU_ISI-AdaptiveEnsemble,NEU_ISI,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+NEU_ISI-FluBcast,NEU_ISI,1,False,1,0,0,0,0,0,0,0,mechanistic=compartment; ensemble=flag
+NIH-Flu_ARIMA,NIH,1,False,1,1,0,0,0,0,0,0,"mechanistic=epidemic model,mechanistic; statistical=arima; ensemble=flag"
+NU-EMBERS,NU,1,False,1,1,0,0,0,0,0,0,"mechanistic=branching process,compartment,mechanistic,slir; statistical=particle filter; ensemble=flag"
+NU-FLARE,NU,1,False,1,1,0,0,0,0,0,0,"mechanistic=epidemic model,mechanistic; statistical=arima; ensemble=flag"
+NU-PGF_FLUH,NU,1,False,1,0,0,0,0,0,0,0,"mechanistic=branching process,compartment,mechanistic,slir; ensemble=flag"
+NU_Baselines-logrw,NU_Baselines,0,False,0,1,0,0,0,0,1,0,statistical=random walk; ensemble=flag
+NU_Baselines-naive,NU_Baselines,0,False,0,1,0,0,0,0,1,0,statistical=negative binomial; ensemble=flag
+NU_UCSD-GLEAM_AI_FLUH,NU_UCSD,1,False,1,0,0,1,0,0,0,0,"mechanistic=agent-based,epidemic model,gleam,metapopulation; deep_learning=surrogate; ensemble=flag; manual:deep_learning,mechanistic"
+OHTJHU-BM,OHTJHU,1,True,0,1,0,1,1,0,0,0,"statistical=ar(1; deep_learning=chronos,foundation model,moirai,pretrained,timesfm; ensemble=flag"
+OHTJHU-FLUFFHEAD,OHTJHU,1,False,1,1,0,0,0,0,0,0,"mechanistic=agent-based; statistical=negative binomial,ridge; ensemble=flag"
+OHT_JHU-nbxd,OHT_JHU,1,True,0,0,0,1,1,0,0,0,"deep_learning=n-beats,neural,tcn; ensemble=flag"
+Ozgen-GBQR,Ozgen,1,True,0,0,1,0,1,0,0,0,"ML=boosted,quantile regression; ensemble=flag"
+PLANET_NEU-ClaudeScience,PLANET_NEU,1,True,0,1,1,0,1,0,0,0,"statistical=analog,growth rate,hierarchical; ML=lightgbm,quantile regression; ensemble=flag; manual:ML,statistical"
+PSI-CAT_MOA,PSI,0,False,0,1,0,0,0,0,0,0,statistical=analog; ensemble=flag
+PSI-PROF,PSI,1,False,1,1,0,0,0,0,0,0,"mechanistic=compartment,mechanistic,sir; statistical=statistical model; ensemble=flag"
+PSI-PROF_MOA,PSI,1,False,1,1,0,0,0,0,0,0,"mechanistic=compartment,mechanistic,sir; statistical=analog,statistical model; ensemble=flag"
+PSI-PROF_beta,PSI,1,False,1,1,0,0,0,0,0,0,"mechanistic=compartment,mechanistic,sir; statistical=statistical model; ensemble=flag"
+SGroup-RandomForest,SGroup,1,True,1,0,1,0,1,0,0,0,mechanistic=compartment; ML=random forest; ensemble=flag
+SahilLab-Trio,SahilLab,0,True,0,1,1,1,1,0,0,0,"statistical=ar(2,bayesian hierarch; ML=lightgbm,quantile regression; deep_learning=gru; ensemble=flag"
+Schnitzels-stack5,Schnitzels,1,True,0,0,1,1,1,1,1,0,"ML=boosted,quantile regression,tree,trees; deep_learning=neural; human_judgement=forecasters; ensemble=flag"
+Sentinel-Ens,Sentinel,1,True,0,1,1,0,1,0,0,0,"statistical=autoregress; ML=boosted,lightgbm,trees; ensemble=flag"
+SigSci-BECAM,SigSci,0,False,0,0,0,0,0,0,0,0,ensemble=flag
+SigSci-CREG,SigSci,1,False,0,1,0,0,0,0,0,0,statistical=negative binomial; ensemble=flag
+SigSci-TSENS,SigSci,1,True,0,1,0,0,1,0,0,0,statistical=arima; ensemble=flag
+Stevens-GBR,Stevens,1,True,0,0,1,0,1,0,0,0,"ML=gradient boost,tree; ensemble=flag"
+Stevens-ILIForecast,Stevens,1,True,0,1,1,0,1,0,0,0,"statistical=arima; ML=gradient boost,machine learning,trees; ensemble=flag"
+UGA_CEID-Walk,UGA_CEID,1,False,0,1,0,0,0,0,0,0,statistical=random walk; ensemble=flag
+UGA_CEID-auto_AVG_LB,UGA_CEID,1,False,0,1,0,0,0,0,0,0,statistical=arima; ensemble=flag
+UGA_flucast-Copycat,UGA_flucast,1,False,0,1,0,0,0,0,0,0,"statistical=growth rate,pattern matching; ensemble=flag"
+UGA_flucast-INFLAenza,UGA_flucast,1,False,0,1,0,0,0,0,0,0,statistical=random walk; ensemble=flag
+UGA_flucast-OKeeffe,UGA_flucast,1,False,1,0,1,0,0,0,0,0,mechanistic=epidemic model; ML=machine learning; ensemble=flag
+UGA_flucast-Scenariocast,UGA_flucast,1,False,0,1,0,0,0,0,0,0,"statistical=growth rate,negative binomial; ensemble=flag"
+UGuelph-CompositeCurve,UGuelph,1,False,0,1,0,0,0,0,0,0,ensemble=flag; manual:statistical
+UGuelphensemble-GRYPHON,UGuelphensemble,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+UI_CompEpi-EpiGen,UI_CompEpi,1,True,0,1,0,1,1,0,0,0,"statistical=arima; deep_learning=lstm,transformer; ensemble=flag"
+UM-DeepOutbreak,UM,1,True,0,0,0,1,1,1,0,0,"deep_learning=attention,diffusion,neural,transformer; human_judgement=forecasters; ensemble=flag"
+UMass-AR2,UMass,1,False,0,1,0,0,0,0,0,0,statistical=ar(2; ensemble=flag
+UMass-axial_r2,UMass,1,True,0,0,0,1,1,0,0,0,"deep_learning=pretrained,transformer; ensemble=flag"
+UMass-flusion,UMass,1,True,0,1,1,0,1,0,0,0,"statistical=ar(6,ar(8; ML=gbqr,gradient boost,machine learning,quantile regression; ensemble=flag"
+UMass-peakGB,UMass,0,False,0,0,1,0,0,0,0,0,"ML=boosted,gradient boost,lightgbm,quantile regression; ensemble=flag"
+UMass-trends_ensemble,UMass,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+UNC_IDD-InfluPaint,UNC_IDD,1,False,0,0,0,1,0,0,0,0,deep_learning=diffusion; ensemble=flag
+UVAFluX-CESGCN,UVAFluX,1,False,0,0,0,1,0,0,0,0,"deep_learning=graph neural,neural; ensemble=flag"
+UVAFluX-Ensemble,UVAFluX,1,True,0,1,0,1,1,0,0,0,"statistical=arima,exponential smoothing,kalman; deep_learning=foundation model,lstm; ensemble=flag"
+UVAFluX-FS_OptimWISE,UVAFluX,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+UVAFluX-OptimWISE,UVAFluX,1,True,1,1,0,1,1,0,0,0,mechanistic=enkf; statistical=arima; deep_learning=lstm; ensemble=flag
+VTSanghani-Ensemble,VTSanghani,1,True,0,0,0,0,1,0,0,0,ensemble=flag
+VTSanghani-PRIME,VTSanghani,1,True,0,1,0,0,1,0,0,0,"statistical=analog,ar6,autoregress,ridge,statistical model; ensemble=flag"
+Xi_lab-Agents,Xi_lab,1,True,0,0,0,0,1,0,0,1,llm_agent=ai agent; ensemble=flag
+Xi_lab-GLEAM_AI,Xi_lab,1,False,1,0,0,1,0,0,0,0,"mechanistic=gleam,metapopulation; deep_learning=surrogate; ensemble=flag"
+Xi_lab-GLEAM_AI_hybrid,Xi_lab,1,True,1,0,0,1,1,1,0,0,"mechanistic=gleam,mechanistic,metapopulation; deep_learning=foundation model,neural,pretrained,surrogate,timesfm; human_judgement=forecasters; ensemble=flag"
+bayvaxbio-CountCast,bayvaxbio,1,True,0,1,0,0,1,0,1,0,"statistical=analog,damped,ridge; ensemble=flag"
+cfa-flumech,cfa,1,False,1,0,0,0,0,0,0,0,"mechanistic=mechanistic,seir; ensemble=flag"
+cfarenewal-cfaepimlight,cfarenewal,1,False,1,1,0,0,0,0,0,0,"mechanistic=mechanistic,renewal; statistical=random walk; ensemble=flag"
+docxology-panelqr,docxology,1,False,0,1,0,0,0,0,0,0,"statistical=autoregress,ridge; ensemble=flag"
+fjordhest-ensemble,fjordhest,1,True,1,1,0,0,1,0,0,0,"mechanistic=compartment,mechanistic,seir; statistical=autoregress,random walk; ensemble=flag"
+influcast-peak_gbm,influcast,1,False,0,0,1,0,0,0,0,0,"ML=boosted,gbm,lightgbm,quantile regression,trees; ensemble=flag"
+reasonspire-lagQR,reasonspire,1,False,0,0,1,0,0,0,0,0,"ML=boosted,lightgbm,quantile regression; ensemble=flag"

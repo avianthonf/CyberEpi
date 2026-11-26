@@ -98,6 +98,9 @@ def score(args):
     return df.drop(columns=["q"])
 
 
+COMPLETED_SEASONS = {"2023-24", "2024-25", "2025-26"}  # 2026-27 is in progress; its phases are provisional
+
+
 def phases(truth: pd.DataFrame) -> pd.DataFrame:
     """Epidemic phase of each (location, week) from final truth.
 
@@ -110,9 +113,13 @@ def phases(truth: pd.DataFrame) -> pd.DataFrame:
     out = []
     for (_, _), g in t.groupby(["location", "season"]):
         g = g.sort_values("d")
-        pk = g.loc[g["truth"].idxmax(), "d"]
-        dw = (g["d"] - pk).dt.days // 7
-        ph = np.where(dw.abs() <= 2, "near_peak", np.where(dw < 0, "rising", "declining"))
+        if g["season"].iloc[0] not in COMPLETED_SEASONS:
+            # Season still in progress: idxmax would be the peak so far, not the season peak.
+            ph = np.array(["provisional"] * len(g))
+        else:
+            pk = g.loc[g["truth"].idxmax(), "d"]
+            dw = (g["d"] - pk).dt.days // 7
+            ph = np.where(dw.abs() <= 2, "near_peak", np.where(dw < 0, "rising", "declining"))
         out.append(pd.DataFrame({"location": g["location"], "target_end_date": g["target_end_date"],
                                  "phase": ph}))
     return pd.concat(out, ignore_index=True)
@@ -130,7 +137,8 @@ def main():
     truth = tr.rename(columns={"date": "target_end_date", "value": "truth"})[["location", "target_end_date", "truth"]]
     truth["location"] = truth["location"].where(truth["location"] == "US", truth["location"].str.zfill(2))
 
-    paths = sorted(p for p in glob.glob(os.path.join(a.hub, "model-output/*")) if os.path.isdir(p))
+    paths = sorted(p for p in glob.glob(os.path.join(a.hub, "model-output/*"))
+                   if os.path.isdir(p))
     with Pool(a.ncpus) as pool:
         res = [r for r in pool.map(score, [(p, truth) for p in paths]) if r is not None]
     rows = pd.concat(res, ignore_index=True)
@@ -165,10 +173,12 @@ def main():
         for i in models:
             ratios = []
             for j in models:
+                if i == j:
+                    continue
                 both = piv[[i, j]].dropna()
                 if len(both) and both[j].mean() > 0:
                     ratios.append(both[i].mean() / both[j].mean())
-            theta[i] = float(np.exp(np.mean(np.log(ratios))))
+            theta[i] = float(np.exp(np.mean(np.log(ratios)))) if ratios else np.nan
         base = theta.get("FluSight-baseline", np.nan)
         for i in models:
             pw.append({"season": s, "model": i, "n": int(piv[i].notna().sum()),

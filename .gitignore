@@ -41,3 +41,6 @@ data/
 backtest/out/
 *.jsonl
 forecasts/_work/
+
+# Archive scorer per-forecast rows (regenerable, 12 MB)
+backtest/results/archive/rows.parquet
