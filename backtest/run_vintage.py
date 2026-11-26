@@ -21,7 +21,9 @@ ED-visit input (the model's second observation stream):
 `--ili final`   final ED values (small leakage; versions do not exist before
                 Nov 2025, so this is the only option for earlier seasons);
 `--ili vintage` as-published ED values too (fully vintage-correct); origins
-                before the first archived ED version are skipped;
+                before the first archived ED version produce no forecast and
+                an explicit trace row (skip_reason="no ED vintage"), counted
+                in the run's printed summary;
 `--ili none`    admissions only.
 
 Usage:
@@ -144,6 +146,8 @@ def _cfg(a: dict) -> EakfConfig:
         r_rel=a["r_rel"], r_ili_rel=a["r_ili_rel"], sd_lc=a["sd_lc"],
         inflation=a["inflation"], s_obs=a["s_obs"], use_ili=a["ili"] != "none",
         sd_beta_fwd=a["sd_beta_fwd"], seed=a["seed"], lag0_sd_mult=a.get("lag0_sd_mult", 1.0),
+        ed_intercept=a.get("ed_intercept", 0.0), beta_revert_hl_wk=a.get("beta_revert_hl_wk", 0.0),
+        beta_anchor=a.get("beta_anchor", "trailing6"),
     )
 
 
@@ -167,25 +171,33 @@ def _run_job(job: dict) -> dict:
         ref = pd.Timestamp(origin)
         pick = pick_vintage(ref)
         if pick is None:
-            trace.append({"location": loc, "reference_date": str(ref.date()), "as_of": None, "stale_weeks": None})
+            trace.append({"location": loc, "reference_date": str(ref.date()), "as_of": None, "stale_weeks": None,
+                          "skip_reason": "no admissions vintage"})
             continue
         as_of, max_week = pick
         if a["ili"] == "vintage":
             ili_map = ed_map_at(ref, loc)
             if not ili_map:
+                trace.append({"location": loc, "reference_date": str(ref.date()), "as_of": str(as_of.date()),
+                              "stale_weeks": None, "skip_reason": "no ED vintage"})
                 continue
         tw = series_at(as_of, loc, ref - WEEK)
         if tw.notna().sum() < 10:
+            trace.append({"location": loc, "reference_date": str(ref.date()), "as_of": str(as_of.date()),
+                          "stale_weeks": None, "skip_reason": "fewer than 10 observed weeks"})
             continue
-        r_rows, _ = run_location(
+        r_rows, f_trace = run_location(
             loc, pop, tw, cfg, {np.datetime64(ref.date())},
             SEASONS[season][0], SEASONS[season][1],
             ili_map=ili_map, run_rng_seed=run_seed,
         )
         rows.extend(r_rows)
-        trace.append({"location": loc, "reference_date": str(ref.date()),
-                      "as_of": str(as_of.date()),
-                      "stale_weeks": int((ref - WEEK - max_week) / WEEK)})
+        rec = {"location": loc, "reference_date": str(ref.date()),
+               "as_of": str(as_of.date()),
+               "stale_weeks": int((ref - WEEK - max_week) / WEEK)}
+        if a.get("filter_trace") and f_trace:
+            rec.update({k: f_trace[-1][k] for k in ("rt", "chi2", "adm_y", "adm_ybar")})
+        trace.append(rec)
     return {"status": "ok", "season": season, "loc": loc, "rows": rows, "trace": trace}
 
 
@@ -259,6 +271,9 @@ def main() -> None:
     rows.to_csv(os.path.join(args.out, f"rows-{args.label}.csv"), index=False)
     tr = pd.concat(traces, ignore_index=True)
     tr.to_csv(os.path.join(args.out, f"trace-{args.label}.csv"), index=False)
+    if "skip_reason" in tr:
+        for reason, n in tr["skip_reason"].dropna().value_counts().items():
+            print(f"[skip] {n} location-origins without a forecast: {reason}")
 
     summaries = {"config": a, "seasons": {}}
     for s in seasons:

@@ -32,6 +32,9 @@ class EakfConfig:
     s_obs: float = 0.10           # quantile jitter on emitted forecasts
     sd_beta_fwd: float = 0.03     # per-day log-beta drift during forecasts
     lag0_sd_mult: float = 1.0     # admissions obs SD multiplier for the newest (lag-0) week; 1.0 = off
+    ed_intercept: float = 0.0     # fixed ED baseline b in the ED observation c*I/N + b; 0.0 = off
+    beta_revert_hl_wk: float = 0.0  # forward log-beta mean-reversion half-life (weeks); 0.0 = off
+    beta_anchor: str = "trailing6"  # reversion target: "trailing6" (mean posterior log-beta, last 6 weeks) or "season"
     seed: int = 0
 
 
@@ -109,6 +112,8 @@ class EAKF:
         if y_ili is None or not np.isfinite(y_ili):
             return None
         ens = np.exp(self.X[:, LC]) * self.X[:, I] / self.p.N_pop
+        if self.cfg.ed_intercept != 0.0:
+            ens = ens + self.cfg.ed_intercept
         r_var = max((self.cfg.r_ili_rel * y_ili) ** 2, self.cfg.r_ili_floor**2)
         x, info = self._ensrf_update(self.X, ens, float(y_ili), r_var)
         self.X = self._clip(x)

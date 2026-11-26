@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from eakf import EAKF, EakfConfig
 from forecast import emit_rows
 from hub_data import ed_frac_by_location, load_locations, load_model_output, load_oracle, load_truth
-from seir_fast import FluParams
+from seir_fast import LB, FluParams
 from wis import weighted_interval_score
 
 
@@ -83,14 +83,26 @@ def run_location(
 
     rows: list[dict] = []
     trace: list[dict] = []
+    lb_hist: list[tuple[pd.Timestamp, float]] = []  # posterior-mean log-beta per week (reversion anchor)
     for w_end, y in wk.items():
         ili = None
         if ili_map is not None:
             ili = ili_map.get(w_end.normalize().to_datetime64())
         sd_mult = cfg.lag0_sd_mult if w_end == wk.index[-1] else 1.0  # newest week = first report (lag 0)
         diag = filt.step_week(None if pd.isna(y) else float(y), ili, sd_mult)
+        if cfg.beta_revert_hl_wk > 0:
+            lb_hist.append((w_end, float(filt.X[:, LB].mean())))
         ref = np.datetime64((w_end + pd.Timedelta(days=7)).date())
         if ref in origins:
+            lb_anchor = None
+            if cfg.beta_revert_hl_wk > 0:
+                if cfg.beta_anchor == "trailing6":
+                    lb_anchor = float(np.mean([v for _, v in lb_hist[-6:]]))
+                elif cfg.beta_anchor == "season":
+                    sv = [v for t, v in lb_hist if t >= pd.Timestamp(season_start)] or [lb_hist[-1][1]]
+                    lb_anchor = float(np.mean(sv))
+                else:
+                    raise ValueError(f"unknown beta_anchor {cfg.beta_anchor!r}")
             # Per-origin RNG: emission draws depend only on (loc, season,
             # origin), so batch and prospective single-origin runs emit
             # bit-identical rows for the same origin.
@@ -104,6 +116,8 @@ def run_location(
                 s_obs=cfg.s_obs,
                 sd_beta_fwd=cfg.sd_beta_fwd,
                 rng=emit_rng,
+                beta_revert_hl_wk=cfg.beta_revert_hl_wk,
+                lb_anchor=lb_anchor,
             )
             rows.extend(recs)
             trace.append(
@@ -114,6 +128,9 @@ def run_location(
                     "hir": filt.mean_hir(),
                     "c": filt.mean_c(),
                     "chi2": (diag.get("adm") or {}).get("chi2"),
+                    # admissions innovation at the last update before the origin (y minus prior ensemble mean)
+                    "adm_y": None if pd.isna(y) else float(y),
+                    "adm_ybar": (diag.get("adm") or {}).get("ybar"),
                 }
             )
     return rows, trace
