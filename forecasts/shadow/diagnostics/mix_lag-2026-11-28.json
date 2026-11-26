@@ -1,0 +1,10 @@
+{
+ "ref": "2026-11-28",
+ "lag_ref": "2026-11-21",
+ "flag": "fallback_two_member",
+ "reasons": [
+  "CyberEpi-EAKF@2026-11-21: no git history for forecasts/model-output/CyberEpi-EAKF/2026-11-21-CyberEpi-EAKF.csv",
+  "CyberEpi-GBQR@2026-11-21: no git history for forecasts/model-output/CyberEpi-GBQR/2026-11-21-CyberEpi-GBQR.csv"
+ ],
+ "rows_two_member": 0
+}
