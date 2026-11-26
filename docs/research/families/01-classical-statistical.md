@@ -3,7 +3,7 @@
 Scope: baselines, analogues, ARIMA/ETS, state space, count models, GAM/GP, Delphi-style judgement.
 Problem context: `docs/research/PROBLEM_BRIEF.md`. Data facts below are from the brief unless marked.
 
-Evidence status legend: **[OPENED]** = I read the source in this session (hub YAML files in `model-metadata/`). **[SEARCH]** = checked only through a search-result summary, not the full text. **[UNVERIFIED]** = from memory, not checked. **[INFERENCE]** = my reasoning, not observed.
+Evidence status legend: **[OPENED]** = I read the source in this session (hub YAML files in `model-metadata/`). **[SEARCH]** = checked only through a search-result summary, not the full text. **[STANDARD REF]** = bibliographic details checked by search (publisher or catalog listing); content not read. **[UNVERIFIED]** = from memory, not checked. **[INFERENCE]** = my reasoning, not observed.
 
 Summary of the main point: the classical toolkit is cheap and interpretable, and every component below fits in the weekly budget. The leverage is not in a fancier single model. It is in (a) proper handling of the reporting triangle, (b) honest log-scale predictive distributions whose width is learned on as-of data, and (c) a few components with different error phases to feed the combiner (family 08). Several classical teams are already in the hub, so the archive can test them directly once `archive_scores.py` has run.
 
@@ -149,7 +149,7 @@ Non-Gaussian and nonlinear versions (particle filters, EAKF) belong to family 03
 
 ### 4.3 Evidence
 - DMAPRIME-DLM is designated and uses this family **[OPENED]**. I did not read its scores.
-- Harvey, *Forecasting, Structural Time Series Models and the Kalman Filter* (Cambridge University Press, 1989) **[STANDARD REF]**: bibliographic details confirmed by catalog listing; equations and content not read.
+- Harvey, *Forecasting, Structural Time Series Models and the Kalman Filter* (Cambridge University Press, 1989) **[STANDARD REF]**: checked via ECU library catalog record (xvi+554 pp.); a Google Books listing shows a 1990 reprint. Equations and content not read.
 - Reich's group and the FluSight-era statistical entries use state-space-style covariate models **[INFERENCE]**.
 
 ### 4.4 Failure modes
@@ -177,7 +177,7 @@ Kalman filter on 53 locations with n≈250 weeks: under 1 s. MLE per location: a
 
 ### 5.3 Evidence
 - NU_Baselines-naive **[OPENED]**: one NB fit for all weeks with no trend. A useful floor for count-scale calibration.
-- INGARCH model class: Ferland, Latour & Oraichi (2006), J Time Series Anal 27(6):923–942, doi:10.1111/j.1467-9892.2006.00496.x **[STANDARD REF]**: bibliographic details confirmed by publisher listing; content not read.
+- INGARCH model class: Ferland, Latour & Oraichi (2006), "Integer-Valued GARCH Process," J Time Series Anal 27(6):923–942, doi:10.1111/j.1467-9892.2006.00496.x **[STANDARD REF]**: checked via Wiley DOI page and HAL record; content not read.
 
 ### 5.4 Failure modes
 - NB variance is quadratic in μ; at the US national scale (13.7k) it is far too narrow relative to real forecast errors dominated by reporting revisions. Count-scale NB is not a calibration cure.
@@ -202,7 +202,7 @@ NB-GLM or NB-INGARCH on 53 locations: under 5 s.
 - Both are candidates for Track B and for the combiner (family 08) as a differently-phased component.
 
 ### 6.3 Evidence
-- Wood, *Generalized Additive Models: An Introduction with R* (2nd ed., CRC Press, 2017) **[STANDARD REF]**: bibliographic details confirmed by publisher listing; content not read.
+- Wood, *Generalized Additive Models: An Introduction with R* (2nd ed., CRC Press, 2017) **[STANDARD REF]**: checked via Routledge/CRC publisher listing; content not read.
 - Rasmussen & Williams, *Gaussian Processes for Machine Learning* (MIT Press, 2006) **[OPENED]**: bibliographic entry verified from the title page and contents only; no content claims rest on it.
 - Hub: no GAM entry in any `methods:` field (grep above). GP appears once (BYFlu-STMGGP), so GP is rare but not unique.
 
