@@ -111,6 +111,7 @@ MODELS = {
     "CyberEpi-ETS_DECL": _lab("ets_decl"),
     "CyberEpi-EAKF_ACI": _lab("eakf_aci"),
     "CyberEpi-MIX_LAG": _lab("mix_lag"),
+    "CyberEpi-GBQR_CQR": _lab("gbqr_cqr"),
 }
 
 

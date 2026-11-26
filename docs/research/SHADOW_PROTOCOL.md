@@ -106,6 +106,7 @@ history for a live forecast, never to choose a parameter.
 | `CyberEpi-ETS_DECL` | 2026-11-28 | A damped-trend ETS on log1p counts (φ = 0.9) is a better declining-phase forecaster than model 1, which runs low in declines (report 02, ablation D-0). Assumption: interval width grows with √horizon. | relWIS vs `CyberEpi-EAKF` in declining-phase rows |
 | `CyberEpi-EAKF_ACI` | 2026-11-28 | Adaptive conformal widening (γ = 0.01) brings model 1's 50% and 90% coverage to nominal without a WIS loss. Its raw input is `CyberEpi-EAKF` itself. | coverage gap vs `CyberEpi-EAKF` at 50% and 90% |
 | `CyberEpi-MIX_LAG` | 2026-11-28 | Adding last week's model 1 and 2 forecasts to the pool beats `CyberEpi-MIX_LP`. Falls back to the two-member pool when a lagged file was not committed before the reference date (logged in diagnostics). | relWIS vs `CyberEpi-MIX_LP` |
+| `CyberEpi-GBQR_CQR` | 2026-11-28 | A5 window (b) applied live to model 2: horizon-wise CQR shifts on log1p (0.25/0.75 and 0.05/0.95 pairs, W = 8 origins, frozen 2024-25 dev warm start, median kept) make `CyberEpi-GBQR_CQR` beat `CyberEpi-GBQR` on WIS, with cov50 ∈ [.45,.55] and cov90 ∈ [.85,.95]. Dev evidence is thin: 1 of 6 A5 cells passed (GBQR × window b, 2023-24 relWIS 0.999). | coverage gap and relWIS vs `CyberEpi-GBQR` |
 
 `CyberEpi-MIX_LAG` equals `CyberEpi-MIX_LP` on 2026-11-28 (no lagged file exists yet); that
 week is excluded from its test.
@@ -121,3 +122,4 @@ week is excluded from its test.
 
 - 2026-11-26: protocol written (before any shadow truth exists).
 - 2026-11-26: section 5a added; four lab models registered before their first scored week.
+- 2026-11-26: `CyberEpi-GBQR_CQR` registered (A5 window b on model 2) before its first scored week.
