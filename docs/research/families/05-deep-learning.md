@@ -70,7 +70,7 @@ Phase medians, pooled 2023-26 season+phase rows (2026-27 excluded because it is 
 | near_peak | 1.124 (28) | 1.133 (102) |
 | declining | 1.518 (28) | 1.321 (104) |
 
-Reading: over 2023-26, DL is worse than non-DL in three of four season slices and in rising and declining phases. Near-peak is a tie. The 2026-27 DL advantage rests on 18 model-season rows from a few weeks of data and should not be used for a decision.
+Reading (keyword-flagged models, unconfirmed): over 2023-26, the flagged set is worse than non-DL in three of four season slices and in rising and declining phases. Near-peak is a tie. The flag comes from keyword matching in `method_types.csv` and includes ensembles and GLEAM hybrids, so these are not confirmed DL results. The 2026-27 flagged advantage rests on 18 model-season rows from a few weeks of data and should not be used for a decision.
 
 Individual DL rows (ensemble ref, n ≥ 300, season-level): OHT_JHU-nbxd 0.860 (2025-26, cov90 0.685); NAU-FourCAT 0.919 (2025-26, cov90 0.770); Gatech-ensemble_prob 0.930 (2026-27, partial, cov90 0.925); CU-ARNB_Net 1.030 (2025-26); UNC_IDD-InfluPaint 1.031 (2024-25, cov90 0.285); ACCIDDA-Chromantis 1.032 (2026-27, partial). For context, the overall best non-DL rows include UMass-flusion 0.779 (2023-24), Epistorm-Ensemble_Flu 0.844 (2025-26), and UGuelph-CompositeCurve 0.865 (2024-25).
 
@@ -195,7 +195,7 @@ Repo and hub evidence: `model-metadata/` (159 files; 40 keyword matches listed i
 ## Top 5 (for Main)
 
 1. Run B1 (Chronos-2 + TimesFM 2.5 zero-shot, shadow mode): inference is under 10 s on 4 CPUs, weights are Apache-2.0.
-2. Do not promote any DL model to Track A: over 2023-26 DL is worse than non-DL in rising and declining phases, and coverage is poor.
+2. Do not promote any keyword-flagged DL model to Track A. The flag is unconfirmed; the archive comparison is suggestive only (rising 1.21 vs 1.09, declining 1.52 vs 1.32), and coverage is poor for several flagged teams.
 3. Settle the 0.025/0.975 extrapolation rule before any TSFM run. It moves WIS.
 4. Read the TiRex NXAI clause (EU AI Act exclusions) before any use. Moirai 2.0 weights are non-commercial.
 5. Keep B5 (PINN) kill-first; pursue B2 (simulation pretraining) only if B1 fails on rises.
